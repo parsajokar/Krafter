@@ -1,5 +1,13 @@
 #pragma once
 
+#include <unordered_map>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/glm.hpp"
+#include "glm/gtx/hash.hpp"
+
+#include "block.h"
+
 namespace Krafter
 {
 
@@ -20,6 +28,7 @@ private:
     ~Game();
 
     float _delta;
+    ChunkMap _chunkMap;
 };
 
 } // namespace Krafter

@@ -4,8 +4,13 @@
 #include <string_view>
 #include <array>
 #include <vector>
+#include <unordered_map>
 #include <memory>
 #include <cstdint>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/glm.hpp"
+#include "glm/gtx/hash.hpp"
 
 #include "block.h"
 #include "camera.h"
@@ -60,7 +65,7 @@ enum class BlockFace
 class ChunkMesh
 {
 public:
-    ChunkMesh(const Chunk& chunk);
+    ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
     ~ChunkMesh();
 
     inline uint32_t GetElementCount() const { return _elementCount; }
@@ -90,8 +95,11 @@ public:
 
     inline Camera& GetCamera() { return _camera; }
 
+    void GenerateAllChunkMeshes(const ChunkMap& chunkMap);
+    void RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
+
     void ClearBuffers() const;
-    void RenderChunkMesh() const;
+    void RenderChunkMeshes() const;
     void RenderImGui();
 
 private:
@@ -109,7 +117,7 @@ private:
 
     std::shared_ptr<ShaderProgram> _program;
     std::shared_ptr<Texture2D> _texture;
-    std::shared_ptr<ChunkMesh> _chunkMesh;
+    std::unordered_map<glm::ivec2, std::shared_ptr<ChunkMesh>> _chunkMeshes;
 };
 
 } // namespace Krafter

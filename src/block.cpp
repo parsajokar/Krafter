@@ -27,7 +27,7 @@ const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)
     {
         return _blockAtlases.at(block);
     }
-    catch (std::runtime_error e)
+    catch (std::out_of_range e)
     {
         std::cerr << "Block atlas is not defined!" << std::endl;
         throw e;
@@ -63,6 +63,23 @@ Chunk::Chunk(const glm::ivec2& position)
             }
         }
     }
+}
+
+Chunk::Chunk(const Chunk& other)
+    : _position(other._position)
+{
+    std::cout << "Copying chunk at position (" << other._position.x << ", " << other._position.y << ")" << std::endl;
+    _blocks = new Block[WIDTH * WIDTH * HEIGHT];
+    for (uint32_t i = 0; i < WIDTH * WIDTH * HEIGHT; i++)
+    {
+        _blocks[i] = other._blocks[i];
+    }
+}
+
+Chunk::Chunk(Chunk&& other)
+    : _position(other._position), _blocks(other._blocks)
+{
+    other._blocks = nullptr;
 }
 
 Chunk::~Chunk()

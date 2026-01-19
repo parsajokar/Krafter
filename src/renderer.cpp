@@ -123,7 +123,7 @@ uint32_t ShaderProgram::CreateShader(uint32_t type, const char* source)
     return shader;
 }
 
-ChunkMesh::ChunkMesh(const Chunk& chunk)
+ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
 {
     std::vector<float> vertexBufferData;
     std::vector<uint32_t> elementBufferData;
@@ -143,7 +143,7 @@ ChunkMesh::ChunkMesh(const Chunk& chunk)
         {
             for (int32_t z = 0; z < Chunk::WIDTH; z++)
             {
-                if (chunk.GetBlock(glm::vec3(x, y, z)) == Block::AIR)
+                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::AIR)
                 {
                     continue;
                 }
@@ -158,11 +158,14 @@ ChunkMesh::ChunkMesh(const Chunk& chunk)
                     if (nx < 0 || nx >= Chunk::WIDTH ||
                         ny < 0 || ny >= Chunk::HEIGHT ||
                         nz < 0 || nz >= Chunk::WIDTH ||
-                        chunk.GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR)
+                        chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR)
                     {
                         AddFaceToData(
-                            glm::vec3(chunk.GetPosition().x + x, y, chunk.GetPosition().y + z),
-                            chunk.GetBlock(glm::vec3(x, y, z)), face,
+                            glm::vec3(
+                                chunkMap.at(chunkPosition).GetPosition().x * Chunk::WIDTH + x,
+                                y,
+                                chunkMap.at(chunkPosition).GetPosition().y * Chunk::WIDTH + z),
+                            chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
                             vertexBufferData, elementBufferData);
                     }
                 }
@@ -324,19 +327,36 @@ void Renderer::Deinit()
     delete _instance;
 }
 
+void Renderer::GenerateAllChunkMeshes(const ChunkMap& chunkMap)
+{
+    _chunkMeshes.clear();
+    for (const auto& [chunkPosition, chunk] : chunkMap)
+    {
+        _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
+    }
+}
+
+void Renderer::RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
+{
+    _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
+}
+
 void Renderer::ClearBuffers() const
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void Renderer::RenderChunkMesh() const
+void Renderer::RenderChunkMeshes() const
 {
     _texture->Bind(0);
     _program->Bind();
     _program->SetUniformMat4(0, _camera.GetViewProjection());
     _program->SetUniformInt(1, 0);
-    _chunkMesh->Bind();
-    glDrawElements(GL_TRIANGLES, _chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
+    for (const auto& [position, chunkMesh] : _chunkMeshes)
+    {
+        chunkMesh->Bind();
+        glDrawElements(GL_TRIANGLES, chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
+    }
 }
 
 void Renderer::RenderImGui()
@@ -373,7 +393,6 @@ Renderer::Renderer()
 
     _program = std::make_shared<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
     _texture = std::make_shared<Texture2D>("assets/texture.png");
-    _chunkMesh = std::make_shared<ChunkMesh>(Chunk(glm::ivec2(0, 0)));
 }
 
 Renderer::~Renderer()

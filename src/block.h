@@ -37,6 +37,8 @@ public:
     static constexpr uint32_t HEIGHT = 256;
 
     Chunk(const glm::ivec2& position);
+    Chunk(const Chunk& other);
+    Chunk(Chunk&& other);
     ~Chunk();
 
     inline const glm::ivec2& GetPosition() const { return _position; }
@@ -48,5 +50,7 @@ private:
     glm::ivec2 _position;
     Block* _blocks;
 };
+
+using ChunkMap = std::unordered_map<glm::ivec2, Chunk>;
 
 } // namespace Krafter

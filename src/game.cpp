@@ -50,7 +50,7 @@ void Game::Run()
         ImGui::Render();
 
         Renderer::Get()->ClearBuffers();
-        Renderer::Get()->RenderChunkMesh();
+        Renderer::Get()->RenderChunkMeshes();
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         Window::Get()->SwapBuffers();
@@ -72,6 +72,17 @@ Game::Game()
 
     ImGui_ImplGlfw_InitForOpenGL(Window::Get()->GetId(), true);
     ImGui_ImplOpenGL3_Init("#version 450 core");
+
+    _chunkMap.clear();
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        for (uint32_t j = 0; j < 3; j++)
+        {
+            _chunkMap.try_emplace(glm::ivec2(i, j), std::move(Chunk(glm::ivec2(i, j))));
+        }
+    }
+
+    Renderer::Get()->GenerateAllChunkMeshes(_chunkMap);
 }
 
 Game::~Game()

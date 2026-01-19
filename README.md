@@ -43,3 +43,7 @@ cd ..
 cmake --build build/
 ./build/krafter
 ```
+
+### Controls
+ - `Space` — Toggling `Viewport Mode` and `Configuration Mode`
+ - `WASD + Mouse` — Moving the camera in `Viewport Mode`
