@@ -23,12 +23,9 @@ void BlockAtlas::LoadAtlases()
 
 const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)
 {
-    try
-    {
+    try {
         return _blockAtlases.at(block);
-    }
-    catch (std::out_of_range e)
-    {
+    } catch (std::out_of_range e) {
         std::cerr << "Block atlas is not defined!" << std::endl;
         throw e;
     }
@@ -39,25 +36,16 @@ Chunk::Chunk(const glm::ivec2& position)
 {
     _blocks = new Block[WIDTH * WIDTH * HEIGHT];
 
-    for (int32_t y = HEIGHT - 1; y >= 0; y--)
-    {
-        for (int32_t x = 0; x < WIDTH; x++)
-        {
-            for (int32_t z = 0; z < WIDTH; z++)
-            {
-                if ((x - 8.5f) * (x - 8.5f) + (y % 16 - 8.5f) * (y % 16 - 8.5f) + (z - 8.5f) * (z - 8.5f) <= 8.5f * 8.5f)
-                {
-                    if (y + 1 >= HEIGHT || GetBlock(glm::ivec3(x, y + 1, z)) == Block::AIR)
-                    {
+    for (int32_t y = HEIGHT - 1; y >= 0; y--) {
+        for (int32_t x = 0; x < WIDTH; x++) {
+            for (int32_t z = 0; z < WIDTH; z++) {
+                if ((x - 8.5f) * (x - 8.5f) + (y % 16 - 8.5f) * (y % 16 - 8.5f) + (z - 8.5f) * (z - 8.5f) <= 8.5f * 8.5f) {
+                    if (y + 1 >= HEIGHT || GetBlock(glm::ivec3(x, y + 1, z)) == Block::AIR) {
                         SetBlock(glm::ivec3(x, y, z), Block::GRASS);
-                    }
-                    else
-                    {
+                    } else {
                         SetBlock(glm::ivec3(x, y, z), Block::DIRT);
                     }
-                }
-                else
-                {
+                } else {
                     SetBlock(glm::ivec3(x, y, z), Block::AIR);
                 }
             }
@@ -69,15 +57,16 @@ Chunk::Chunk(const Chunk& other)
     : _position(other._position)
 {
     std::cout << "Copying chunk at position (" << other._position.x << ", " << other._position.y << ")" << std::endl;
+
     _blocks = new Block[WIDTH * WIDTH * HEIGHT];
-    for (uint32_t i = 0; i < WIDTH * WIDTH * HEIGHT; i++)
-    {
+    for (uint32_t i = 0; i < WIDTH * WIDTH * HEIGHT; i++) {
         _blocks[i] = other._blocks[i];
     }
 }
 
 Chunk::Chunk(Chunk&& other)
-    : _position(other._position), _blocks(other._blocks)
+    : _position(other._position)
+    , _blocks(other._blocks)
 {
     other._blocks = nullptr;
 }

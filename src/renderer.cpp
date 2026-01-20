@@ -19,8 +19,7 @@ Texture2D::Texture2D(std::string_view path)
 
     int32_t channels_in_file;
     uint8_t* data = stbi_load(path.data(), &_size.x, &_size.y, &channels_in_file, 0);
-    if (!data)
-    {
+    if (!data) {
         std::cerr << "[FILE] Could not read " << path << std::endl;
         assert(false);
     }
@@ -98,8 +97,7 @@ void ShaderProgram::SetUniformMat4(int32_t location, const glm::mat4& value) con
 std::string ShaderProgram::ReadFileAsString(std::string_view path)
 {
     std::ifstream file = std::ifstream(path.data(), std::ios::binary);
-    if (!file)
-    {
+    if (!file) {
         std::cerr << "[FILE] Could not read " << path << std::endl;
         assert(false);
     }
@@ -137,19 +135,14 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
         BlockFace::LEFT, BlockFace::RIGHT
     };
 
-    for (int32_t x = 0; x < Chunk::WIDTH; x++)
-    {
-        for (int32_t y = 0; y < Chunk::HEIGHT; y++)
-        {
-            for (int32_t z = 0; z < Chunk::WIDTH; z++)
-            {
-                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::AIR)
-                {
+    for (int32_t x = 0; x < Chunk::WIDTH; x++) {
+        for (int32_t y = 0; y < Chunk::HEIGHT; y++) {
+            for (int32_t z = 0; z < Chunk::WIDTH; z++) {
+                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::AIR) {
                     continue;
                 }
 
-                for (size_t k = 0; k < 6; k++)
-                {
+                for (size_t k = 0; k < 6; k++) {
                     int32_t nx = x + dx[k];
                     int32_t ny = y + dy[k];
                     int32_t nz = z + dz[k];
@@ -158,8 +151,7 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
                     if (nx < 0 || nx >= Chunk::WIDTH ||
                         ny < 0 || ny >= Chunk::HEIGHT ||
                         nz < 0 || nz >= Chunk::WIDTH ||
-                        chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR)
-                    {
+                        chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR) {
                         AddFaceToData(
                             glm::vec3(
                                 chunkMap.at(chunkPosition).GetPosition().x * Chunk::WIDTH + x,
@@ -206,7 +198,8 @@ void ChunkMesh::Bind() const
     glBindVertexArray(_vertexArray);
 }
 
-void ChunkMesh::AddFaceToData(const std::array<glm::vec3, 4>& positionList,
+void ChunkMesh::AddFaceToData(
+    const std::array<glm::vec3, 4>& positionList,
     const std::array<glm::vec2, 2>& uvCoordsList,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
@@ -245,7 +238,8 @@ void ChunkMesh::AddFaceToData(const std::array<glm::vec3, 4>& positionList,
     elementBufferData.push_back(offset + 3);
 }
 
-void ChunkMesh::AddFaceToData(const glm::vec3& position,
+void ChunkMesh::AddFaceToData(
+    const glm::vec3& position,
     const Block block, BlockFace face,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
@@ -258,8 +252,7 @@ void ChunkMesh::AddFaceToData(const glm::vec3& position,
 
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
 
-    switch (face)
-    {
+    switch (face) {
     case BlockFace::FRONT:
         origin = position;
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -330,8 +323,7 @@ void Renderer::Deinit()
 void Renderer::GenerateAllChunkMeshes(const ChunkMap& chunkMap)
 {
     _chunkMeshes.clear();
-    for (const auto& [chunkPosition, chunk] : chunkMap)
-    {
+    for (const auto& [chunkPosition, chunk] : chunkMap) {
         _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
     }
 }
@@ -352,8 +344,7 @@ void Renderer::RenderChunkMeshes() const
     _program->Bind();
     _program->SetUniformMat4(0, _camera.GetViewProjection());
     _program->SetUniformInt(1, 0);
-    for (const auto& [position, chunkMesh] : _chunkMeshes)
-    {
+    for (const auto& [position, chunkMesh] : _chunkMeshes) {
         chunkMesh->Bind();
         glDrawElements(GL_TRIANGLES, chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
     }
@@ -399,7 +390,14 @@ Renderer::~Renderer()
 {
 }
 
-void Renderer::ApiDebugCallback(uint32_t source, uint32_t type, uint32_t id, uint32_t severity, int32_t length, const char* message, const void* userParam)
+void Renderer::ApiDebugCallback(
+        uint32_t source,
+        uint32_t type,
+        uint32_t id,
+        uint32_t severity,
+        int32_t length,
+        const char* message,
+        const void* userParam)
 {
     std::cerr << "[OPENGL] " << message << std::endl;
     assert(severity != GL_DEBUG_SEVERITY_HIGH);

@@ -26,7 +26,10 @@ public:
 
     void Bind(uint32_t unit) const;
 
-    inline const glm::ivec2& GetSize() const { return _size; }
+    inline const glm::ivec2& GetSize() const
+    {
+        return _size;
+    }
 
 private:
     uint32_t _id;
@@ -68,14 +71,20 @@ public:
     ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
     ~ChunkMesh();
 
-    inline uint32_t GetElementCount() const { return _elementCount; }
+    inline uint32_t GetElementCount() const
+    {
+        return _elementCount;
+    }
+
     void Bind() const;
 
 private:
-    static void AddFaceToData(const std::array<glm::vec3, 4>& positionList,
+    static void AddFaceToData(
+        const std::array<glm::vec3, 4>& positionList,
         const std::array<glm::vec2, 2>& uvCoordsList,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
-    static void AddFaceToData(const glm::vec3& position,
+    static void AddFaceToData(
+        const glm::vec3& position,
         Block block, BlockFace face,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
 
@@ -91,9 +100,15 @@ class Renderer
 public:
     static void Init();
     static void Deinit();
-    inline static Renderer* Get() { return _instance; }
+    inline static Renderer* Get()
+    { 
+        return _instance;
+    }
 
-    inline Camera& GetCamera() { return _camera; }
+    inline Camera& GetCamera()
+    {
+        return _camera;
+    }
 
     void GenerateAllChunkMeshes(const ChunkMap& chunkMap);
     void RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
@@ -103,7 +118,14 @@ public:
     void RenderImGui();
 
 private:
-    static void ApiDebugCallback(uint32_t source, uint32_t type, uint32_t id, uint32_t severity, int32_t length, const char* message, const void* userParam);
+    static void ApiDebugCallback(
+        uint32_t source,
+        uint32_t type,
+        uint32_t id,
+        uint32_t severity,
+        int32_t length,
+        const char* message,
+        const void* userParam);
 
     inline static Renderer* _instance;
 

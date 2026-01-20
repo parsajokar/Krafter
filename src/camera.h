@@ -14,7 +14,10 @@ public:
     void UpdateProjection();
     void RenderImGui();
 
-    inline const glm::mat4& GetViewProjection() const { return _viewProjection; }
+    inline const glm::mat4& GetViewProjection() const
+    {
+        return _viewProjection;
+    }
 
 private:
     void ToggleState();

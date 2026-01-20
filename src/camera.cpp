@@ -9,28 +9,30 @@ namespace Krafter
 {
 
 Camera::Camera(const glm::vec3& position, float fov)
-    : _speed(50.0f), _sensitivity(50.0f),
-    _isControlled(true), _isSpaceReleased(true),
-    _position(position), _fov(fov),
-    _pitch(0.0f), _yaw(0.0f), _lastCursorPosition(Window::Get()->GetCursorPosition())
+    : _speed(50.0f)
+    , _sensitivity(50.0f)
+    , _isControlled(true)
+    , _isSpaceReleased(true)
+    , _position(position)
+    , _fov(fov)
+    , _pitch(0.0f)
+    , _yaw(0.0f)
+    , _lastCursorPosition(Window::Get()->GetCursorPosition())
 {
     UpdateProjection();
 }
 
 void Camera::Update()
 {
-    if (Window::Get()->IsKeyDown(Key::SPACE) && _isSpaceReleased)
-    {
+    if (Window::Get()->IsKeyDown(Key::SPACE) && _isSpaceReleased) {
         ToggleState();
         _isSpaceReleased = false;
     }
-    if (!Window::Get()->IsKeyDown(Key::SPACE))
-    {
+    if (!Window::Get()->IsKeyDown(Key::SPACE)) {
         _isSpaceReleased = true;
     }
 
-    if (_isControlled)
-    {
+    if (_isControlled) {
         float delta = Game::Get()->GetDelta();
 
         glm::vec2 cursorPosition = Window::Get()->GetCursorPosition();
@@ -41,12 +43,9 @@ void Camera::Update()
         _yaw += cursorOffset.x * _sensitivity / 5000.0f;
 
         _pitch = glm::clamp(_pitch, glm::radians(-89.99f), glm::radians(89.99f));
-        if (_yaw < 0.0f)
-        {
+        if (_yaw < 0.0f) {
             _yaw += glm::radians(360.0f);
-        }
-        else if (_yaw > glm::radians(360.0f))
-        {
+        } else if (_yaw > glm::radians(360.0f)) {
             _yaw -= glm::radians(360.0f);
         }
 
@@ -58,20 +57,16 @@ void Camera::Update()
         glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
         glm::vec3 right = glm::normalize(glm::cross(direction, up));
 
-        if (Window::Get()->IsKeyDown(Key::W))
-        {
+        if (Window::Get()->IsKeyDown(Key::W)) {
             _position += direction * _speed * delta;
         }
-        if (Window::Get()->IsKeyDown(Key::S))
-        {
+        if (Window::Get()->IsKeyDown(Key::S)) {
             _position -= direction * _speed * delta;
         }
-        if (Window::Get()->IsKeyDown(Key::D))
-        {
+        if (Window::Get()->IsKeyDown(Key::D)) {
             _position += right * _speed * delta;
         }
-        if (Window::Get()->IsKeyDown(Key::A))
-        {
+        if (Window::Get()->IsKeyDown(Key::A)) {
             _position -= right * _speed * delta;
         }
 
@@ -83,8 +78,7 @@ void Camera::Update()
 void Camera::UpdateProjection()
 {
     const glm::uvec2& size = Window::Get()->GetSize();
-    if (size.x > 0 && size.y > 0)
-    {
+    if (size.x > 0 && size.y > 0) {
         float aspectRatio = (float)size.x / (float)size.y;
         _projection = glm::perspective(_fov, aspectRatio, 0.1f, 1000.0f);
     }
@@ -101,12 +95,9 @@ void Camera::RenderImGui()
 
 void Camera::ToggleState()
 {
-    if (_isControlled)
-    {
+    if (_isControlled) {
         Window::Get()->EnableCursor(true);
-    }
-    else
-    {
+    } else {
         Window::Get()->EnableCursor(false);
         _lastCursorPosition = Window::Get()->GetCursorPosition();
     }

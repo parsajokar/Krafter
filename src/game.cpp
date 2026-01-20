@@ -23,11 +23,9 @@ void Game::Run()
 {
     float lastFrameTime = 0.0f;
 
-    while (Window::Get()->IsOpen())
-    {
+    while (Window::Get()->IsOpen()) {
         Window::Get()->PollEvents();
-        if (Window::Get()->IsKeyDown(Key::ESCAPE))
-        {
+        if (Window::Get()->IsKeyDown(Key::ESCAPE)) {
             Window::Get()->Close();
         }
 
@@ -74,10 +72,8 @@ Game::Game()
     ImGui_ImplOpenGL3_Init("#version 450 core");
 
     _chunkMap.clear();
-    for (uint32_t i = 0; i < 3; i++)
-    {
-        for (uint32_t j = 0; j < 3; j++)
-        {
+    for (uint32_t i = 0; i < 3; i++) {
+        for (uint32_t j = 0; j < 3; j++) {
             _chunkMap.try_emplace(glm::ivec2(i, j), std::move(Chunk(glm::ivec2(i, j))));
         }
     }

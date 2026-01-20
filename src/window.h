@@ -23,7 +23,10 @@ class Window
 public:
     static void Init();
     static void Deinit();
-    inline static Window* Get() { return _instance; }
+    inline static Window* Get()
+    {
+        return _instance;
+    }
 
     bool IsOpen() const;
     void Close() const;
@@ -38,8 +41,14 @@ public:
     void EnableCursor(bool state) const;
     glm::vec2 GetCursorPosition() const;
 
-    inline WindowId GetId() const { return _id; }
-    inline const glm::uvec2& GetSize() const { return _size; }
+    inline WindowId GetId() const
+    {
+        return _id;
+    }
+    inline const glm::uvec2& GetSize() const
+    {
+        return _size;
+    }
 
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);

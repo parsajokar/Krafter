@@ -41,7 +41,10 @@ public:
     Chunk(Chunk&& other);
     ~Chunk();
 
-    inline const glm::ivec2& GetPosition() const { return _position; }
+    inline const glm::ivec2& GetPosition() const
+    {
+        return _position;
+    }
 
     const Block& GetBlock(const glm::ivec3& coords) const;
     void SetBlock(const glm::ivec3& coords, Block value);
