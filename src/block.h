@@ -2,14 +2,16 @@
 
 #include <unordered_map>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
+#include "glm/gtx/hash.hpp"
 
 namespace Krafter
 {
 
 enum class Block
 {
-    AIR,
+    AIR = 0,
     DIRT,
     GRASS
 };
@@ -33,8 +35,8 @@ private:
 class Chunk
 {
 public:
-    static constexpr uint32_t WIDTH = 16;
-    static constexpr uint32_t HEIGHT = 256;
+    static constexpr int32_t WIDTH = 16;
+    static constexpr int32_t HEIGHT = 256;
 
     Chunk(const glm::ivec2& position);
     Chunk(const Chunk& other);

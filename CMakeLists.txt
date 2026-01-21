@@ -28,6 +28,8 @@ add_subdirectory(lib/glm)
 
 add_subdirectory(lib/stb)
 
+add_subdirectory(lib/FastNoiseLite)
+
 find_package(OpenGL REQUIRED)
 
 unset(CMAKE_FOLDER)
@@ -62,6 +64,7 @@ target_include_directories(
     lib/imgui/backends
     lib/glm
     lib/stb/include
+    lib/FastNoiseLite
 )
 
 target_link_libraries(

@@ -112,6 +112,7 @@ public:
 
     void GenerateAllChunkMeshes(const ChunkMap& chunkMap);
     void RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
+    void DeleteChunkMesh(const glm::ivec2& chunkPosition);
 
     void ClearBuffers() const;
     void RenderChunkMeshes() const;

@@ -14,6 +14,11 @@ public:
     void UpdateProjection();
     void RenderImGui();
 
+    inline const glm::vec3& GetPosition() const
+    {
+        return _position;
+    }
+
     inline const glm::mat4& GetViewProjection() const
     {
         return _viewProjection;

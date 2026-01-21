@@ -333,6 +333,11 @@ void Renderer::RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& c
     _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
 }
 
+void Renderer::DeleteChunkMesh(const glm::ivec2& chunkPosition)
+{
+    _chunkMeshes.erase(chunkPosition);
+}
+
 void Renderer::ClearBuffers() const
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

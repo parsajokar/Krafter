@@ -1,10 +1,7 @@
 #pragma once
 
-#include <unordered_map>
-
-#define GLM_ENABLE_EXPERIMENTAL
-#include "glm/glm.hpp"
-#include "glm/gtx/hash.hpp"
+#include <queue>
+#include <unordered_set>
 
 #include "block.h"
 
@@ -35,7 +32,13 @@ private:
     ~Game();
 
     float _delta;
+    float _fps;
+
     ChunkMap _chunkMap;
+    std::queue<glm::ivec2> _chunkGenerationQueue;
+    std::queue<glm::ivec2> _chunkDeletionQueue;
+    std::unordered_set<glm::ivec2> _onChunkGenerationQueue;
+    std::unordered_set<glm::ivec2> _onChunkDeletionQueue;
 };
 
 } // namespace Krafter

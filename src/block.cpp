@@ -1,5 +1,8 @@
 #include <iostream>
+#include <cstring>
 #include <stdexcept>
+
+#include "FastNoiseLite.h"
 
 #include "block.h"
 
@@ -35,20 +38,25 @@ Chunk::Chunk(const glm::ivec2& position)
     : _position(position)
 {
     _blocks = new Block[WIDTH * WIDTH * HEIGHT];
+    memset(_blocks, 0, WIDTH * WIDTH * HEIGHT * sizeof(Block));
 
-    for (int32_t y = HEIGHT - 1; y >= 0; y--) {
-        for (int32_t x = 0; x < WIDTH; x++) {
-            for (int32_t z = 0; z < WIDTH; z++) {
-                if ((x - 8.5f) * (x - 8.5f) + (y % 16 - 8.5f) * (y % 16 - 8.5f) + (z - 8.5f) * (z - 8.5f) <= 8.5f * 8.5f) {
-                    if (y + 1 >= HEIGHT || GetBlock(glm::ivec3(x, y + 1, z)) == Block::AIR) {
-                        SetBlock(glm::ivec3(x, y, z), Block::GRASS);
-                    } else {
-                        SetBlock(glm::ivec3(x, y, z), Block::DIRT);
-                    }
-                } else {
-                    SetBlock(glm::ivec3(x, y, z), Block::AIR);
-                }
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    noise.SetFrequency(0.01f);
+
+    for (int32_t x = 0; x < WIDTH; x++) {
+        for (int32_t z = 0; z < WIDTH; z++) {
+            const int32_t worldX = _position.x * WIDTH + x;
+            const int32_t worldZ = _position.y * WIDTH + z;
+
+            float noiseValue = noise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
+            int32_t height = (int32_t)(32 * noiseValue) + 48; // Range = [16, 80]
+
+            for (int32_t y = 0; y < height; y++) {
+                SetBlock(glm::ivec3(x, y, z), Block::DIRT);
             }
+
+            SetBlock(glm::ivec3(x, height, z), Block::GRASS);
         }
     }
 }
