@@ -22,6 +22,7 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
   - ImGui — Immediate Mode GUI
   - GLM — Math Library with SIMD Instruction Support
   - stb — Texture File Loading Library
+  - FastNoiseLite — Noise Generation Library
 
 ## 📦 Building Krafter
 
