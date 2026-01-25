@@ -5,11 +5,9 @@
 typedef struct GLFWwindow GLFWwindow;
 using WindowId = GLFWwindow*;
 
-namespace Krafter
-{
+namespace Krafter {
 
-enum class Key : int
-{
+enum class Key : int {
     ESCAPE = 256,
     SPACE = 32,
     W = 87,
@@ -18,15 +16,15 @@ enum class Key : int
     A = 65,
 };
 
-class Window
-{
+class Window {
 public:
-    static void Init();
-    static void Deinit();
     inline static Window* Get()
     {
         return _instance;
     }
+
+    Window();
+    ~Window();
 
     bool IsOpen() const;
     void Close() const;
@@ -38,14 +36,14 @@ public:
 
     bool IsKeyDown(Key key) const;
 
-    void EnableCursor(bool state) const;
+    void SetCursor(bool enabled);
     glm::vec2 GetCursorPosition() const;
 
     inline WindowId GetId() const
     {
         return _id;
     }
-    inline const glm::uvec2& GetSize() const
+    inline const glm::ivec2& GetSize() const
     {
         return _size;
     }
@@ -53,13 +51,10 @@ public:
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
-    inline static Window* _instance;
-
-    Window();
-    ~Window();
+    inline static Window* _instance = nullptr;
 
     WindowId _id;
-    glm::uvec2 _size;
+    glm::ivec2 _size;
 };
 
 } // namespace Krafter

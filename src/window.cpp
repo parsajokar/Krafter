@@ -1,20 +1,34 @@
 #include "glad/gl.h"
+
 #include "GLFW/glfw3.h"
 
-#include "renderer.h"
+#include "renderer/renderer.h"
 #include "window.h"
 
-namespace Krafter
-{
+namespace Krafter {
 
-void Window::Init()
+Window::Window()
+    : _size(1280, 720)
 {
-    _instance = new Window();
+    assert(!_instance);
+    _instance = this;
+
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    _id = glfwCreateWindow(_size.x, _size.y, "Krafter", nullptr, nullptr);
+    glfwMakeContextCurrent(_id);
+
+    glfwSetFramebufferSizeCallback(_id, FramebufferSizeCallback);
+
+    SetCursor(false);
 }
 
-void Window::Deinit()
+Window::~Window()
 {
-    delete _instance;
+    glfwDestroyWindow(_id);
+    glfwTerminate();
 }
 
 bool Window::IsOpen() const
@@ -47,9 +61,9 @@ bool Window::IsKeyDown(Key key) const
     return glfwGetKey(_id, (int)key) == GLFW_PRESS;
 }
 
-void Window::EnableCursor(bool state) const
+void Window::SetCursor(bool enabled)
 {
-    glfwSetInputMode(_id, GLFW_CURSOR, state ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(_id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
 glm::vec2 Window::GetCursorPosition() const
@@ -62,34 +76,12 @@ glm::vec2 Window::GetCursorPosition() const
 
 void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
-    Window* win = Window::Get();
-    win->_size.x = width;
-    win->_size.y = height;
+    _instance->_size.x = width;
+    _instance->_size.y = height;
 
-    glViewport(0, 0, win->GetSize().x, win->GetSize().y);
+    glViewport(0, 0, _instance->GetSize().x, _instance->GetSize().y);
 
     Renderer::Get()->GetCamera().UpdateProjection();
-}
-
-Window::Window()
-    : _size(1280, 720)
-{
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    _id = glfwCreateWindow(_size.x, _size.y, "Krafter", nullptr, nullptr);
-    glfwMakeContextCurrent(_id);
-
-    glfwSetFramebufferSizeCallback(_id, FramebufferSizeCallback);
-
-    EnableCursor(false);
-}
-
-Window::~Window()
-{
-    glfwDestroyWindow(_id);
-    glfwTerminate();
 }
 
 } // namespace Krafter

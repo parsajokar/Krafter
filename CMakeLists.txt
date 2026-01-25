@@ -41,16 +41,34 @@ add_executable(krafter)
 target_sources(
     krafter
     PRIVATE
-    src/block.h
-    src/block.cpp
-    src/window.h
-    src/window.cpp
-    src/renderer.h
-    src/renderer.cpp
-    src/camera.h
-    src/camera.cpp
+    src/world/chunk_manager.h
+    src/world/chunk_manager.cpp
+    src/world/chunk.h
+    src/world/chunk.cpp
+    src/world/block.h
+    src/world/block.cpp
+    src/renderer/chunk_mesh.h
+    src/renderer/chunk_mesh.cpp
+    src/renderer/texture.h
+    src/renderer/texture.cpp
+    src/renderer/camera.h
+    src/renderer/camera.cpp
+    src/renderer/shader_program.h
+    src/renderer/shader_program.cpp
+    src/renderer/renderer.h
+    src/renderer/renderer.cpp
     src/game.h
     src/game.cpp
+    src/imgui_overlay.h
+    src/imgui_overlay.cpp
+    src/window.h
+    src/window.cpp
+    src/layer_stack.h
+    src/layer_stack.cpp
+    src/layer.h
+    src/layer.cpp
+    src/application.h
+    src/application.cpp
     src/main.cpp
 )
 
@@ -75,5 +93,12 @@ target_link_libraries(
     imgui
     glm
     stb
+    FastNoiseLite
     ${OPENGL_gl_LIBRARY}
+)
+
+target_compile_definitions(
+    krafter
+    PRIVATE
+    GLM_ENABLE_EXPERIMENTAL
 )

@@ -1,38 +1,11 @@
-#include <iostream>
 #include <cstring>
-#include <stdexcept>
+#include <iostream>
 
 #include "FastNoiseLite.h"
 
-#include "block.h"
+#include "world/chunk.h"
 
-namespace Krafter
-{
-
-void BlockAtlas::LoadAtlases()
-{
-    _blockAtlases[Block::DIRT] = {
-        .top = glm::vec2(0.0f / 16.0f, 0.0f / 16.0f),
-        .side = glm::vec2(0.0f / 16.0f, 0.0f / 16.0f),
-        .bottom = glm::vec2(0.0f / 16.0f, 0.0f / 16.0f)
-    };
-
-    _blockAtlases[Block::GRASS] = {
-        .top = glm::vec2(2.0f / 16.0f, 0.0f / 16.0f),
-        .side = glm::vec2(1.0f / 16.0f, 0.0f / 16.0f),
-        .bottom = glm::vec2(0.0f / 16.0f, 0.0f / 16.0f)
-    };
-}
-
-const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)
-{
-    try {
-        return _blockAtlases.at(block);
-    } catch (std::out_of_range e) {
-        std::cerr << "Block atlas is not defined!" << std::endl;
-        throw e;
-    }
-}
+namespace Krafter {
 
 Chunk::Chunk(const glm::ivec2& position)
     : _position(position)
@@ -50,7 +23,7 @@ Chunk::Chunk(const glm::ivec2& position)
             const int32_t worldZ = _position.y * WIDTH + z;
 
             float noiseValue = noise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
-            int32_t height = (int32_t)(32 * noiseValue) + 48; // Range = [16, 80]
+            int32_t height = (int32_t)(32 * noiseValue) + 64; // Range = [32, 96]
 
             for (int32_t y = 0; y < height; y++) {
                 SetBlock(glm::ivec3(x, y, z), Block::DIRT);
@@ -64,7 +37,7 @@ Chunk::Chunk(const glm::ivec2& position)
 Chunk::Chunk(const Chunk& other)
     : _position(other._position)
 {
-    std::cout << "Copying chunk at position (" << other._position.x << ", " << other._position.y << ")" << std::endl;
+    std::cout << "[CHUNK] Copying chunk at position (" << other._position.x << ", " << other._position.y << ")" << std::endl;
 
     _blocks = new Block[WIDTH * WIDTH * HEIGHT];
     for (uint32_t i = 0; i < WIDTH * WIDTH * HEIGHT; i++) {

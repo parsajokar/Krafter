@@ -30,6 +30,7 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
 
 - C++20 compiler
 - CMake 3.20+
+- Ninja 1.12+
 - OpenGL 4.5 capable GPU
 
 ### Clone the repository
@@ -39,10 +40,10 @@ git clone --recursive https://github.com/parsajokar/krafter.git
 cd krafter
 mkdir build
 cd build
-cmake ..
+cmake -G "Ninja Multi-Config" ..
 cd ..
-cmake --build build/
-./build/krafter
+cmake --build build/ --config RelWithDebInfo
+./build/RelWithDebInfo/krafter
 ```
 
 ### Controls

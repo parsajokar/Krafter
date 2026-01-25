@@ -1,125 +1,8 @@
-#include <utility>
-#include <fstream>
-#include <iostream>
-
 #include "glad/gl.h"
-#include "GLFW/glfw3.h"
-#include "imgui.h"
-#include "glm/gtc/type_ptr.hpp"
-#include "stb_image.h"
 
-#include "renderer.h"
+#include "renderer/chunk_mesh.h"
 
-namespace Krafter
-{
-
-Texture2D::Texture2D(std::string_view path)
-{
-    stbi_set_flip_vertically_on_load(true);
-
-    int32_t channels_in_file;
-    uint8_t* data = stbi_load(path.data(), &_size.x, &_size.y, &channels_in_file, 0);
-    if (!data) {
-        std::cerr << "[FILE] Could not read " << path << std::endl;
-        assert(false);
-    }
-
-    glCreateTextures(GL_TEXTURE_2D, 1, &_id);
-
-    glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTextureStorage2D(_id, 1, GL_RGBA8, _size.x, _size.y);
-    glTextureSubImage2D(_id, 0, 0, 0, _size.x, _size.y, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-    stbi_image_free(data);
-}
-
-Texture2D::~Texture2D()
-{
-    glDeleteTextures(1, &_id);
-}
-
-void Texture2D::Bind(uint32_t unit) const
-{
-    glBindTextureUnit(unit, _id);
-}
-
-ShaderProgram::ShaderProgram(std::string_view vertexShaderPath, std::string_view fragmentShaderPath)
-{
-    std::string vertexShaderSource = std::move(ReadFileAsString(vertexShaderPath));
-    std::string fragmentShaderSource = std::move(ReadFileAsString(fragmentShaderPath));
-
-    _id = glCreateProgram();
-    uint32_t vertexShader = CreateShader(GL_VERTEX_SHADER, vertexShaderSource.c_str());
-    uint32_t fragmentShader = CreateShader(GL_FRAGMENT_SHADER, fragmentShaderSource.c_str());
-
-    glAttachShader(_id, vertexShader);
-    glAttachShader(_id, fragmentShader);
-
-    glLinkProgram(_id);
-    glValidateProgram(_id);
-
-    glDetachShader(_id, vertexShader);
-    glDetachShader(_id, fragmentShader);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-}
-
-ShaderProgram::~ShaderProgram()
-{
-    glDeleteProgram(_id);
-}
-
-void ShaderProgram::Bind() const
-{
-    glUseProgram(_id);
-}
-
-void ShaderProgram::SetUniformInt(int32_t location, int32_t value) const
-{
-    glUniform1i(location, value);
-}
-
-void ShaderProgram::SetUniformVec4(int32_t location, const glm::vec4& value) const
-{
-    glUniform4fv(location, 1, glm::value_ptr(value));
-}
-
-void ShaderProgram::SetUniformMat4(int32_t location, const glm::mat4& value) const
-{
-    glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
-}
-
-std::string ShaderProgram::ReadFileAsString(std::string_view path)
-{
-    std::ifstream file = std::ifstream(path.data(), std::ios::binary);
-    if (!file) {
-        std::cerr << "[FILE] Could not read " << path << std::endl;
-        assert(false);
-    }
-
-    file.seekg(0, std::ios::end);
-    std::streamsize size = file.tellg();
-
-    std::string result = std::string(size, '\0');
-    file.seekg(0, std::ios::beg);
-    file.read(result.data(), size);
-
-    return result;
-}
-
-uint32_t ShaderProgram::CreateShader(uint32_t type, const char* source)
-{
-    uint32_t shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
-
-    return shader;
-}
+namespace Krafter {
 
 ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
 {
@@ -148,10 +31,16 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
                     int32_t nz = z + dz[k];
                     BlockFace face = faces[k];
 
-                    if (nx < 0 || nx >= Chunk::WIDTH ||
-                        ny < 0 || ny >= Chunk::HEIGHT ||
-                        nz < 0 || nz >= Chunk::WIDTH ||
-                        chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR) {
+                    // TODO: Fix
+                    if (nx < 0 || nx >= Chunk::WIDTH || ny < 0 || ny >= Chunk::HEIGHT || nz < 0 || nz >= Chunk::WIDTH) {
+                        AddFaceToData(
+                            glm::vec3(
+                                chunkMap.at(chunkPosition).GetPosition().x * Chunk::WIDTH + x,
+                                y,
+                                chunkMap.at(chunkPosition).GetPosition().y * Chunk::WIDTH + z),
+                            chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
+                            vertexBufferData, elementBufferData);
+                    } else if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::AIR) {
                         AddFaceToData(
                             glm::vec3(
                                 chunkMap.at(chunkPosition).GetPosition().x * Chunk::WIDTH + x,
@@ -308,104 +197,6 @@ void ChunkMesh::AddFaceToData(
     positionList[3] = origin + dy;
 
     AddFaceToData(positionList, uvCoordsList, vertexBufferData, elementBufferData);
-}
-
-void Renderer::Init()
-{
-    _instance = new Renderer();
-}
-
-void Renderer::Deinit()
-{
-    delete _instance;
-}
-
-void Renderer::GenerateAllChunkMeshes(const ChunkMap& chunkMap)
-{
-    _chunkMeshes.clear();
-    for (const auto& [chunkPosition, chunk] : chunkMap) {
-        _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
-    }
-}
-
-void Renderer::RegenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
-{
-    _chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
-}
-
-void Renderer::DeleteChunkMesh(const glm::ivec2& chunkPosition)
-{
-    _chunkMeshes.erase(chunkPosition);
-}
-
-void Renderer::ClearBuffers() const
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void Renderer::RenderChunkMeshes() const
-{
-    _texture->Bind(0);
-    _program->Bind();
-    _program->SetUniformMat4(0, _camera.GetViewProjection());
-    _program->SetUniformInt(1, 0);
-    for (const auto& [position, chunkMesh] : _chunkMeshes) {
-        chunkMesh->Bind();
-        glDrawElements(GL_TRIANGLES, chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
-    }
-}
-
-void Renderer::RenderImGui()
-{
-    ImGui::Text("OpenGL Details:");
-    ImGui::Text("Version: %s", _versionName);
-    ImGui::Text("Renderer: %s", _rendererName);
-
-    ImGui::Separator();
-
-    _camera.RenderImGui();
-
-    ImGui::Separator();
-}
-
-Renderer::Renderer()
-    : _camera(glm::vec3(0.0f), glm::radians(80.0f))
-{
-    gladLoadGL(glfwGetProcAddress);
-
-    _versionName = glGetString(GL_VERSION);
-    _rendererName = glGetString(GL_RENDERER);
-
-    glDebugMessageCallback(ApiDebugCallback, nullptr);
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-
-    BlockAtlas::LoadAtlases();
-
-    _program = std::make_shared<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
-    _texture = std::make_shared<Texture2D>("assets/texture.png");
-}
-
-Renderer::~Renderer()
-{
-}
-
-void Renderer::ApiDebugCallback(
-        uint32_t source,
-        uint32_t type,
-        uint32_t id,
-        uint32_t severity,
-        int32_t length,
-        const char* message,
-        const void* userParam)
-{
-    std::cerr << "[OPENGL] " << message << std::endl;
-    assert(severity != GL_DEBUG_SEVERITY_HIGH);
 }
 
 } // namespace Krafter

@@ -1,39 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <unordered_map>
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
 #include "glm/gtx/hash.hpp"
 
-namespace Krafter
-{
+#include "world/block.h"
 
-enum class Block
-{
-    AIR = 0,
-    DIRT,
-    GRASS
-};
+namespace Krafter {
 
-class BlockAtlas
-{
-public:
-    static void LoadAtlases();
-    static const BlockAtlas& GetAtlasOf(Block block);
-
-    static constexpr float STEP = 1.0f / 16.0f;
-
-    glm::vec2 top;
-    glm::vec2 side;
-    glm::vec2 bottom;
-
-private:
-    inline static std::unordered_map<Block, BlockAtlas> _blockAtlases;
-};
-
-class Chunk
-{
+class Chunk {
 public:
     static constexpr int32_t WIDTH = 16;
     static constexpr int32_t HEIGHT = 256;

@@ -2,9 +2,13 @@
 
 int main(int argc, char** argv)
 {
-    Krafter::Game::Init();
-    Krafter::Game::Get()->Run();
-    Krafter::Game::Deinit();
+    const Krafter::ApplicationSpec spec = {
+        .name = "Krafter"
+    };
+
+    auto app = new Krafter::GameApplication(spec);
+    app->Run();
+    delete app;
 
     return 0;
 }

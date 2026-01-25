@@ -1,15 +1,16 @@
-#include "glm/gtc/matrix_transform.hpp"
 #include "imgui.h"
 
-#include "window.h"
-#include "game.h"
-#include "camera.h"
+#include "glm/gtc/matrix_transform.hpp"
 
-namespace Krafter
-{
+#include "application.h"
+#include "camera.h"
+#include "window.h"
+
+namespace Krafter {
 
 Camera::Camera(const glm::vec3& position, float fov)
-    : _speed(50.0f)
+    : Layer("Camera")
+    , _speed(50.0f)
     , _sensitivity(50.0f)
     , _isControlled(true)
     , _isSpaceReleased(true)
@@ -19,10 +20,14 @@ Camera::Camera(const glm::vec3& position, float fov)
     , _yaw(0.0f)
     , _lastCursorPosition(Window::Get()->GetCursorPosition())
 {
+}
+
+void Camera::OnAttach()
+{
     UpdateProjection();
 }
 
-void Camera::Update()
+void Camera::OnUpdate()
 {
     if (Window::Get()->IsKeyDown(Key::SPACE) && _isSpaceReleased) {
         ToggleState();
@@ -33,7 +38,7 @@ void Camera::Update()
     }
 
     if (_isControlled) {
-        float delta = Game::Get()->GetDelta();
+        float delta = Application::Get()->GetDelta();
 
         glm::vec2 cursorPosition = Window::Get()->GetCursorPosition();
         glm::vec2 cursorOffset = cursorPosition - _lastCursorPosition;
@@ -52,8 +57,7 @@ void Camera::Update()
         glm::vec3 direction = glm::normalize(glm::vec3(
             glm::cos(_yaw) * glm::cos(_pitch),
             glm::sin(_pitch),
-            glm::sin(_yaw) * glm::cos(_pitch)
-        ));
+            glm::sin(_yaw) * glm::cos(_pitch)));
         glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
         glm::vec3 right = glm::normalize(glm::cross(direction, up));
 
@@ -75,6 +79,14 @@ void Camera::Update()
     }
 }
 
+void Camera::OnRenderImGui()
+{
+    ImGui::SliderFloat("Movement Speed", &_speed, 1.0f, 100.0f);
+    ImGui::SliderFloat("Mouse Sensitivity", &_sensitivity, 1.0f, 100.0f);
+    ImGui::Text("Yaw: %.2f, Pitch: %.2f", glm::degrees(_yaw), glm::degrees(_pitch));
+    ImGui::Text("Position: %.2f, %.2f, %.2f", _position.x, _position.y, _position.z);
+}
+
 void Camera::UpdateProjection()
 {
     const glm::uvec2& size = Window::Get()->GetSize();
@@ -84,21 +96,12 @@ void Camera::UpdateProjection()
     }
 }
 
-void Camera::RenderImGui()
-{
-    ImGui::Text("Camera Details:");
-    ImGui::SliderFloat("Speed", &_speed, 1.0f, 100.0f);
-    ImGui::SliderFloat("Sensitivity", &_sensitivity, 1.0f, 100.0f);
-    ImGui::Text("Yaw: %.2f, Pitch: %.2f", glm::degrees(_yaw), glm::degrees(_pitch));
-    ImGui::Text("Position: %.2f, %.2f, %.2f", _position.x, _position.y, _position.z);
-}
-
 void Camera::ToggleState()
 {
     if (_isControlled) {
-        Window::Get()->EnableCursor(true);
+        Window::Get()->SetCursor(true);
     } else {
-        Window::Get()->EnableCursor(false);
+        Window::Get()->SetCursor(false);
         _lastCursorPosition = Window::Get()->GetCursorPosition();
     }
 

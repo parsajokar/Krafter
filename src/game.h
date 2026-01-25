@@ -1,44 +1,25 @@
 #pragma once
 
-#include <queue>
-#include <unordered_set>
+#include "application.h"
+#include "layer.h"
+#include "world/chunk_manager.h"
 
-#include "block.h"
+namespace Krafter {
 
-namespace Krafter
-{
-
-class Game
-{
+class Game : public Layer {
 public:
-    static void Init();
-    static void Deinit();
-    inline static Game* Get()
-    {
-        return _instance;
-    }
+    Game();
+    ~Game() = default;
 
-    void Run();
-
-    inline float GetDelta() const
-    {
-        return _delta;
-    }
+    void OnUpdate() override;
 
 private:
-    inline static Game* _instance;
+    ChunkManager* _chunkManager;
+};
 
-    Game();
-    ~Game();
-
-    float _delta;
-    float _fps;
-
-    ChunkMap _chunkMap;
-    std::queue<glm::ivec2> _chunkGenerationQueue;
-    std::queue<glm::ivec2> _chunkDeletionQueue;
-    std::unordered_set<glm::ivec2> _onChunkGenerationQueue;
-    std::unordered_set<glm::ivec2> _onChunkDeletionQueue;
+class GameApplication : public Application {
+public:
+    GameApplication(const ApplicationSpec& spec);
 };
 
 } // namespace Krafter
