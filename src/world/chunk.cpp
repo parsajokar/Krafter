@@ -15,7 +15,7 @@ Chunk::Chunk(const glm::ivec2& position)
 
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    noise.SetFrequency(0.01f);
+    noise.SetFrequency(0.02f);
 
     for (int32_t x = 0; x < WIDTH; x++) {
         for (int32_t z = 0; z < WIDTH; z++) {

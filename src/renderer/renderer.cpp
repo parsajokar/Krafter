@@ -16,7 +16,7 @@ Renderer::Renderer()
     assert(!_instance);
     _instance = this;
 
-    PushLayer(_camera = new Camera(glm::vec3(0.0f), glm::radians(80.0f)));
+    PushLayer(_camera = new Camera(glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f)));
 }
 
 void Renderer::OnAttach()
