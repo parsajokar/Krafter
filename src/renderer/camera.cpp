@@ -3,7 +3,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "application.h"
-#include "camera.h"
+#include "renderer/camera.h"
 #include "window.h"
 
 namespace Krafter {

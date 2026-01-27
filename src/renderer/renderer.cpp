@@ -6,7 +6,7 @@
 
 #include "imgui.h"
 
-#include "renderer.h"
+#include "renderer/renderer.h"
 
 namespace Krafter {
 
