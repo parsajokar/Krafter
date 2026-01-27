@@ -13,4 +13,4 @@ void LayerStack::PushOverlay(Layer* layer)
     m_Layers.emplace_back(layer);
 }
 
-}
+} // namespace Krafter
