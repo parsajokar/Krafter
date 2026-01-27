@@ -35,9 +35,9 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
                     if (nx < 0 || nx >= Chunk::k_Width || ny < 0 || ny >= Chunk::k_Height || nz < 0 || nz >= Chunk::k_Width) {
                         AddFaceToData(
                             glm::vec3(
-                                chunkMap.at(chunkPosition).GetPosition().x * Chunk::k_Width + x,
+                                chunkPosition.x * Chunk::k_Width + x,
                                 y,
-                                chunkMap.at(chunkPosition).GetPosition().y * Chunk::k_Width + z),
+                                chunkPosition.y * Chunk::k_Width + z),
                             chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
                             vertexBufferData, elementBufferData);
                     } else if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::Air) {
@@ -138,6 +138,7 @@ void ChunkMesh::AddFaceToData(
     glm::vec3 origin;
     glm::vec3 dx;
     glm::vec3 dy;
+    glm::vec2 uvCoords;
 
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
 
@@ -146,48 +147,42 @@ void ChunkMesh::AddFaceToData(
         origin = position;
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoordsList[0] = atlas.side;
-        uvCoordsList[1] = atlas.side + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.side;
         break;
 
     case BlockFace::Back:
         origin = position + glm::vec3(1.0f, 0.0f, 1.0f);
         dx = glm::vec3(0.0f, 0.0f, -1.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoordsList[0] = atlas.side;
-        uvCoordsList[1] = atlas.side + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.side;
         break;
 
     case BlockFace::Left:
         origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
         dx = glm::vec3(-1.0f, 0.0f, 0.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoordsList[0] = atlas.side;
-        uvCoordsList[1] = atlas.side + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.side;
         break;
 
     case BlockFace::Right:
         origin = position + glm::vec3(0.0f, 0.0f, 1.0f);
         dx = glm::vec3(1.0f, 0.0f, 0.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoordsList[0] = atlas.side;
-        uvCoordsList[1] = atlas.side + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.side;
         break;
 
     case BlockFace::Bottom:
         origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(-1.0f, 0.0f, 0.0f);
-        uvCoordsList[0] = atlas.bottom;
-        uvCoordsList[1] = atlas.bottom + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.bottom;
         break;
 
     default: // BlockFace::TOP
         origin = position + glm::vec3(0.0f, 1.0f, 0.0f);
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(1.0f, 0.0f, 0.0f);
-        uvCoordsList[0] = atlas.top;
-        uvCoordsList[1] = atlas.top + glm::vec2(BlockAtlas::k_Step, BlockAtlas::k_Step);
+        uvCoords = atlas.top;
         break;
     }
 
@@ -195,6 +190,9 @@ void ChunkMesh::AddFaceToData(
     positionList[1] = origin + dx;
     positionList[2] = origin + dx + dy;
     positionList[3] = origin + dy;
+
+    uvCoordsList[0] = uvCoords;
+    uvCoordsList[1] = uvCoords + glm::vec2(BlockAtlas::k_Step);
 
     AddFaceToData(positionList, uvCoordsList, vertexBufferData, elementBufferData);
 }
