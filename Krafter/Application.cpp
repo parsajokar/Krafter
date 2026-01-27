@@ -8,24 +8,24 @@
 namespace Krafter {
 
 Application::Application(const ApplicationSpec& spec)
-    : m_spec(spec)
+    : m_Spec(spec)
 {
-    assert(!s_instance);
-    s_instance = this;
+    assert(!s_Instance);
+    s_Instance = this;
 
     if (!spec.workingDirectory.empty()) {
         std::filesystem::current_path(spec.workingDirectory);
     }
 
-    m_window = std::make_unique<Window>();
+    m_Window = std::make_unique<Window>();
 
-    PushLayer(m_renderer = new Renderer());
-    PushOverlay(m_imguiOverlay = new ImGuiOverlay());
+    PushLayer(m_Renderer = new Renderer());
+    PushOverlay(m_ImGuiOverlay = new ImGuiOverlay());
 }
 
 Application::~Application()
 {
-    for (auto it = m_layerStack.rbegin(); it < m_layerStack.rend(); it++) {
+    for (auto it = m_LayerStack.rbegin(); it < m_LayerStack.rend(); it++) {
         (*it)->Detach();
         delete *it;
     }
@@ -33,43 +33,43 @@ Application::~Application()
 
 void Application::PushLayer(Layer* layer)
 {
-    m_layerStack.PushLayer(layer);
+    m_LayerStack.PushLayer(layer);
     layer->Attach();
 }
 
 void Application::PushOverlay(Layer* layer)
 {
-    m_layerStack.PushOverlay(layer);
+    m_LayerStack.PushOverlay(layer);
     layer->Attach();
 }
 
 void Application::Run()
 {
     while (Window::Get()->IsOpen()) {
-        m_window->PollEvents();
+        m_Window->PollEvents();
 
-        float currentFrameTime = m_window->GetTime();
-        m_delta = currentFrameTime - m_lastFrameTime;
-        m_lastFrameTime = currentFrameTime;
+        float currentFrameTime = m_Window->GetTime();
+        m_Delta = currentFrameTime - m_LastFrameTime;
+        m_LastFrameTime = currentFrameTime;
 
-        for (Layer* layer : m_layerStack) {
+        for (Layer* layer : m_LayerStack) {
             layer->Update();
         }
 
-        m_renderer->ClearBuffers();
+        m_Renderer->ClearBuffers();
 
-        for (Layer* layer : m_layerStack) {
+        for (Layer* layer : m_LayerStack) {
             layer->Render();
         }
 
-        m_imguiOverlay->Begin();
-        ImGui::Text("FPS: %.2f", 1.0f / m_delta);
-        for (Layer* layer : m_layerStack) {
+        m_ImGuiOverlay->Begin();
+        ImGui::Text("FPS: %.2f", 1.0f / m_Delta);
+        for (Layer* layer : m_LayerStack) {
             layer->RenderImGui();
         }
-        m_imguiOverlay->End();
+        m_ImGuiOverlay->End();
 
-        m_window->SwapBuffers();
+        m_Window->SwapBuffers();
     }
 }
 

@@ -13,18 +13,18 @@ namespace Krafter {
 Renderer::Renderer()
     : Layer("Renderer")
 {
-    assert(!s_instance);
-    s_instance = this;
+    assert(!s_Instance);
+    s_Instance = this;
 
-    PushLayer(m_camera = new Camera(glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f)));
+    PushLayer(m_Camera = new Camera(glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f)));
 }
 
 void Renderer::OnAttach()
 {
     gladLoadGL(glfwGetProcAddress);
 
-    m_versionName = glGetString(GL_VERSION);
-    m_rendererName = glGetString(GL_RENDERER);
+    m_VersionName = glGetString(GL_VERSION);
+    m_RendererName = glGetString(GL_RENDERER);
 
     glDebugMessageCallback(ApiDebugCallback, nullptr);
     glEnable(GL_DEBUG_OUTPUT);
@@ -37,17 +37,17 @@ void Renderer::OnAttach()
 
     BlockAtlas::LoadAtlases();
 
-    m_program = std::make_shared<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
-    m_texture = std::make_shared<Texture2D>("assets/texture.png");
+    m_Program = std::make_shared<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
+    m_Texture = std::make_shared<Texture2D>("assets/texture.png");
 }
 
 void Renderer::OnRender()
 {
-    m_texture->Bind(0);
-    m_program->Bind();
-    m_program->SetUniformMat4(0, m_camera->GetViewProjection());
-    m_program->SetUniformInt(1, 0);
-    for (const auto& [position, chunkMesh] : m_chunkMeshes) {
+    m_Texture->Bind(0);
+    m_Program->Bind();
+    m_Program->SetUniformMat4(0, m_Camera->GetViewProjection());
+    m_Program->SetUniformInt(1, 0);
+    for (const auto& [position, chunkMesh] : m_ChunkMeshes) {
         chunkMesh->Bind();
         glDrawElements(GL_TRIANGLES, chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
     }
@@ -56,18 +56,18 @@ void Renderer::OnRender()
 void Renderer::OnRenderImGui()
 {
     ImGui::Text("OpenGL Details:");
-    ImGui::Text("Version: %s", m_versionName);
-    ImGui::Text("Renderer: %s", m_rendererName);
+    ImGui::Text("Version: %s", m_VersionName);
+    ImGui::Text("Renderer: %s", m_RendererName);
 }
 
 void Renderer::GenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
 {
-    m_chunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
+    m_ChunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
 }
 
 void Renderer::DeleteChunkMesh(const glm::ivec2& chunkPosition)
 {
-    m_chunkMeshes.erase(chunkPosition);
+    m_ChunkMeshes.erase(chunkPosition);
 }
 
 void Renderer::ClearBuffers()

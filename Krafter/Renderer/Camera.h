@@ -19,32 +19,32 @@ public:
 
     inline const glm::vec3& GetPosition() const
     {
-        return m_position;
+        return m_Position;
     }
 
     inline const glm::mat4& GetViewProjection() const
     {
-        return m_viewProjection;
+        return m_ViewProjection;
     }
 
 private:
     void ToggleState();
 
-    float m_speed;
-    float m_sensitivity;
+    float m_Speed;
+    float m_Sensitivity;
 
-    bool m_isControlled;
-    bool m_isSpaceReleased;
+    bool m_IsControlled;
+    bool m_IsSpaceReleased;
 
-    glm::vec3 m_position;
-    float m_fov;
+    glm::vec3 m_Position;
+    float m_FieldOfView;
 
-    float m_pitch;
-    float m_yaw;
-    glm::vec2 m_lastCursorPosition;
+    float m_Pitch;
+    float m_Yaw;
+    glm::vec2 m_LastCursorPosition;
 
-    glm::mat4 m_projection;
-    glm::mat4 m_viewProjection;
+    glm::mat4 m_Projection;
+    glm::mat4 m_ViewProjection;
 };
 
 } // namespace Krafter

@@ -19,7 +19,7 @@ class Renderer : public Layer {
 public:
     inline static Renderer* Get()
     {
-        return s_instance;
+        return s_Instance;
     }
 
     Renderer();
@@ -31,7 +31,7 @@ public:
 
     inline Camera& GetCamera()
     {
-        return *m_camera;
+        return *m_Camera;
     }
 
     void GenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
@@ -49,16 +49,16 @@ private:
         const char* message,
         const void* userParam);
 
-    inline static Renderer* s_instance = nullptr;
+    inline static Renderer* s_Instance = nullptr;
 
-    const uint8_t* m_versionName;
-    const uint8_t* m_rendererName;
+    const uint8_t* m_VersionName;
+    const uint8_t* m_RendererName;
 
-    Camera* m_camera;
+    Camera* m_Camera;
 
-    std::shared_ptr<ShaderProgram> m_program;
-    std::shared_ptr<Texture2D> m_texture;
-    std::unordered_map<glm::ivec2, std::shared_ptr<ChunkMesh>> m_chunkMeshes;
+    std::shared_ptr<ShaderProgram> m_Program;
+    std::shared_ptr<Texture2D> m_Texture;
+    std::unordered_map<glm::ivec2, std::shared_ptr<ChunkMesh>> m_ChunkMeshes;
 };
 
 } // namespace Krafter

@@ -21,7 +21,7 @@ class Application {
 public:
     inline static Application* Get()
     {
-        return s_instance;
+        return s_Instance;
     }
 
     Application(const ApplicationSpec& spec);
@@ -32,24 +32,24 @@ public:
 
     inline float GetDelta() const
     {
-        return m_delta;
+        return m_Delta;
     }
 
 private:
-    inline static Application* s_instance = nullptr;
+    inline static Application* s_Instance = nullptr;
 
     void Run();
 
-    ApplicationSpec m_spec;
+    ApplicationSpec m_Spec;
 
-    std::unique_ptr<Window> m_window;
+    std::unique_ptr<Window> m_Window;
 
-    Renderer* m_renderer;
-    ImGuiOverlay* m_imguiOverlay;
-    LayerStack m_layerStack;
+    Renderer* m_Renderer;
+    ImGuiOverlay* m_ImGuiOverlay;
+    LayerStack m_LayerStack;
 
-    float m_lastFrameTime = 0.0f;
-    float m_delta = 0.0f;
+    float m_LastFrameTime = 0.0f;
+    float m_Delta = 0.0f;
 
     friend int ::main(int argc, char** argv);
 };

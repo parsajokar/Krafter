@@ -22,15 +22,15 @@ public:
 
     inline const glm::ivec2& GetPosition() const
     {
-        return m_position;
+        return m_Position;
     }
 
     const Block& GetBlock(const glm::ivec3& coords) const;
     void SetBlock(const glm::ivec3& coords, Block value);
 
 private:
-    glm::ivec2 m_position;
-    Block* m_blocks;
+    glm::ivec2 m_Position;
+    Block* m_Blocks;
 };
 
 using ChunkMap = std::unordered_map<glm::ivec2, Chunk>;

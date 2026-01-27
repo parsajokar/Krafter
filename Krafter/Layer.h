@@ -32,12 +32,12 @@ public:
 
     inline const std::string& GetName() const
     {
-        return m_name;
+        return m_Name;
     }
 
 private:
-    std::string m_name;
-    std::shared_ptr<LayerStack> m_layerStack;
+    std::string m_Name;
+    std::shared_ptr<LayerStack> m_LayerStack;
 };
 
 } // namespace Krafter

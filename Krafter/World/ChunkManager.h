@@ -21,28 +21,30 @@ public:
 
     inline ChunkMap& GetChunkMap()
     {
-        return m_chunkMap;
+        return m_ChunkMap;
     }
 
     inline const ChunkMap& GetChunkMap() const
     {
-        return m_chunkMap;
+        return m_ChunkMap;
     }
 
 private:
-    ChunkMap m_chunkMap;
+    static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
-    int32_t m_renderDistance = 10;
-    float m_chunkDelay = 0.01f;
+    ChunkMap m_ChunkMap;
 
-    std::deque<glm::ivec2> m_chunkGenerationQueue;
-    std::deque<glm::ivec2> m_chunkDeletionQueue;
+    int32_t m_RenderDistance = 10;
+    float m_ChunkDelay = 0.01f;
 
-    std::unordered_map<glm::ivec2, bool> m_onChunkGenerationQueue;
-    std::unordered_map<glm::ivec2, bool> m_onChunkDeletionQueue;
+    std::deque<glm::ivec2> m_ChunkGenerationQueue;
+    std::deque<glm::ivec2> m_ChunkDeletionQueue;
 
-    float m_lastChunkGeneration = 0.0f;
-    float m_lastChunkDeletion = 0.0f;
+    std::unordered_map<glm::ivec2, bool> m_OnChunkGenerationQueue;
+    std::unordered_map<glm::ivec2, bool> m_OnChunkDeletionQueue;
+
+    float m_LastChunkGeneration = 0.0f;
+    float m_LastChunkDeletion = 0.0f;
 };
 
 } // namespace Krafter

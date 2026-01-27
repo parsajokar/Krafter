@@ -6,12 +6,12 @@ namespace Krafter {
 Game::Game()
     : Layer("Game")
 {
-    PushLayer(m_chunkManager = new ChunkManager);
+    PushLayer(m_ChunkManager = new ChunkManager);
 }
 
 void Game::OnUpdate()
 {
-    if (Window::Get()->IsKeyDown(Key::Escape)) {
+    if (Window::Get()->IsKeyDown(Key::k_Escape)) {
         Window::Get()->Close();
     }
 }

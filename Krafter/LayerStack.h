@@ -15,41 +15,41 @@ public:
 
     inline std::vector<Layer*>::iterator begin()
     {
-        return m_layers.begin();
+        return m_Layers.begin();
     }
     inline std::vector<Layer*>::iterator end()
     {
-        return m_layers.end();
+        return m_Layers.end();
     }
     inline std::vector<Layer*>::const_iterator begin() const
     {
-        return m_layers.begin();
+        return m_Layers.begin();
     }
     inline std::vector<Layer*>::const_iterator end() const
     {
-        return m_layers.end();
+        return m_Layers.end();
     }
 
     inline std::vector<Layer*>::reverse_iterator rbegin()
     {
-        return m_layers.rbegin();
+        return m_Layers.rbegin();
     }
     inline std::vector<Layer*>::reverse_iterator rend()
     {
-        return m_layers.rend();
+        return m_Layers.rend();
     }
     inline std::vector<Layer*>::const_reverse_iterator rbegin() const
     {
-        return m_layers.rbegin();
+        return m_Layers.rbegin();
     }
     inline std::vector<Layer*>::const_reverse_iterator rend() const
     {
-        return m_layers.rend();
+        return m_Layers.rend();
     }
 
 private:
-    std::vector<Layer*> m_layers;
-    size_t m_layerPushIndex = 0;
+    std::vector<Layer*> m_Layers;
+    size_t m_LayerPushIndex = 0;
 };
 
 } // namespace Krafter

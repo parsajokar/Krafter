@@ -22,7 +22,7 @@ private:
     static std::string ReadFileAsString(std::string_view path);
     static uint32_t CreateShader(uint32_t type, const char* source);
 
-    uint32_t m_id;
+    uint32_t m_Id;
 };
 
 } // namespace Krafter

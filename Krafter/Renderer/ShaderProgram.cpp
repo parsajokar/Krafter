@@ -15,18 +15,18 @@ ShaderProgram::ShaderProgram(std::string_view vertexShaderPath, std::string_view
     std::string vertexShaderSource = std::move(ReadFileAsString(vertexShaderPath));
     std::string fragmentShaderSource = std::move(ReadFileAsString(fragmentShaderPath));
 
-    m_id = glCreateProgram();
+    m_Id = glCreateProgram();
     uint32_t vertexShader = CreateShader(GL_VERTEX_SHADER, vertexShaderSource.c_str());
     uint32_t fragmentShader = CreateShader(GL_FRAGMENT_SHADER, fragmentShaderSource.c_str());
 
-    glAttachShader(m_id, vertexShader);
-    glAttachShader(m_id, fragmentShader);
+    glAttachShader(m_Id, vertexShader);
+    glAttachShader(m_Id, fragmentShader);
 
-    glLinkProgram(m_id);
-    glValidateProgram(m_id);
+    glLinkProgram(m_Id);
+    glValidateProgram(m_Id);
 
-    glDetachShader(m_id, vertexShader);
-    glDetachShader(m_id, fragmentShader);
+    glDetachShader(m_Id, vertexShader);
+    glDetachShader(m_Id, fragmentShader);
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
@@ -34,12 +34,12 @@ ShaderProgram::ShaderProgram(std::string_view vertexShaderPath, std::string_view
 
 ShaderProgram::~ShaderProgram()
 {
-    glDeleteProgram(m_id);
+    glDeleteProgram(m_Id);
 }
 
 void ShaderProgram::Bind() const
 {
-    glUseProgram(m_id);
+    glUseProgram(m_Id);
 }
 
 void ShaderProgram::SetUniformInt(int32_t location, int32_t value) const

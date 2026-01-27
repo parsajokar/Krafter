@@ -8,19 +8,19 @@ using WindowId = GLFWwindow*;
 namespace Krafter {
 
 enum class Key : int {
-    Escape = 256,
-    Space = 32,
-    W = 87,
-    S = 83,
-    D = 68,
-    A = 65,
+    k_Escape = 256,
+    k_Space = 32,
+    k_W = 87,
+    k_S = 83,
+    k_D = 68,
+    k_A = 65,
 };
 
 class Window {
 public:
     inline static Window* Get()
     {
-        return s_instance;
+        return s_Instance;
     }
 
     Window();
@@ -41,20 +41,20 @@ public:
 
     inline WindowId GetId() const
     {
-        return m_id;
+        return m_Id;
     }
     inline const glm::ivec2& GetSize() const
     {
-        return m_size;
+        return m_Size;
     }
 
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
-    inline static Window* s_instance = nullptr;
+    inline static Window* s_Instance = nullptr;
 
-    WindowId m_id;
-    glm::ivec2 m_size;
+    WindowId m_Id;
+    glm::ivec2 m_Size;
 };
 
 } // namespace Krafter

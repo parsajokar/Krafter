@@ -5,47 +5,47 @@
 namespace Krafter {
 
 Layer::Layer(std::string_view name)
-    : m_name(name)
+    : m_Name(name)
 {
-    m_layerStack = std::make_shared<LayerStack>();
+    m_LayerStack = std::make_shared<LayerStack>();
 }
 
 void Layer::PushLayer(Layer* layer)
 {
-    m_layerStack->PushLayer(layer);
+    m_LayerStack->PushLayer(layer);
 }
 
 void Layer::PushOverlay(Layer* layer)
 {
-    m_layerStack->PushOverlay(layer);
+    m_LayerStack->PushOverlay(layer);
 }
 
 void Layer::Attach()
 {
     OnAttach();
-    std::cout << "[LAYER] " << m_name << " attached!" << std::endl;
+    std::cout << "[LAYER] " << m_Name << " attached!" << std::endl;
 
-    for (Layer* layer : *m_layerStack) {
+    for (Layer* layer : *m_LayerStack) {
         layer->Attach();
     }
 }
 
 void Layer::Detach()
 {
-    for (auto it = m_layerStack->rbegin(); it < m_layerStack->rend(); it++) {
+    for (auto it = m_LayerStack->rbegin(); it < m_LayerStack->rend(); it++) {
         (*it)->Detach();
         delete *it;
     }
 
     OnDetach();
-    std::cout << "[LAYER] " << m_name << " detached!" << std::endl;
+    std::cout << "[LAYER] " << m_Name << " detached!" << std::endl;
 }
 
 void Layer::Update()
 {
     OnUpdate();
 
-    for (Layer* layer : *m_layerStack) {
+    for (Layer* layer : *m_LayerStack) {
         layer->Update();
     }
 }
@@ -54,7 +54,7 @@ void Layer::Render()
 {
     OnRender();
 
-    for (Layer* layer : *m_layerStack) {
+    for (Layer* layer : *m_LayerStack) {
         layer->Render();
     }
 }
@@ -63,7 +63,7 @@ void Layer::RenderImGui()
 {
     OnRenderImGui();
 
-    for (Layer* layer : *m_layerStack) {
+    for (Layer* layer : *m_LayerStack) {
         layer->RenderImGui();
     }
 }

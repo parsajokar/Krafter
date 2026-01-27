@@ -7,18 +7,18 @@
 namespace Krafter {
 
 enum class Block {
-    Air = 0,
-    Dirt,
-    Grass
+    k_Air = 0,
+    k_Dirt,
+    k_Grass
 };
 
 enum class BlockFace {
-    Front,
-    Back,
-    Left,
-    Right,
-    Bottom,
-    Top
+    k_Front,
+    k_Back,
+    k_Left,
+    k_Right,
+    k_Bottom,
+    k_Top
 };
 
 class BlockAtlas {
@@ -33,7 +33,7 @@ public:
     glm::vec2 bottom;
 
 private:
-    inline static std::unordered_map<Block, BlockAtlas> s_blockAtlases;
+    inline static std::unordered_map<Block, BlockAtlas> s_BlockAtlases;
 };
 
 } // namespace Krafter

@@ -13,15 +13,15 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
     constexpr int32_t dy[] = { 0, 0, -1, 1, 0, 0 };
     constexpr int32_t dz[] = { 0, 0, 0, 0, -1, 1 };
     constexpr BlockFace faces[] = {
-        BlockFace::Front, BlockFace::Back,
-        BlockFace::Bottom, BlockFace::Top,
-        BlockFace::Left, BlockFace::Right
+        BlockFace::k_Front, BlockFace::k_Back,
+        BlockFace::k_Bottom, BlockFace::k_Top,
+        BlockFace::k_Left, BlockFace::k_Right
     };
 
     for (int32_t x = 0; x < Chunk::k_Width; x++) {
         for (int32_t y = 0; y < Chunk::k_Height; y++) {
             for (int32_t z = 0; z < Chunk::k_Width; z++) {
-                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::Air) {
+                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::k_Air) {
                     continue;
                 }
 
@@ -40,7 +40,7 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
                                 chunkPosition.y * Chunk::k_Width + z),
                             chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
                             vertexBufferData, elementBufferData);
-                    } else if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::Air) {
+                    } else if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::k_Air) {
                         AddFaceToData(
                             glm::vec3(
                                 chunkMap.at(chunkPosition).GetPosition().x * Chunk::k_Width + x,
@@ -54,37 +54,37 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
         }
     }
 
-    m_elementCount = elementBufferData.size();
+    m_ElementCount = elementBufferData.size();
 
-    glCreateVertexArrays(1, &m_vertexArray);
-    glCreateBuffers(1, &m_vertexBuffer);
-    glCreateBuffers(1, &m_elementBuffer);
+    glCreateVertexArrays(1, &m_VertexArray);
+    glCreateBuffers(1, &m_VertexBuffer);
+    glCreateBuffers(1, &m_ElementBuffer);
 
-    glNamedBufferData(m_vertexBuffer, vertexBufferData.size() * sizeof(float), vertexBufferData.data(), GL_STATIC_DRAW);
-    glNamedBufferData(m_elementBuffer, elementBufferData.size() * sizeof(uint32_t), elementBufferData.data(), GL_STATIC_DRAW);
+    glNamedBufferData(m_VertexBuffer, vertexBufferData.size() * sizeof(float), vertexBufferData.data(), GL_STATIC_DRAW);
+    glNamedBufferData(m_ElementBuffer, elementBufferData.size() * sizeof(uint32_t), elementBufferData.data(), GL_STATIC_DRAW);
 
-    glVertexArrayVertexBuffer(m_vertexArray, 0, m_vertexBuffer, 0, 5 * sizeof(float));
-    glVertexArrayElementBuffer(m_vertexArray, m_elementBuffer);
+    glVertexArrayVertexBuffer(m_VertexArray, 0, m_VertexBuffer, 0, 5 * sizeof(float));
+    glVertexArrayElementBuffer(m_VertexArray, m_ElementBuffer);
 
-    glEnableVertexArrayAttrib(m_vertexArray, 0);
-    glVertexArrayAttribBinding(m_vertexArray, 0, 0);
-    glVertexArrayAttribFormat(m_vertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glEnableVertexArrayAttrib(m_VertexArray, 0);
+    glVertexArrayAttribBinding(m_VertexArray, 0, 0);
+    glVertexArrayAttribFormat(m_VertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
 
-    glEnableVertexArrayAttrib(m_vertexArray, 1);
-    glVertexArrayAttribBinding(m_vertexArray, 1, 0);
-    glVertexArrayAttribFormat(m_vertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+    glEnableVertexArrayAttrib(m_VertexArray, 1);
+    glVertexArrayAttribBinding(m_VertexArray, 1, 0);
+    glVertexArrayAttribFormat(m_VertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
 }
 
 ChunkMesh::~ChunkMesh()
 {
-    glDeleteBuffers(1, &m_elementBuffer);
-    glDeleteBuffers(1, &m_vertexBuffer);
-    glDeleteVertexArrays(1, &m_vertexArray);
+    glDeleteBuffers(1, &m_ElementBuffer);
+    glDeleteBuffers(1, &m_VertexBuffer);
+    glDeleteVertexArrays(1, &m_VertexArray);
 }
 
 void ChunkMesh::Bind() const
 {
-    glBindVertexArray(m_vertexArray);
+    glBindVertexArray(m_VertexArray);
 }
 
 void ChunkMesh::AddFaceToData(
@@ -143,35 +143,35 @@ void ChunkMesh::AddFaceToData(
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
 
     switch (face) {
-    case BlockFace::Front:
+    case BlockFace::k_Front:
         origin = position;
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
         uvCoords = atlas.side;
         break;
 
-    case BlockFace::Back:
+    case BlockFace::k_Back:
         origin = position + glm::vec3(1.0f, 0.0f, 1.0f);
         dx = glm::vec3(0.0f, 0.0f, -1.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
         uvCoords = atlas.side;
         break;
 
-    case BlockFace::Left:
+    case BlockFace::k_Left:
         origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
         dx = glm::vec3(-1.0f, 0.0f, 0.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
         uvCoords = atlas.side;
         break;
 
-    case BlockFace::Right:
+    case BlockFace::k_Right:
         origin = position + glm::vec3(0.0f, 0.0f, 1.0f);
         dx = glm::vec3(1.0f, 0.0f, 0.0f);
         dy = glm::vec3(0.0f, 1.0f, 0.0f);
         uvCoords = atlas.side;
         break;
 
-    case BlockFace::Bottom:
+    case BlockFace::k_Bottom:
         origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(-1.0f, 0.0f, 0.0f);

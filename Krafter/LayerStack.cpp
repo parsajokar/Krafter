@@ -4,13 +4,13 @@ namespace Krafter {
 
 void LayerStack::PushLayer(Layer* layer)
 {
-    m_layers.emplace(m_layers.begin() + m_layerPushIndex, layer);
-    m_layerPushIndex++;
+    m_Layers.emplace(m_Layers.begin() + m_LayerPushIndex, layer);
+    m_LayerPushIndex++;
 }
 
 void LayerStack::PushOverlay(Layer* layer)
 {
-    m_layers.emplace_back(layer);
+    m_Layers.emplace_back(layer);
 }
 
 }

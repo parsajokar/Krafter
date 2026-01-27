@@ -16,12 +16,12 @@ public:
 
     inline const glm::ivec2& GetSize() const
     {
-        return m_size;
+        return m_Size;
     }
 
 private:
-    uint32_t m_id;
-    glm::ivec2 m_size;
+    uint32_t m_Id;
+    glm::ivec2 m_Size;
 };
 
 } // namespace Krafter

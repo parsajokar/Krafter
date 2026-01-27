@@ -8,37 +8,37 @@
 namespace Krafter {
 
 Window::Window()
-    : m_size(1280, 720)
+    : m_Size(1280, 720)
 {
-    assert(!s_instance);
-    s_instance = this;
+    assert(!s_Instance);
+    s_Instance = this;
 
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    m_id = glfwCreateWindow(m_size.x, m_size.y, "Krafter", nullptr, nullptr);
-    glfwMakeContextCurrent(m_id);
+    m_Id = glfwCreateWindow(m_Size.x, m_Size.y, "Krafter", nullptr, nullptr);
+    glfwMakeContextCurrent(m_Id);
 
-    glfwSetFramebufferSizeCallback(m_id, FramebufferSizeCallback);
+    glfwSetFramebufferSizeCallback(m_Id, FramebufferSizeCallback);
 
     SetCursor(false);
 }
 
 Window::~Window()
 {
-    glfwDestroyWindow(m_id);
+    glfwDestroyWindow(m_Id);
     glfwTerminate();
 }
 
 bool Window::IsOpen() const
 {
-    return !glfwWindowShouldClose(m_id);
+    return !glfwWindowShouldClose(m_Id);
 }
 
 void Window::Close() const
 {
-    glfwSetWindowShouldClose(m_id, GLFW_TRUE);
+    glfwSetWindowShouldClose(m_Id, GLFW_TRUE);
 }
 
 void Window::PollEvents() const
@@ -48,7 +48,7 @@ void Window::PollEvents() const
 
 void Window::SwapBuffers() const
 {
-    glfwSwapBuffers(m_id);
+    glfwSwapBuffers(m_Id);
 }
 
 float Window::GetTime() const
@@ -58,28 +58,28 @@ float Window::GetTime() const
 
 bool Window::IsKeyDown(Key key) const
 {
-    return glfwGetKey(m_id, (int)key) == GLFW_PRESS;
+    return glfwGetKey(m_Id, (int)key) == GLFW_PRESS;
 }
 
 void Window::SetCursor(bool enabled)
 {
-    glfwSetInputMode(m_id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(m_Id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
 glm::vec2 Window::GetCursorPosition() const
 {
     double x;
     double y;
-    glfwGetCursorPos(m_id, &x, &y);
+    glfwGetCursorPos(m_Id, &x, &y);
     return glm::vec2(x, y);
 }
 
 void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
-    s_instance->m_size.x = width;
-    s_instance->m_size.y = height;
+    s_Instance->m_Size.x = width;
+    s_Instance->m_Size.y = height;
 
-    glViewport(0, 0, s_instance->GetSize().x, s_instance->GetSize().y);
+    glViewport(0, 0, s_Instance->GetSize().x, s_Instance->GetSize().y);
 
     Renderer::Get()->GetCamera().UpdateProjection();
 }

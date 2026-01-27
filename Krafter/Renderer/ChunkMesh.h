@@ -17,7 +17,7 @@ public:
 
     inline uint32_t GetElementCount() const
     {
-        return m_elementCount;
+        return m_ElementCount;
     }
 
     void Bind() const;
@@ -32,11 +32,11 @@ private:
         Block block, BlockFace face,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
 
-    uint32_t m_elementCount;
+    uint32_t m_ElementCount;
 
-    uint32_t m_vertexArray;
-    uint32_t m_vertexBuffer;
-    uint32_t m_elementBuffer;
+    uint32_t m_VertexArray;
+    uint32_t m_VertexBuffer;
+    uint32_t m_ElementBuffer;
 };
 
 } // namespace Krafter

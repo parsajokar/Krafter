@@ -14,7 +14,7 @@ public:
     void OnUpdate() override;
 
 private:
-    ChunkManager* m_chunkManager;
+    ChunkManager* m_ChunkManager;
 };
 
 class GameApplication : public Application {
