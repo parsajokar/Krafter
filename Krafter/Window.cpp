@@ -1,0 +1,87 @@
+#include "glad/gl.h"
+
+#include "GLFW/glfw3.h"
+
+#include "Krafter/Renderer/Renderer.h"
+#include "Krafter/Window.h"
+
+namespace Krafter {
+
+Window::Window()
+    : m_size(1280, 720)
+{
+    assert(!s_instance);
+    s_instance = this;
+
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    m_id = glfwCreateWindow(m_size.x, m_size.y, "Krafter", nullptr, nullptr);
+    glfwMakeContextCurrent(m_id);
+
+    glfwSetFramebufferSizeCallback(m_id, FramebufferSizeCallback);
+
+    SetCursor(false);
+}
+
+Window::~Window()
+{
+    glfwDestroyWindow(m_id);
+    glfwTerminate();
+}
+
+bool Window::IsOpen() const
+{
+    return !glfwWindowShouldClose(m_id);
+}
+
+void Window::Close() const
+{
+    glfwSetWindowShouldClose(m_id, GLFW_TRUE);
+}
+
+void Window::PollEvents() const
+{
+    glfwPollEvents();
+}
+
+void Window::SwapBuffers() const
+{
+    glfwSwapBuffers(m_id);
+}
+
+float Window::GetTime() const
+{
+    return glfwGetTime();
+}
+
+bool Window::IsKeyDown(Key key) const
+{
+    return glfwGetKey(m_id, (int)key) == GLFW_PRESS;
+}
+
+void Window::SetCursor(bool enabled)
+{
+    glfwSetInputMode(m_id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+}
+
+glm::vec2 Window::GetCursorPosition() const
+{
+    double x;
+    double y;
+    glfwGetCursorPos(m_id, &x, &y);
+    return glm::vec2(x, y);
+}
+
+void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+{
+    s_instance->m_size.x = width;
+    s_instance->m_size.y = height;
+
+    glViewport(0, 0, s_instance->GetSize().x, s_instance->GetSize().y);
+
+    Renderer::Get()->GetCamera().UpdateProjection();
+}
+
+} // namespace Krafter

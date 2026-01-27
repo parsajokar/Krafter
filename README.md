@@ -36,14 +36,14 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
 ### Clone the repository
 
 ```bash
-git clone --recursive https://github.com/parsajokar/krafter.git
-cd krafter
+git clone --recursive https://github.com/parsajokar/Krafter.git
+cd Krafter
 mkdir build
 cd build
 cmake -G "Ninja Multi-Config" ..
 cd ..
 cmake --build build/ --config RelWithDebInfo
-./build/RelWithDebInfo/krafter
+./build/RelWithDebInfo/Krafter
 ```
 
 ### Controls

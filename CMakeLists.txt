@@ -5,7 +5,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(krafter LANGUAGES CXX)
+project(Krafter LANGUAGES CXX)
 
 # Libraries
 
@@ -36,46 +36,46 @@ unset(CMAKE_FOLDER)
 
 # Krafter
 
-add_executable(krafter)
+add_executable(Krafter)
 
 target_sources(
-    krafter
+    Krafter
     PRIVATE
-    src/world/chunk_manager.h
-    src/world/chunk_manager.cpp
-    src/world/chunk.h
-    src/world/chunk.cpp
-    src/world/block.h
-    src/world/block.cpp
-    src/renderer/chunk_mesh.h
-    src/renderer/chunk_mesh.cpp
-    src/renderer/texture.h
-    src/renderer/texture.cpp
-    src/renderer/camera.h
-    src/renderer/camera.cpp
-    src/renderer/shader_program.h
-    src/renderer/shader_program.cpp
-    src/renderer/renderer.h
-    src/renderer/renderer.cpp
-    src/game.h
-    src/game.cpp
-    src/imgui_overlay.h
-    src/imgui_overlay.cpp
-    src/window.h
-    src/window.cpp
-    src/layer_stack.h
-    src/layer_stack.cpp
-    src/layer.h
-    src/layer.cpp
-    src/application.h
-    src/application.cpp
-    src/main.cpp
+    Krafter/World/ChunkManager.h
+    Krafter/World/ChunkManager.cpp
+    Krafter/World/Chunk.h
+    Krafter/World/Chunk.cpp
+    Krafter/World/Block.h
+    Krafter/World/Block.cpp
+    Krafter/Renderer/ChunkMesh.h
+    Krafter/Renderer/ChunkMesh.cpp
+    Krafter/Renderer/Texture.h
+    Krafter/Renderer/Texture.cpp
+    Krafter/Renderer/Camera.h
+    Krafter/Renderer/Camera.cpp
+    Krafter/Renderer/ShaderProgram.h
+    Krafter/Renderer/ShaderProgram.cpp
+    Krafter/Renderer/Renderer.h
+    Krafter/Renderer/Renderer.cpp
+    Krafter/Game.h
+    Krafter/Game.cpp
+    Krafter/ImGuiOverlay.h
+    Krafter/ImGuiOverlay.cpp
+    Krafter/Window.h
+    Krafter/Window.cpp
+    Krafter/LayerStack.h
+    Krafter/LayerStack.cpp
+    Krafter/Layer.h
+    Krafter/Layer.cpp
+    Krafter/Application.h
+    Krafter/Application.cpp
+    Krafter/Main.cpp
 )
 
 target_include_directories(
-    krafter
+    Krafter
     PRIVATE
-    src
+    .
     lib/glfw/include
     lib/glad/include
     lib/imgui
@@ -86,7 +86,7 @@ target_include_directories(
 )
 
 target_link_libraries(
-    krafter
+    Krafter
     PRIVATE
     glfw
     glad
@@ -98,7 +98,7 @@ target_link_libraries(
 )
 
 target_compile_definitions(
-    krafter
+    Krafter
     PRIVATE
     GLM_ENABLE_EXPERIMENTAL
 )
