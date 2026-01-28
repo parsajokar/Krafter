@@ -2,20 +2,15 @@
 
 #include "glm/glm.hpp"
 
-#include "Krafter/Layer.h"
-
 namespace Krafter {
 
-class Camera : public Layer {
+class Camera {
 public:
     Camera(const glm::vec3& position, float fov);
-    ~Camera() = default;
 
-    void OnAttach() override;
-    void OnUpdate() override;
-    void OnRenderImGui() override;
-
+    void Update();
     void UpdateProjection();
+    void RenderImGui();
 
     inline const glm::vec3& GetPosition() const
     {

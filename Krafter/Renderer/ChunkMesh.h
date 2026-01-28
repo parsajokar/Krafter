@@ -1,10 +1,11 @@
 #pragma once
 
 #include <array>
-#include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "glm/glm.hpp"
+#include "glm/gtx/hash.hpp"
 
 #include "Krafter/World/Chunk.h"
 
@@ -38,5 +39,7 @@ private:
     uint32_t m_VertexBuffer;
     uint32_t m_ElementBuffer;
 };
+
+using ChunkMeshMap = std::unordered_map<glm::ivec2, std::unique_ptr<ChunkMesh>>;
 
 } // namespace Krafter

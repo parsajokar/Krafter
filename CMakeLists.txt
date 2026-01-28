@@ -51,16 +51,14 @@ target_sources(
     Krafter/Renderer/ChunkMesh.cpp
     Krafter/Renderer/Texture.h
     Krafter/Renderer/Texture.cpp
-    Krafter/Renderer/Camera.h
-    Krafter/Renderer/Camera.cpp
     Krafter/Renderer/ShaderProgram.h
     Krafter/Renderer/ShaderProgram.cpp
     Krafter/Renderer/Renderer.h
     Krafter/Renderer/Renderer.cpp
     Krafter/Game.h
     Krafter/Game.cpp
-    Krafter/ImGuiOverlay.h
-    Krafter/ImGuiOverlay.cpp
+    Krafter/Camera.h
+    Krafter/Camera.cpp
     Krafter/Window.h
     Krafter/Window.cpp
     Krafter/LayerStack.h

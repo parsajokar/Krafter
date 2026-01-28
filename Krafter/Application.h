@@ -3,7 +3,6 @@
 #include <memory>
 #include <string>
 
-#include "Krafter/ImGuiOverlay.h"
 #include "Krafter/LayerStack.h"
 #include "Krafter/Renderer/Renderer.h"
 #include "Krafter/Window.h"
@@ -12,44 +11,32 @@ int main(int argc, char** argv);
 
 namespace Krafter {
 
-struct ApplicationSpec {
+struct ApplicationSpecification {
     std::string name;
     std::string workingDirectory;
 };
 
 class Application {
 public:
-    inline static Application* Get()
-    {
-        return s_Instance;
-    }
-
-    Application(const ApplicationSpec& spec);
+    Application(const ApplicationSpecification& specification);
     virtual ~Application();
 
     void PushLayer(Layer* layer);
     void PushOverlay(Layer* layer);
 
-    inline float GetDelta() const
-    {
-        return m_Delta;
-    }
-
 private:
-    inline static Application* s_Instance = nullptr;
+    inline static Application* s_Application = nullptr;
 
     void Run();
 
-    ApplicationSpec m_Spec;
+    void InitImGui();
+    void ShutdownImGui();
 
-    std::unique_ptr<Window> m_Window;
+    void BeginImGui();
+    void EndImGui();
 
-    Renderer* m_Renderer;
-    ImGuiOverlay* m_ImGuiOverlay;
+    ApplicationSpecification m_Specification;
     LayerStack m_LayerStack;
-
-    float m_LastFrameTime = 0.0f;
-    float m_Delta = 0.0f;
 
     friend int ::main(int argc, char** argv);
 };

@@ -4,35 +4,23 @@
 #include <unordered_map>
 
 #include "glm/glm.hpp"
-#include "glm/gtx/hash.hpp"
 
-#include "Krafter/Layer.h"
+#include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/World/Chunk.h"
 
 namespace Krafter {
 
-class ChunkManager : public Layer {
+class ChunkManager {
 public:
-    ChunkManager();
-    ~ChunkManager() = default;
-
-    void OnUpdate() override;
-    void OnRenderImGui() override;
-
-    inline ChunkMap& GetChunkMap()
-    {
-        return m_ChunkMap;
-    }
-
-    inline const ChunkMap& GetChunkMap() const
-    {
-        return m_ChunkMap;
-    }
+    void Update();
+    void Render();
+    void RenderImGui();
 
 private:
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
     ChunkMap m_ChunkMap;
+    ChunkMeshMap m_ChunkMeshMap;
 
     int32_t m_RenderDistance = 10;
     float m_ChunkDelay = 0.01f;

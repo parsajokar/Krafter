@@ -10,16 +10,53 @@
 
 namespace Krafter {
 
-Renderer::Renderer()
-    : Layer("Renderer")
+void Renderer::Init()
 {
-    assert(!s_Instance);
-    s_Instance = this;
-
-    PushLayer(m_Camera = new Camera(glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f)));
+    assert(!s_Renderer);
+    s_Renderer = new Renderer();
 }
 
-void Renderer::OnAttach()
+void Renderer::Shutdown()
+{
+    delete s_Renderer;
+}
+
+void Renderer::Clear()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh)
+{
+    s_Renderer->m_Texture->Bind(0);
+    s_Renderer->m_Program->Bind();
+    s_Renderer->m_Program->SetUniformMat4(0, s_Renderer->m_Camera->GetViewProjection());
+    s_Renderer->m_Program->SetUniformInt(1, 0);
+    chunkMesh.Bind();
+    glDrawElements(GL_TRIANGLES, chunkMesh.GetElementCount(), GL_UNSIGNED_INT, nullptr);
+}
+
+void Renderer::RenderImGui()
+{
+    ImGui::Text("OpenGL Details:");
+    ImGui::Text("Version: %s", s_Renderer->m_VersionName);
+    ImGui::Text("Renderer: %s", s_Renderer->m_RendererName);
+}
+
+void Renderer::ApiDebugCallback(
+    uint32_t source,
+    uint32_t type,
+    uint32_t id,
+    uint32_t severity,
+    int32_t length,
+    const char* message,
+    const void* userParam)
+{
+    std::cerr << "[OPENGL] " << message << std::endl;
+    assert(severity != GL_DEBUG_SEVERITY_HIGH);
+}
+
+Renderer::Renderer()
 {
     gladLoadGL(glfwGetProcAddress);
 
@@ -37,55 +74,8 @@ void Renderer::OnAttach()
 
     BlockAtlas::LoadAtlases();
 
-    m_Program = std::make_shared<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
-    m_Texture = std::make_shared<Texture2D>("assets/texture.png");
-}
-
-void Renderer::OnRender()
-{
-    m_Texture->Bind(0);
-    m_Program->Bind();
-    m_Program->SetUniformMat4(0, m_Camera->GetViewProjection());
-    m_Program->SetUniformInt(1, 0);
-    for (const auto& [position, chunkMesh] : m_ChunkMeshes) {
-        chunkMesh->Bind();
-        glDrawElements(GL_TRIANGLES, chunkMesh->GetElementCount(), GL_UNSIGNED_INT, nullptr);
-    }
-}
-
-void Renderer::OnRenderImGui()
-{
-    ImGui::Text("OpenGL Details:");
-    ImGui::Text("Version: %s", m_VersionName);
-    ImGui::Text("Renderer: %s", m_RendererName);
-}
-
-void Renderer::GenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
-{
-    m_ChunkMeshes[chunkPosition] = std::make_shared<ChunkMesh>(chunkMap, chunkPosition);
-}
-
-void Renderer::DeleteChunkMesh(const glm::ivec2& chunkPosition)
-{
-    m_ChunkMeshes.erase(chunkPosition);
-}
-
-void Renderer::ClearBuffers()
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void Renderer::ApiDebugCallback(
-    uint32_t source,
-    uint32_t type,
-    uint32_t id,
-    uint32_t severity,
-    int32_t length,
-    const char* message,
-    const void* userParam)
-{
-    std::cerr << "[OPENGL] " << message << std::endl;
-    assert(severity != GL_DEBUG_SEVERITY_HIGH);
+    m_Program = std::make_unique<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
+    m_Texture = std::make_unique<Texture2D>("assets/texture.png");
 }
 
 } // namespace Krafter

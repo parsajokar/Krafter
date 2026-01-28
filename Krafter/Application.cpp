@@ -1,26 +1,28 @@
 #include <filesystem>
 
 #include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 #include "Krafter/Application.h"
 #include "Krafter/Renderer/Renderer.h"
 
 namespace Krafter {
 
-Application::Application(const ApplicationSpec& spec)
-    : m_Spec(spec)
+Application::Application(const ApplicationSpecification& specification)
+    : m_Specification(specification)
 {
-    assert(!s_Instance);
-    s_Instance = this;
+    assert(!s_Application);
+    s_Application = this;
 
-    if (!spec.workingDirectory.empty()) {
-        std::filesystem::current_path(spec.workingDirectory);
+    if (!m_Specification.workingDirectory.empty()) {
+        std::filesystem::current_path(m_Specification.workingDirectory);
     }
 
-    m_Window = std::make_unique<Window>();
+    Window::Init();
+    Renderer::Init();
 
-    PushLayer(m_Renderer = new Renderer());
-    PushOverlay(m_ImGuiOverlay = new ImGuiOverlay());
+    InitImGui();
 }
 
 Application::~Application()
@@ -29,6 +31,11 @@ Application::~Application()
         (*it)->Detach();
         delete *it;
     }
+
+    ShutdownImGui();
+
+    Renderer::Shutdown();
+    Window::Shutdown();
 }
 
 void Application::PushLayer(Layer* layer)
@@ -45,32 +52,60 @@ void Application::PushOverlay(Layer* layer)
 
 void Application::Run()
 {
-    while (Window::Get()->IsOpen()) {
-        m_Window->PollEvents();
-
-        float currentFrameTime = m_Window->GetTime();
-        m_Delta = currentFrameTime - m_LastFrameTime;
-        m_LastFrameTime = currentFrameTime;
+    while (Window::IsOpen()) {
+        Window::PollEvents();
 
         for (Layer* layer : m_LayerStack) {
             layer->Update();
         }
 
-        m_Renderer->ClearBuffers();
+        Renderer::Clear();
 
         for (Layer* layer : m_LayerStack) {
             layer->Render();
         }
 
-        m_ImGuiOverlay->Begin();
-        ImGui::Text("FPS: %.2f", 1.0f / m_Delta);
+        BeginImGui();
         for (Layer* layer : m_LayerStack) {
             layer->RenderImGui();
         }
-        m_ImGuiOverlay->End();
+        EndImGui();
 
-        m_Window->SwapBuffers();
+        Window::SwapBuffers();
     }
+}
+
+void Application::InitImGui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = "assets/editorconfig.ini";
+
+    ImGui_ImplGlfw_InitForOpenGL(Window::GetId(), true);
+    ImGui_ImplOpenGL3_Init("#version 450 core");
+}
+
+void Application::ShutdownImGui()
+{
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
+
+void Application::BeginImGui()
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void Application::EndImGui()
+{
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 } // namespace Krafter

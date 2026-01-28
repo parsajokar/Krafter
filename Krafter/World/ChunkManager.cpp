@@ -6,14 +6,9 @@
 
 namespace Krafter {
 
-ChunkManager::ChunkManager()
-    : Layer("ChunkManager")
+void ChunkManager::Update()
 {
-}
-
-void ChunkManager::OnUpdate()
-{
-    glm::vec3 worldPosition = Renderer::Get()->GetCamera().GetPosition();
+    glm::vec3 worldPosition = Renderer::GetCamera()->GetPosition();
     glm::ivec2 chunkPosition = glm::ivec2(worldPosition.x, worldPosition.z) / Chunk::k_Width;
 
     for (int32_t x = chunkPosition.x - m_RenderDistance; x <= chunkPosition.x + m_RenderDistance; x++) {
@@ -35,8 +30,8 @@ void ChunkManager::OnUpdate()
         }
     }
 
-    if (!m_ChunkGenerationQueue.empty() && Window::Get()->GetTime() > m_LastChunkGeneration + m_ChunkDelay) {
-        m_LastChunkGeneration = Window::Get()->GetTime();
+    if (!m_ChunkGenerationQueue.empty() && Window::GetTime() > m_LastChunkGeneration + m_ChunkDelay) {
+        m_LastChunkGeneration = Window::GetTime();
 
         glm::ivec2 targetChunk = m_ChunkGenerationQueue.front();
         m_ChunkGenerationQueue.pop_front();
@@ -44,12 +39,12 @@ void ChunkManager::OnUpdate()
 
         if (IsInRadius(targetChunk, chunkPosition, m_RenderDistance)) {
             m_ChunkMap.emplace(targetChunk, std::move(Chunk(targetChunk)));
-            Renderer::Get()->GenerateChunkMesh(m_ChunkMap, targetChunk);
+            m_ChunkMeshMap[targetChunk] = std::make_unique<ChunkMesh>(m_ChunkMap, targetChunk);
         }
     }
 
-    if (!m_ChunkDeletionQueue.empty() && Window::Get()->GetTime() > m_LastChunkDeletion + m_ChunkDelay) {
-        m_LastChunkDeletion = Window::Get()->GetTime();
+    if (!m_ChunkDeletionQueue.empty() && Window::GetTime() > m_LastChunkDeletion + m_ChunkDelay) {
+        m_LastChunkDeletion = Window::GetTime();
 
         glm::ivec2 targetChunk = m_ChunkDeletionQueue.front();
         m_ChunkDeletionQueue.pop_front();
@@ -57,12 +52,19 @@ void ChunkManager::OnUpdate()
 
         if (!IsInRadius(targetChunk, chunkPosition, m_RenderDistance)) {
             m_ChunkMap.erase(targetChunk);
-            Renderer::Get()->DeleteChunkMesh(targetChunk);
+            m_ChunkMeshMap.erase(targetChunk);
         }
     }
 }
 
-void ChunkManager::OnRenderImGui()
+void ChunkManager::Render()
+{
+    for (const auto& [position, chunkMesh] : m_ChunkMeshMap) {
+        Renderer::RenderChunkMesh(*chunkMesh);
+    }
+}
+
+void ChunkManager::RenderImGui()
 {
     ImGui::InputInt("Render Distance", &m_RenderDistance);
     ImGui::InputFloat("Chunk Delay", &m_ChunkDelay);

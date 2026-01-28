@@ -6,20 +6,22 @@
 
 namespace Krafter {
 
-class Game : public Layer {
+class GameLayer : public Layer {
 public:
-    Game();
-    ~Game() = default;
+    GameLayer();
 
     void OnUpdate() override;
+    void OnRender() override;
+    void OnRenderImGui() override;
 
 private:
-    ChunkManager* m_ChunkManager;
+    Camera m_Camera;
+    ChunkManager m_ChunkManager;
 };
 
 class GameApplication : public Application {
 public:
-    GameApplication(const ApplicationSpec& spec);
+    GameApplication(const ApplicationSpecification& specification);
 };
 
 } // namespace Krafter

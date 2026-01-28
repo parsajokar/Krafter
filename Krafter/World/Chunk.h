@@ -1,10 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <unordered_map>
 
 #include "glm/glm.hpp"
-#include "glm/gtx/hash.hpp"
 
 #include "Krafter/World/Block.h"
 

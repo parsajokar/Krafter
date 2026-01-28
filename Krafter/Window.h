@@ -18,43 +18,50 @@ enum class Key : int {
 
 class Window {
 public:
-    inline static Window* Get()
+    static void Init(); // !!! MAKE SURE TO CALL SHUTDOWN
+    static void Shutdown();
+
+    static bool IsOpen();
+    static void Close();
+
+    static void PollEvents();
+    static void SwapBuffers();
+
+    static float GetTime();
+
+    static bool IsKeyDown(Key key);
+
+    static void SetCursor(bool enabled);
+    static glm::vec2 GetCursorPosition();
+
+    inline static WindowId GetId()
     {
-        return s_Instance;
+        return s_Window->m_Id;
     }
 
-    Window();
-    ~Window();
-
-    bool IsOpen() const;
-    void Close() const;
-
-    void PollEvents() const;
-    void SwapBuffers() const;
-
-    float GetTime() const;
-
-    bool IsKeyDown(Key key) const;
-
-    void SetCursor(bool enabled);
-    glm::vec2 GetCursorPosition() const;
-
-    inline WindowId GetId() const
+    inline static const glm::ivec2& GetSize()
     {
-        return m_Id;
+        return s_Window->m_Size;
     }
-    inline const glm::ivec2& GetSize() const
+
+    inline static float GetDelta()
     {
-        return m_Size;
+        return s_Window->m_Delta;
     }
 
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
-    inline static Window* s_Instance = nullptr;
+    inline static Window* s_Window = nullptr;
+
+    Window();
+    ~Window();
 
     WindowId m_Id;
     glm::ivec2 m_Size;
+
+    float m_LastFrameTime = 0.0f;
+    float m_Delta = 0.0f;
 };
 
 } // namespace Krafter

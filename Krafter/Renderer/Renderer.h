@@ -2,42 +2,31 @@
 
 #include <cstdint>
 #include <memory>
-#include <unordered_map>
 
-#include "glm/glm.hpp"
-#include "glm/gtx/hash.hpp"
-
-#include "Krafter/Layer.h"
-#include "Krafter/Renderer/Camera.h"
+#include "Krafter/Camera.h"
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/Renderer/ShaderProgram.h"
 #include "Krafter/Renderer/Texture.h"
 
 namespace Krafter {
 
-class Renderer : public Layer {
+class Renderer {
 public:
-    inline static Renderer* Get()
+    static void Init(); // !!! MAKE SURE TO CALL SHUTDOWN
+    static void Shutdown();
+
+    inline static Camera* GetCamera()
     {
-        return s_Instance;
+        return s_Renderer->m_Camera;
+    }
+    inline static void SetCamera(Camera* camera)
+    {
+        s_Renderer->m_Camera = camera;
     }
 
-    Renderer();
-    ~Renderer() = default;
-
-    void OnAttach() override;
-    void OnRender() override;
-    void OnRenderImGui() override;
-
-    inline Camera& GetCamera()
-    {
-        return *m_Camera;
-    }
-
-    void GenerateChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
-    void DeleteChunkMesh(const glm::ivec2& chunkPosition);
-
-    void ClearBuffers();
+    static void Clear();
+    static void RenderChunkMesh(const ChunkMesh& chunkMesh);
+    static void RenderImGui();
 
 private:
     static void ApiDebugCallback(
@@ -49,16 +38,17 @@ private:
         const char* message,
         const void* userParam);
 
-    inline static Renderer* s_Instance = nullptr;
+    inline static Renderer* s_Renderer = nullptr;
+
+    Renderer();
 
     const uint8_t* m_VersionName;
     const uint8_t* m_RendererName;
 
     Camera* m_Camera;
 
-    std::shared_ptr<ShaderProgram> m_Program;
-    std::shared_ptr<Texture2D> m_Texture;
-    std::unordered_map<glm::ivec2, std::shared_ptr<ChunkMesh>> m_ChunkMeshes;
+    std::unique_ptr<ShaderProgram> m_Program;
+    std::unique_ptr<Texture2D> m_Texture;
 };
 
 } // namespace Krafter

@@ -1,14 +1,14 @@
+#include <memory>
+
 #include "Krafter/Game.h"
 
 int main(int argc, char** argv)
 {
-    const Krafter::ApplicationSpec spec = {
+    const Krafter::ApplicationSpecification specification = {
         .name = "Krafter"
     };
 
-    auto app = new Krafter::GameApplication(spec);
-    app->Run();
-    delete app;
+    std::make_unique<Krafter::GameApplication>(specification)->Run();
 
     return 0;
 }
