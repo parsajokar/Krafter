@@ -6,8 +6,6 @@
 
 namespace Krafter {
 
-class Layer;
-
 class LayerStack {
 public:
     void PushLayer(Layer* layer);

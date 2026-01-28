@@ -10,11 +10,11 @@ class GameLayer : public Layer {
 public:
     GameLayer();
 
+private:
     void OnUpdate() override;
     void OnRender() override;
     void OnRenderImGui() override;
 
-private:
     Camera m_Camera;
     ChunkManager m_ChunkManager;
 };
