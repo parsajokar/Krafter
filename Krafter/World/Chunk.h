@@ -31,6 +31,4 @@ private:
     Block* m_Blocks;
 };
 
-using ChunkMap = std::unordered_map<glm::ivec2, Chunk>;
-
 } // namespace Krafter
