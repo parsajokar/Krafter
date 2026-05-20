@@ -31,21 +31,34 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
                     int32_t nz = z + dz[k];
                     BlockFace face = faces[k];
 
-                    // TODO: Fix
-                    if (nx < 0 || nx >= Chunk::k_Width || ny < 0 || ny >= Chunk::k_Height || nz < 0 || nz >= Chunk::k_Width) {
+                    if (ny < 0) {
+                        continue;
+                    }
+
+                    glm::ivec2 neighbourChunkPosition = chunkPosition;
+
+                    if (nx < 0) {
+                        neighbourChunkPosition.x--;
+                        nx = Chunk::k_Width - 1;
+                    } else if (nx >= Chunk::k_Width) {
+                        neighbourChunkPosition.x++;
+                        nx = 0;
+                    }
+
+                    if (nz < 0) {
+                        neighbourChunkPosition.y--;
+                        nz = Chunk::k_Width - 1;
+                    } else if (nz >= Chunk::k_Width) {
+                        neighbourChunkPosition.y++;
+                        nz = 0;
+                    }
+
+                    if (ny >= Chunk::k_Height || chunkMap.at(neighbourChunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::k_Air) {
                         AddFaceToData(
                             glm::vec3(
                                 chunkPosition.x * Chunk::k_Width + x,
                                 y,
                                 chunkPosition.y * Chunk::k_Width + z),
-                            chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
-                            vertexBufferData, elementBufferData);
-                    } else if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::k_Air) {
-                        AddFaceToData(
-                            glm::vec3(
-                                chunkMap.at(chunkPosition).GetPosition().x * Chunk::k_Width + x,
-                                y,
-                                chunkMap.at(chunkPosition).GetPosition().y * Chunk::k_Width + z),
                             chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
                             vertexBufferData, elementBufferData);
                     }
