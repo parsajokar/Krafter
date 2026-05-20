@@ -19,6 +19,12 @@ public:
 private:
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
+    void LoadChunk(const glm::ivec2& chunkPosition);
+    void UnloadChunk(const glm::ivec2& chunkPosition);
+
+    bool IsChunkLoadedToChunkMap(const glm::ivec2& chunkPosition) const;
+    void LoadChunkToChunkMap(const glm::ivec2& chunkPosition);
+
     ChunkMap m_ChunkMap;
     ChunkMeshMap m_ChunkMeshMap;
 

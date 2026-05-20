@@ -15,7 +15,7 @@ void ChunkManager::Update()
         for (int32_t z = chunkPosition.y - m_RenderDistance; z <= chunkPosition.y + m_RenderDistance; z++) {
             glm::ivec2 position = glm::ivec2(x, z);
             if (IsInRadius(position, chunkPosition, m_RenderDistance)) {
-                if (!m_ChunkMap.count(position) && !m_OnChunkGenerationQueue.count(position)) {
+                if (!m_ChunkMeshMap.count(position) && !m_OnChunkGenerationQueue.count(position)) {
                     m_ChunkGenerationQueue.push_back(position);
                     m_OnChunkGenerationQueue[position] = true;
                 }
@@ -23,7 +23,7 @@ void ChunkManager::Update()
         }
     }
 
-    for (const auto& [position, chunk] : m_ChunkMap) {
+    for (const auto& [position, chunkMesh] : m_ChunkMeshMap) {
         if (!IsInRadius(position, chunkPosition, m_RenderDistance) && !m_OnChunkDeletionQueue.count(position)) {
             m_ChunkDeletionQueue.push_back(position);
             m_OnChunkDeletionQueue[position] = true;
@@ -38,8 +38,7 @@ void ChunkManager::Update()
         m_OnChunkGenerationQueue.erase(targetChunk);
 
         if (IsInRadius(targetChunk, chunkPosition, m_RenderDistance)) {
-            m_ChunkMap.emplace(targetChunk, std::move(Chunk(targetChunk)));
-            m_ChunkMeshMap[targetChunk] = std::make_unique<ChunkMesh>(m_ChunkMap, targetChunk);
+            LoadChunk(targetChunk);
         }
     }
 
@@ -51,8 +50,7 @@ void ChunkManager::Update()
         m_OnChunkDeletionQueue.erase(targetChunk);
 
         if (!IsInRadius(targetChunk, chunkPosition, m_RenderDistance)) {
-            m_ChunkMap.erase(targetChunk);
-            m_ChunkMeshMap.erase(targetChunk);
+            UnloadChunk(targetChunk);
         }
     }
 }
@@ -74,6 +72,46 @@ constexpr bool ChunkManager::IsInRadius(const glm::ivec2& entity, const glm::ive
 {
     glm::ivec2 d = entity - origin;
     return d.x * d.x + d.y * d.y <= radius * radius;
+}
+
+void ChunkManager::LoadChunk(const glm::ivec2& chunkPosition)
+{
+    constexpr glm::ivec2 dp[] = {
+        glm::ivec2(-1, 0),
+        glm::ivec2(1, 0),
+        glm::ivec2(0, -1),
+        glm::ivec2(0, 1)
+    };
+
+    for (size_t i = 0; i < 4; i++) {
+        glm::ivec2 neighbourChunk = chunkPosition + dp[i];
+        if (!IsChunkLoadedToChunkMap(neighbourChunk)) {
+            LoadChunkToChunkMap(neighbourChunk);
+        }
+    }
+
+    if (!IsChunkLoadedToChunkMap(chunkPosition)) {
+        LoadChunkToChunkMap(chunkPosition);
+    }
+
+
+    m_ChunkMeshMap[chunkPosition] = std::make_unique<ChunkMesh>(m_ChunkMap, chunkPosition);
+}
+
+void ChunkManager::UnloadChunk(const glm::ivec2& chunkPosition)
+{
+    m_ChunkMeshMap.erase(chunkPosition);
+
+}
+
+bool ChunkManager::IsChunkLoadedToChunkMap(const glm::ivec2& chunkPosition) const
+{
+    return m_ChunkMap.count(chunkPosition) != 0;
+}
+
+void ChunkManager::LoadChunkToChunkMap(const glm::ivec2& chunkPosition)
+{
+    m_ChunkMap.emplace(chunkPosition, std::move(Chunk(chunkPosition)));
 }
 
 } // namespace Krafter
