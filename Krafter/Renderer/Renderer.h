@@ -8,6 +8,18 @@
 #include "Krafter/Renderer/ShaderProgram.h"
 #include "Krafter/Renderer/Texture.h"
 
+#if defined(_MSC_VER)
+    #define STDCALL __stdcall
+#elif defined(__GNUC__)
+    #if defined(__i386__)
+        #define STDCALL __attribute__((stdcall))
+    #else
+        #define STDCALL 
+    #endif
+#else
+    #define STDCALL
+#endif
+
 namespace Krafter {
 
 class Renderer {
@@ -29,7 +41,7 @@ public:
     static void RenderImGui();
 
 private:
-    static void ApiDebugCallback(
+    static void STDCALL ApiDebugCallback(
         uint32_t source,
         uint32_t type,
         uint32_t id,

@@ -43,7 +43,7 @@ void Renderer::RenderImGui()
     ImGui::Text("Renderer: %s", s_Renderer->m_RendererName);
 }
 
-void Renderer::ApiDebugCallback(
+void STDCALL Renderer::ApiDebugCallback(
     uint32_t source,
     uint32_t type,
     uint32_t id,
