@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "imgui.h"
 
 #include "Krafter/Renderer/Renderer.h"
@@ -6,8 +8,32 @@
 
 namespace Krafter {
 
+World::World()
+{
+    uint32_t hardware = std::thread::hardware_concurrency();
+    uint32_t threadCount = hardware > 1 ? hardware - 1 : 1;
+    m_Workers.reserve(threadCount);
+    for (uint32_t i = 0; i < threadCount; i++) {
+        m_Workers.emplace_back([this] { WorkerLoop(); });
+    }
+}
+
+World::~World()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_JobMutex);
+        m_Stop = true;
+    }
+    m_JobCv.notify_all();
+    for (auto& worker : m_Workers) {
+        worker.join();
+    }
+}
+
 void World::Update()
 {
+    DrainResults();
+
     glm::vec3 cameraPosition = Renderer::GetCamera()->GetPosition();
     glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
 
@@ -17,13 +43,24 @@ void World::Update()
             if (!IsInRadius(position, origin, m_RenderDistance + 1)) {
                 continue;
             }
-            if (m_Chunks.count(position) || m_QueuedTerrain.count(position)) {
+            if (m_Chunks.count(position) || m_PendingTerrain.count(position)) {
                 continue;
             }
-            m_TerrainQueue.push_back(position);
-            m_QueuedTerrain.insert(position);
+            m_PendingTerrain.insert(position);
+            DispatchJob([this, position] {
+                auto chunk = std::make_shared<Chunk>(position);
+                std::lock_guard<std::mutex> lock(m_TerrainResultMutex);
+                m_TerrainResults.push_back({ position, std::move(chunk) });
+            });
         }
     }
+
+    constexpr glm::ivec2 dp[] = {
+        glm::ivec2(-1, 0),
+        glm::ivec2(1, 0),
+        glm::ivec2(0, -1),
+        glm::ivec2(0, 1)
+    };
 
     for (int32_t x = -m_RenderDistance; x <= m_RenderDistance; x++) {
         for (int32_t z = -m_RenderDistance; z <= m_RenderDistance; z++) {
@@ -35,57 +72,36 @@ void World::Update()
             if (it == m_Chunks.end() || it->second.state != ChunkState::k_TerrainReady) {
                 continue;
             }
-            if (m_QueuedMesh.count(position) || !HasTerrainNeighbours(position)) {
+            if (m_PendingMesh.count(position) || !HasTerrainNeighbours(position)) {
                 continue;
             }
-            m_MeshQueue.push_back(position);
-            m_QueuedMesh.insert(position);
-        }
-    }
 
-    for (const auto& [position, record] : m_Chunks) {
-        if (IsInRadius(position, origin, m_RenderDistance + 1)) {
-            continue;
-        }
-        if (m_QueuedUnload.count(position)) {
-            continue;
-        }
-        m_UnloadQueue.push_back(position);
-        m_QueuedUnload.insert(position);
-    }
-
-    if (Window::GetTime() > m_LastChunkUpdate + m_ChunkDelay) {
-        m_LastChunkUpdate = Window::GetTime();
-
-        if (!m_TerrainQueue.empty()) {
-            glm::ivec2 target = m_TerrainQueue.front();
-            m_TerrainQueue.pop_front();
-            m_QueuedTerrain.erase(target);
-            if (IsInRadius(target, origin, m_RenderDistance + 1)) {
-                GenerateTerrain(target);
+            std::shared_ptr<Chunk> centerChunk = it->second.chunk;
+            std::array<std::shared_ptr<Chunk>, 4> neighbourChunks;
+            for (size_t i = 0; i < 4; i++) {
+                neighbourChunks[i] = m_Chunks.find(position + dp[i])->second.chunk;
             }
-        }
 
-        if (!m_MeshQueue.empty()) {
-            glm::ivec2 target = m_MeshQueue.front();
-            m_MeshQueue.pop_front();
-            m_QueuedMesh.erase(target);
-            auto it = m_Chunks.find(target);
-            if (it != m_Chunks.end()
-                && it->second.state == ChunkState::k_TerrainReady
-                && IsInRadius(target, origin, m_RenderDistance)
-                && HasTerrainNeighbours(target)) {
-                GenerateMesh(target);
-            }
+            m_PendingMesh.insert(position);
+            DispatchJob([this, position, centerChunk = std::move(centerChunk), neighbourChunks = std::move(neighbourChunks)] {
+                std::array<const Chunk*, 4> neighbourPtrs = {
+                    neighbourChunks[0].get(),
+                    neighbourChunks[1].get(),
+                    neighbourChunks[2].get(),
+                    neighbourChunks[3].get()
+                };
+                ChunkMeshData data = ChunkMesh::Compute(*centerChunk, neighbourPtrs, position);
+                std::lock_guard<std::mutex> lock(m_MeshResultMutex);
+                m_MeshResults.push_back({ position, std::move(data) });
+            });
         }
     }
 
-    while (!m_UnloadQueue.empty()) {
-        glm::ivec2 target = m_UnloadQueue.front();
-        m_UnloadQueue.pop_front();
-        m_QueuedUnload.erase(target);
-        if (!IsInRadius(target, origin, m_RenderDistance + 1)) {
-            Unload(target);
+    for (auto it = m_Chunks.begin(); it != m_Chunks.end();) {
+        if (!IsInRadius(it->first, origin, m_RenderDistance + 1)) {
+            it = m_Chunks.erase(it);
+        } else {
+            ++it;
         }
     }
 }
@@ -102,7 +118,9 @@ void World::Render()
 void World::RenderImGui()
 {
     ImGui::InputInt("Render Distance", &m_RenderDistance);
-    ImGui::InputFloat("Chunk Delay", &m_ChunkDelay);
+    ImGui::InputInt("Max Mesh Uploads Per Frame", &m_MaxMeshUploadsPerFrame);
+    ImGui::Text("Workers: %zu", m_Workers.size());
+    ImGui::Text("Chunks: %zu", m_Chunks.size());
 }
 
 Block World::GetBlock(const glm::ivec3& worldPosition) const
@@ -135,10 +153,10 @@ Block World::GetBlock(const glm::ivec3& worldPosition) const
         floorMod(worldPosition.z, Chunk::k_Width));
 
     auto it = m_Chunks.find(chunkPosition);
-    if (it == m_Chunks.end()) {
+    if (it == m_Chunks.end() || !it->second.chunk) {
         return Block::k_Air;
     }
-    return it->second.chunk.GetBlock(localPosition);
+    return it->second.chunk->GetBlock(localPosition);
 }
 
 constexpr bool World::IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius)
@@ -147,21 +165,63 @@ constexpr bool World::IsInRadius(const glm::ivec2& entity, const glm::ivec2& ori
     return d.x * d.x + d.y * d.y <= radius * radius;
 }
 
-void World::GenerateTerrain(const glm::ivec2& chunkPosition)
+void World::WorkerLoop()
 {
-    m_Chunks.try_emplace(chunkPosition, chunkPosition);
+    while (true) {
+        std::function<void()> job;
+        {
+            std::unique_lock<std::mutex> lock(m_JobMutex);
+            m_JobCv.wait(lock, [this] { return m_Stop.load() || !m_Jobs.empty(); });
+            if (m_Stop.load() && m_Jobs.empty()) {
+                return;
+            }
+            job = std::move(m_Jobs.front());
+            m_Jobs.pop_front();
+        }
+        job();
+    }
 }
 
-void World::GenerateMesh(const glm::ivec2& chunkPosition)
+void World::DispatchJob(std::function<void()> job)
 {
-    auto it = m_Chunks.find(chunkPosition);
-    it->second.mesh = std::make_unique<ChunkMesh>(*this, chunkPosition);
-    it->second.state = ChunkState::k_MeshReady;
+    {
+        std::lock_guard<std::mutex> lock(m_JobMutex);
+        m_Jobs.push_back(std::move(job));
+    }
+    m_JobCv.notify_one();
 }
 
-void World::Unload(const glm::ivec2& chunkPosition)
+void World::DrainResults()
 {
-    m_Chunks.erase(chunkPosition);
+    std::deque<TerrainResult> terrainResults;
+    {
+        std::lock_guard<std::mutex> lock(m_TerrainResultMutex);
+        terrainResults.swap(m_TerrainResults);
+    }
+    for (auto& result : terrainResults) {
+        m_PendingTerrain.erase(result.position);
+        m_Chunks.try_emplace(result.position, std::move(result.chunk), ChunkState::k_TerrainReady);
+    }
+
+    size_t meshTake;
+    std::deque<MeshResult> meshResults;
+    {
+        std::lock_guard<std::mutex> lock(m_MeshResultMutex);
+        meshTake = std::min(static_cast<size_t>(std::max(m_MaxMeshUploadsPerFrame, 0)), m_MeshResults.size());
+        for (size_t i = 0; i < meshTake; i++) {
+            meshResults.push_back(std::move(m_MeshResults.front()));
+            m_MeshResults.pop_front();
+        }
+    }
+    for (auto& result : meshResults) {
+        m_PendingMesh.erase(result.position);
+        auto it = m_Chunks.find(result.position);
+        if (it == m_Chunks.end()) {
+            continue;
+        }
+        it->second.mesh = std::make_unique<ChunkMesh>(result.data);
+        it->second.state = ChunkState::k_MeshReady;
+    }
 }
 
 bool World::HasTerrainNeighbours(const glm::ivec2& chunkPosition) const

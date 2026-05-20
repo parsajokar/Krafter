@@ -1,10 +1,16 @@
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "glm/glm.hpp"
 #include "glm/gtx/hash.hpp"
@@ -17,6 +23,12 @@ namespace Krafter {
 
 class World {
 public:
+    World();
+    ~World();
+
+    World(const World&) = delete;
+    World& operator=(const World&) = delete;
+
     void Update();
     void Render();
     void RenderImGui();
@@ -30,39 +42,55 @@ private:
     };
 
     struct ChunkRecord {
-        Chunk chunk;
+        std::shared_ptr<Chunk> chunk;
         std::unique_ptr<ChunkMesh> mesh;
         ChunkState state;
 
-        explicit ChunkRecord(const glm::ivec2& position)
-            : chunk(position)
-            , state(ChunkState::k_TerrainReady)
+        ChunkRecord(std::shared_ptr<Chunk> chunk, ChunkState state)
+            : chunk(std::move(chunk))
+            , state(state)
         {
         }
     };
 
+    struct TerrainResult {
+        glm::ivec2 position;
+        std::shared_ptr<Chunk> chunk;
+    };
+
+    struct MeshResult {
+        glm::ivec2 position;
+        ChunkMeshData data;
+    };
+
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
-    void GenerateTerrain(const glm::ivec2& chunkPosition);
-    void GenerateMesh(const glm::ivec2& chunkPosition);
-    void Unload(const glm::ivec2& chunkPosition);
+    void WorkerLoop();
+    void DispatchJob(std::function<void()> job);
+
+    void DrainResults();
 
     bool HasTerrainNeighbours(const glm::ivec2& chunkPosition) const;
 
     std::unordered_map<glm::ivec2, ChunkRecord> m_Chunks;
-
     int32_t m_RenderDistance = 10;
-    float m_ChunkDelay = 0.01f;
+    int32_t m_MaxMeshUploadsPerFrame = 8;
 
-    std::deque<glm::ivec2> m_TerrainQueue;
-    std::deque<glm::ivec2> m_MeshQueue;
-    std::deque<glm::ivec2> m_UnloadQueue;
+    std::unordered_set<glm::ivec2> m_PendingTerrain;
+    std::unordered_set<glm::ivec2> m_PendingMesh;
 
-    std::unordered_set<glm::ivec2> m_QueuedTerrain;
-    std::unordered_set<glm::ivec2> m_QueuedMesh;
-    std::unordered_set<glm::ivec2> m_QueuedUnload;
+    std::mutex m_JobMutex;
+    std::condition_variable m_JobCv;
+    std::deque<std::function<void()>> m_Jobs;
 
-    float m_LastChunkUpdate = 0.0f;
+    std::mutex m_TerrainResultMutex;
+    std::deque<TerrainResult> m_TerrainResults;
+
+    std::mutex m_MeshResultMutex;
+    std::deque<MeshResult> m_MeshResults;
+
+    std::atomic<bool> m_Stop = false;
+    std::vector<std::thread> m_Workers;
 };
 
 } // namespace Krafter

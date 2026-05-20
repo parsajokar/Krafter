@@ -7,15 +7,27 @@
 #include "glm/glm.hpp"
 
 #include "Krafter/World/Block.h"
+#include "Krafter/World/Chunk.h"
 
 namespace Krafter {
 
-class World;
+struct ChunkMeshData {
+    std::vector<float> vertices;
+    std::vector<uint32_t> elements;
+};
 
 class ChunkMesh {
 public:
-    ChunkMesh(const World& world, const glm::ivec2& chunkPosition);
+    static ChunkMeshData Compute(
+        const Chunk& center,
+        const std::array<const Chunk*, 4>& neighbours,
+        const glm::ivec2& chunkPosition);
+
+    explicit ChunkMesh(const ChunkMeshData& data);
     ~ChunkMesh();
+
+    ChunkMesh(const ChunkMesh&) = delete;
+    ChunkMesh& operator=(const ChunkMesh&) = delete;
 
     inline uint32_t GetElementCount() const
     {

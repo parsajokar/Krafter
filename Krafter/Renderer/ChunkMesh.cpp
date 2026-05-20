@@ -1,14 +1,15 @@
 #include "glad/gl.h"
 
 #include "Krafter/Renderer/ChunkMesh.h"
-#include "Krafter/World/World.h"
 
 namespace Krafter {
 
-ChunkMesh::ChunkMesh(const World& world, const glm::ivec2& chunkPosition)
+ChunkMeshData ChunkMesh::Compute(
+    const Chunk& center,
+    const std::array<const Chunk*, 4>& neighbours,
+    const glm::ivec2& chunkPosition)
 {
-    std::vector<float> vertexBufferData;
-    std::vector<uint32_t> elementBufferData;
+    ChunkMeshData data;
 
     constexpr int32_t dx[] = { -1, 1, 0, 0, 0, 0 };
     constexpr int32_t dy[] = { 0, 0, -1, 1, 0, 0 };
@@ -19,43 +20,74 @@ ChunkMesh::ChunkMesh(const World& world, const glm::ivec2& chunkPosition)
         BlockFace::k_Left, BlockFace::k_Right
     };
 
-    const int32_t chunkOriginX = chunkPosition.x * Chunk::k_Width;
-    const int32_t chunkOriginZ = chunkPosition.y * Chunk::k_Width;
+    auto getBlock = [&](const glm::ivec3& localPosition) -> Block {
+        if (localPosition.y < 0 || localPosition.y >= Chunk::k_Height) {
+            return Block::k_Air;
+        }
+
+        const Chunk* target = &center;
+        glm::ivec3 query = localPosition;
+
+        if (localPosition.x < 0) {
+            target = neighbours[0];
+            query.x += Chunk::k_Width;
+        } else if (localPosition.x >= Chunk::k_Width) {
+            target = neighbours[1];
+            query.x -= Chunk::k_Width;
+        } else if (localPosition.z < 0) {
+            target = neighbours[2];
+            query.z += Chunk::k_Width;
+        } else if (localPosition.z >= Chunk::k_Width) {
+            target = neighbours[3];
+            query.z -= Chunk::k_Width;
+        }
+
+        if (!target) {
+            return Block::k_Air;
+        }
+        return target->GetBlock(query);
+    };
 
     for (int32_t x = 0; x < Chunk::k_Width; x++) {
         for (int32_t y = 0; y < Chunk::k_Height; y++) {
             for (int32_t z = 0; z < Chunk::k_Width; z++) {
-                glm::ivec3 worldPosition(chunkOriginX + x, y, chunkOriginZ + z);
-                Block block = world.GetBlock(worldPosition);
+                glm::ivec3 localPosition(x, y, z);
+                Block block = getBlock(localPosition);
                 if (block == Block::k_Air) {
                     continue;
                 }
 
                 for (size_t k = 0; k < 6; k++) {
-                    glm::ivec3 neighbourPosition = worldPosition + glm::ivec3(dx[k], dy[k], dz[k]);
-                    if (neighbourPosition.y < 0) {
+                    glm::ivec3 neighbour = localPosition + glm::ivec3(dx[k], dy[k], dz[k]);
+                    if (neighbour.y < 0) {
                         continue;
                     }
 
-                    if (world.GetBlock(neighbourPosition) == Block::k_Air) {
-                        AddFaceToData(
-                            glm::vec3(worldPosition),
-                            block, faces[k],
-                            vertexBufferData, elementBufferData);
+                    if (getBlock(neighbour) == Block::k_Air) {
+                        glm::vec3 worldPos(
+                            chunkPosition.x * Chunk::k_Width + x,
+                            y,
+                            chunkPosition.y * Chunk::k_Width + z);
+                        AddFaceToData(worldPos, block, faces[k], data.vertices, data.elements);
                     }
                 }
             }
         }
     }
 
-    m_ElementCount = elementBufferData.size();
+    return data;
+}
+
+ChunkMesh::ChunkMesh(const ChunkMeshData& data)
+{
+    m_ElementCount = data.elements.size();
 
     glCreateVertexArrays(1, &m_VertexArray);
     glCreateBuffers(1, &m_VertexBuffer);
     glCreateBuffers(1, &m_ElementBuffer);
 
-    glNamedBufferData(m_VertexBuffer, vertexBufferData.size() * sizeof(float), vertexBufferData.data(), GL_STATIC_DRAW);
-    glNamedBufferData(m_ElementBuffer, elementBufferData.size() * sizeof(uint32_t), elementBufferData.data(), GL_STATIC_DRAW);
+    glNamedBufferData(m_VertexBuffer, data.vertices.size() * sizeof(float), data.vertices.data(), GL_STATIC_DRAW);
+    glNamedBufferData(m_ElementBuffer, data.elements.size() * sizeof(uint32_t), data.elements.data(), GL_STATIC_DRAW);
 
     glVertexArrayVertexBuffer(m_VertexArray, 0, m_VertexBuffer, 0, 5 * sizeof(float));
     glVertexArrayElementBuffer(m_VertexArray, m_ElementBuffer);
@@ -172,7 +204,7 @@ void ChunkMesh::AddFaceToData(
         uvCoords = atlas.bottom;
         break;
 
-    default: // BlockFace::TOP
+    default:
         origin = position + glm::vec3(0.0f, 1.0f, 0.0f);
         dx = glm::vec3(0.0f, 0.0f, 1.0f);
         dy = glm::vec3(1.0f, 0.0f, 0.0f);
