@@ -11,9 +11,11 @@
 
 namespace Krafter {
 
+class World;
+
 class ChunkMesh {
 public:
-    ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition);
+    ChunkMesh(const World& world, const glm::ivec2& chunkPosition);
     ~ChunkMesh();
 
     inline uint32_t GetElementCount() const

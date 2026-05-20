@@ -19,12 +19,12 @@ void GameLayer::OnUpdate()
     }
 
     m_Camera.Update();
-    m_ChunkManager.Update();
+    m_World.Update();
 }
 
 void GameLayer::OnRender()
 {
-    m_ChunkManager.Render();
+    m_World.Render();
 }
 
 void GameLayer::OnRenderImGui()
@@ -32,7 +32,7 @@ void GameLayer::OnRenderImGui()
     ImGui::Text("FPS: %.2f", 1.0f / Window::GetDelta());
     Renderer::RenderImGui();
     m_Camera.RenderImGui();
-    m_ChunkManager.RenderImGui();
+    m_World.RenderImGui();
 }
 
 GameApplication::GameApplication(const ApplicationSpecification& specification)

@@ -1,10 +1,11 @@
 #include "glad/gl.h"
 
 #include "Krafter/Renderer/ChunkMesh.h"
+#include "Krafter/World/World.h"
 
 namespace Krafter {
 
-ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
+ChunkMesh::ChunkMesh(const World& world, const glm::ivec2& chunkPosition)
 {
     std::vector<float> vertexBufferData;
     std::vector<uint32_t> elementBufferData;
@@ -18,48 +19,28 @@ ChunkMesh::ChunkMesh(const ChunkMap& chunkMap, const glm::ivec2& chunkPosition)
         BlockFace::k_Left, BlockFace::k_Right
     };
 
+    const int32_t chunkOriginX = chunkPosition.x * Chunk::k_Width;
+    const int32_t chunkOriginZ = chunkPosition.y * Chunk::k_Width;
+
     for (int32_t x = 0; x < Chunk::k_Width; x++) {
         for (int32_t y = 0; y < Chunk::k_Height; y++) {
             for (int32_t z = 0; z < Chunk::k_Width; z++) {
-                if (chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)) == Block::k_Air) {
+                glm::ivec3 worldPosition(chunkOriginX + x, y, chunkOriginZ + z);
+                Block block = world.GetBlock(worldPosition);
+                if (block == Block::k_Air) {
                     continue;
                 }
 
                 for (size_t k = 0; k < 6; k++) {
-                    int32_t nx = x + dx[k];
-                    int32_t ny = y + dy[k];
-                    int32_t nz = z + dz[k];
-                    BlockFace face = faces[k];
-
-                    if (ny < 0) {
+                    glm::ivec3 neighbourPosition = worldPosition + glm::ivec3(dx[k], dy[k], dz[k]);
+                    if (neighbourPosition.y < 0) {
                         continue;
                     }
 
-                    glm::ivec2 neighbourChunkPosition = chunkPosition;
-
-                    if (nx < 0) {
-                        neighbourChunkPosition.x--;
-                        nx = Chunk::k_Width - 1;
-                    } else if (nx >= Chunk::k_Width) {
-                        neighbourChunkPosition.x++;
-                        nx = 0;
-                    }
-
-                    if (nz < 0) {
-                        neighbourChunkPosition.y--;
-                        nz = Chunk::k_Width - 1;
-                    } else if (nz >= Chunk::k_Width) {
-                        neighbourChunkPosition.y++;
-                        nz = 0;
-                    }
-
-                    if (ny >= Chunk::k_Height || chunkMap.at(neighbourChunkPosition).GetBlock(glm::ivec3(nx, ny, nz)) == Block::k_Air) {
+                    if (world.GetBlock(neighbourPosition) == Block::k_Air) {
                         AddFaceToData(
-                            glm::vec3(
-                                chunkPosition.x * Chunk::k_Width + x,
-                                y,
-                                chunkPosition.y * Chunk::k_Width + z),
-                            chunkMap.at(chunkPosition).GetBlock(glm::ivec3(x, y, z)), face,
+                            glm::vec3(worldPosition),
+                            block, faces[k],
                             vertexBufferData, elementBufferData);
                     }
                 }

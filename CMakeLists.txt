@@ -41,8 +41,8 @@ add_executable(Krafter)
 target_sources(
     Krafter
     PRIVATE
-    Krafter/World/ChunkManager.h
-    Krafter/World/ChunkManager.cpp
+    Krafter/World/World.h
+    Krafter/World/World.cpp
     Krafter/World/Chunk.h
     Krafter/World/Chunk.cpp
     Krafter/World/Block.h

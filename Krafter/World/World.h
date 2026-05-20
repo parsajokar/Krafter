@@ -10,11 +10,13 @@
 
 namespace Krafter {
 
-class ChunkManager {
+class World {
 public:
     void Update();
     void Render();
     void RenderImGui();
+
+    Block GetBlock(const glm::ivec3& worldPosition) const;
 
 private:
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);

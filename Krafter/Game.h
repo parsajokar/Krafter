@@ -2,7 +2,7 @@
 
 #include "Krafter/Application.h"
 #include "Krafter/Layer.h"
-#include "Krafter/World/ChunkManager.h"
+#include "Krafter/World/World.h"
 
 namespace Krafter {
 
@@ -16,7 +16,7 @@ private:
     void OnRenderImGui() override;
 
     Camera m_Camera;
-    ChunkManager m_ChunkManager;
+    World m_World;
 };
 
 class GameApplication : public Application {

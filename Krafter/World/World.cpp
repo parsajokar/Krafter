@@ -2,11 +2,11 @@
 
 #include "Krafter/Renderer/Renderer.h"
 #include "Krafter/Window.h"
-#include "Krafter/World/ChunkManager.h"
+#include "Krafter/World/World.h"
 
 namespace Krafter {
 
-void ChunkManager::Update()
+void World::Update()
 {
     glm::vec3 worldPosition = Renderer::GetCamera()->GetPosition();
     glm::ivec2 chunkPosition = glm::ivec2(worldPosition.x, worldPosition.z) / Chunk::k_Width;
@@ -55,26 +55,62 @@ void ChunkManager::Update()
     }
 }
 
-void ChunkManager::Render()
+void World::Render()
 {
     for (const auto& [position, chunkMesh] : m_ChunkMeshMap) {
         Renderer::RenderChunkMesh(*chunkMesh);
     }
 }
 
-void ChunkManager::RenderImGui()
+void World::RenderImGui()
 {
     ImGui::InputInt("Render Distance", &m_RenderDistance);
     ImGui::InputFloat("Chunk Delay", &m_ChunkDelay);
 }
 
-constexpr bool ChunkManager::IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius)
+Block World::GetBlock(const glm::ivec3& worldPosition) const
+{
+    if (worldPosition.y < 0 || worldPosition.y >= Chunk::k_Height) {
+        return Block::k_Air;
+    }
+
+    auto floorDiv = [](int32_t a, int32_t b) {
+        int32_t q = a / b;
+        if ((a % b != 0) && ((a < 0) != (b < 0))) {
+            q--;
+        }
+        return q;
+    };
+    auto floorMod = [](int32_t a, int32_t b) {
+        int32_t r = a % b;
+        if (r != 0 && (r < 0) != (b < 0)) {
+            r += b;
+        }
+        return r;
+    };
+
+    glm::ivec2 chunkPosition(
+        floorDiv(worldPosition.x, Chunk::k_Width),
+        floorDiv(worldPosition.z, Chunk::k_Width));
+    glm::ivec3 localPosition(
+        floorMod(worldPosition.x, Chunk::k_Width),
+        worldPosition.y,
+        floorMod(worldPosition.z, Chunk::k_Width));
+
+    auto it = m_ChunkMap.find(chunkPosition);
+    if (it == m_ChunkMap.end()) {
+        return Block::k_Air;
+    }
+    return it->second.GetBlock(localPosition);
+}
+
+constexpr bool World::IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius)
 {
     glm::ivec2 d = entity - origin;
     return d.x * d.x + d.y * d.y <= radius * radius;
 }
 
-void ChunkManager::LoadChunk(const glm::ivec2& chunkPosition)
+void World::LoadChunk(const glm::ivec2& chunkPosition)
 {
     constexpr glm::ivec2 dp[] = {
         glm::ivec2(-1, 0),
@@ -95,21 +131,21 @@ void ChunkManager::LoadChunk(const glm::ivec2& chunkPosition)
     }
 
 
-    m_ChunkMeshMap[chunkPosition] = std::make_unique<ChunkMesh>(m_ChunkMap, chunkPosition);
+    m_ChunkMeshMap[chunkPosition] = std::make_unique<ChunkMesh>(*this, chunkPosition);
 }
 
-void ChunkManager::UnloadChunk(const glm::ivec2& chunkPosition)
+void World::UnloadChunk(const glm::ivec2& chunkPosition)
 {
     m_ChunkMeshMap.erase(chunkPosition);
 
 }
 
-bool ChunkManager::IsChunkLoadedToChunkMap(const glm::ivec2& chunkPosition) const
+bool World::IsChunkLoadedToChunkMap(const glm::ivec2& chunkPosition) const
 {
     return m_ChunkMap.count(chunkPosition) != 0;
 }
 
-void ChunkManager::LoadChunkToChunkMap(const glm::ivec2& chunkPosition)
+void World::LoadChunkToChunkMap(const glm::ivec2& chunkPosition)
 {
     m_ChunkMap.emplace(chunkPosition, std::move(Chunk(chunkPosition)));
 }
