@@ -12,7 +12,7 @@ void Biome::LoadBiomes()
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
         .baseHeight = 64,
-        .heightAmplitude = 32
+        .heightAmplitude = 24
     };
 
     s_Biomes[BiomeType::k_Desert] = {
