@@ -17,6 +17,11 @@ Chunk::Chunk(const glm::ivec2& position)
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     noise.SetFrequency(0.02f);
 
+    FastNoiseLite biomeNoise;
+    biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    biomeNoise.SetSeed(1337);
+    biomeNoise.SetFrequency(0.005f);
+
     for (int32_t x = 0; x < k_Width; x++) {
         for (int32_t z = 0; z < k_Width; z++) {
             const int32_t worldX = m_Position.x * k_Width + x;
@@ -25,11 +30,17 @@ Chunk::Chunk(const glm::ivec2& position)
             float noiseValue = noise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
             int32_t height = (int32_t)(32 * noiseValue) + 64; // Range = [32, 96]
 
+            float biomeValue = biomeNoise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
+            bool isDesert = biomeValue > 0.2f;
+
+            const Block surface = isDesert ? Block::k_Sand : Block::k_Grass;
+            const Block subsurface = isDesert ? Block::k_Sand : Block::k_Dirt;
+
             for (int32_t y = 0; y < height; y++) {
-                SetBlock(glm::ivec3(x, y, z), Block::k_Dirt);
+                SetBlock(glm::ivec3(x, y, z), (height - y) <= 4 ? subsurface : Block::k_Dirt);
             }
 
-            SetBlock(glm::ivec3(x, height, z), Block::k_Grass);
+            SetBlock(glm::ivec3(x, height, z), surface);
         }
     }
 }

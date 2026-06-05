@@ -9,7 +9,8 @@ namespace Krafter {
 enum class Block {
     k_Air = 0,
     k_Dirt,
-    k_Grass
+    k_Grass,
+    k_Sand
 };
 
 enum class BlockFace {
