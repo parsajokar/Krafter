@@ -20,7 +20,7 @@ Chunk::Chunk(const glm::ivec2& position)
     FastNoiseLite biomeNoise;
     biomeNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     biomeNoise.SetSeed(1337);
-    biomeNoise.SetFrequency(0.005f);
+    biomeNoise.SetFrequency(0.0015f);
 
     for (int32_t x = 0; x < k_Width; x++) {
         for (int32_t z = 0; z < k_Width; z++) {
@@ -31,7 +31,7 @@ Chunk::Chunk(const glm::ivec2& position)
             int32_t height = (int32_t)(32 * noiseValue) + 64; // Range = [32, 96]
 
             float biomeValue = biomeNoise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
-            bool isDesert = biomeValue > 0.2f;
+            bool isDesert = biomeValue > 0.0f;
 
             const Block surface = isDesert ? Block::k_Sand : Block::k_Grass;
             const Block subsurface = isDesert ? Block::k_Sand : Block::k_Dirt;
