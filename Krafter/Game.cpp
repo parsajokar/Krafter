@@ -1,6 +1,7 @@
 #include "imgui.h"
 
 #include "Krafter/Game.h"
+#include "Krafter/Sky.h"
 #include "Krafter/Window.h"
 
 namespace Krafter {
@@ -18,6 +19,7 @@ void GameLayer::OnUpdate()
         Window::Close();
     }
 
+    Sky::Update();
     m_Camera.Update();
     m_World.Update();
 }
@@ -31,6 +33,7 @@ void GameLayer::OnRenderImGui()
 {
     ImGui::Text("FPS: %.2f", 1.0f / Window::GetDelta());
     Renderer::RenderImGui();
+    Sky::RenderImGui();
     m_Camera.RenderImGui();
     m_World.RenderImGui();
 }

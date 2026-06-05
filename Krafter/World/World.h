@@ -38,6 +38,7 @@ public:
 private:
     enum class ChunkState {
         k_TerrainReady,
+        k_LightReady,
         k_MeshReady
     };
 
@@ -63,6 +64,10 @@ private:
         ChunkMeshData data;
     };
 
+    // The lighting pass writes directly into the chunk's storage, so a finished
+    // job only needs to report which chunk became lit.
+    using LightResult = glm::ivec2;
+
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
     void WorkerLoop();
@@ -70,13 +75,17 @@ private:
 
     void DrainResults();
 
-    bool HasTerrainNeighbours(const glm::ivec2& chunkPosition) const;
+    // Both stages need the full 3x3 neighbourhood: lighting for block context,
+    // meshing so border smooth-lighting and AO read settled neighbour light.
+    bool HasAllTerrainNeighbours(const glm::ivec2& chunkPosition) const;
+    bool HasAllLitNeighbours(const glm::ivec2& chunkPosition) const;
 
     std::unordered_map<glm::ivec2, ChunkRecord> m_Chunks;
     int32_t m_RenderDistance = 10;
     int32_t m_MaxMeshUploadsPerFrame = 8;
 
     std::unordered_set<glm::ivec2> m_PendingTerrain;
+    std::unordered_set<glm::ivec2> m_PendingLight;
     std::unordered_set<glm::ivec2> m_PendingMesh;
 
     std::mutex m_JobMutex;
@@ -85,6 +94,9 @@ private:
 
     std::mutex m_TerrainResultMutex;
     std::deque<TerrainResult> m_TerrainResults;
+
+    std::mutex m_LightResultMutex;
+    std::deque<LightResult> m_LightResults;
 
     std::mutex m_MeshResultMutex;
     std::deque<MeshResult> m_MeshResults;

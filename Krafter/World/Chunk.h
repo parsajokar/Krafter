@@ -26,9 +26,17 @@ public:
     const Block& GetBlock(const glm::ivec3& coords) const;
     void SetBlock(const glm::ivec3& coords, Block value);
 
+    // Sky-light level in [0, 15]. Computed by the lighting pass once the chunk
+    // and its neighbours have terrain, then sampled by the mesher.
+    uint8_t GetSkyLight(const glm::ivec3& coords) const;
+    void SetSkyLight(const glm::ivec3& coords, uint8_t value);
+
+    static constexpr uint8_t k_MaxLight = 15;
+
 private:
     glm::ivec2 m_Position;
     Block* m_Blocks;
+    uint8_t* m_SkyLight;
 };
 
 } // namespace Krafter

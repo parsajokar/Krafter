@@ -7,6 +7,7 @@
 #include "imgui.h"
 
 #include "Krafter/Renderer/Renderer.h"
+#include "Krafter/Sky.h"
 
 namespace Krafter {
 
@@ -23,6 +24,8 @@ void Renderer::Shutdown()
 
 void Renderer::Clear()
 {
+    const glm::vec3& sky = Sky::GetColor();
+    glClearColor(sky.r, sky.g, sky.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
@@ -32,6 +35,9 @@ void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh)
     s_Renderer->m_Program->Bind();
     s_Renderer->m_Program->SetUniformMat4(0, s_Renderer->m_Camera->GetViewProjection());
     s_Renderer->m_Program->SetUniformInt(1, 0);
+    s_Renderer->m_Program->SetUniformVec3(2, Sky::GetSunColor());
+    s_Renderer->m_Program->SetUniformVec3(3, Sky::GetSunDirection());
+    s_Renderer->m_Program->SetUniformVec3(4, Sky::GetAmbientColor());
     chunkMesh.Bind();
     glDrawElements(GL_TRIANGLES, chunkMesh.GetElementCount(), GL_UNSIGNED_INT, nullptr);
 }
@@ -70,7 +76,6 @@ Renderer::Renderer()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(0.470f, 0.655f, 1.0f, 1.0f);
 
     BlockAtlas::LoadAtlases();
 

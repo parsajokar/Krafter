@@ -16,6 +16,8 @@ public:
     void Bind() const;
 
     void SetUniformInt(int32_t location, int32_t value) const;
+    void SetUniformFloat(int32_t location, float value) const;
+    void SetUniformVec3(int32_t location, const glm::vec3& value) const;
     void SetUniformVec4(int32_t location, const glm::vec4& value) const;
     void SetUniformMat4(int32_t location, const glm::mat4& value) const;
 

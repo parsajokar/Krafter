@@ -49,6 +49,8 @@ target_sources(
     Krafter/World/Block.cpp
     Krafter/World/Biome.h
     Krafter/World/Biome.cpp
+    Krafter/World/Lighting.h
+    Krafter/World/Lighting.cpp
     Krafter/Renderer/ChunkMesh.h
     Krafter/Renderer/ChunkMesh.cpp
     Krafter/Renderer/Texture.h
@@ -61,6 +63,8 @@ target_sources(
     Krafter/Game.cpp
     Krafter/Camera.h
     Krafter/Camera.cpp
+    Krafter/Sky.h
+    Krafter/Sky.cpp
     Krafter/Window.h
     Krafter/Window.cpp
     Krafter/LayerStack.h

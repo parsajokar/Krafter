@@ -4,6 +4,7 @@
 
 #include "Krafter/Renderer/Renderer.h"
 #include "Krafter/World/Biome.h"
+#include "Krafter/World/Lighting.h"
 #include "Krafter/World/World.h"
 
 namespace Krafter {
@@ -39,10 +40,10 @@ void World::Update()
     glm::vec3 cameraPosition = Renderer::GetCamera()->GetPosition();
     glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
 
-    for (int32_t x = -m_RenderDistance - 1; x <= m_RenderDistance + 1; x++) {
-        for (int32_t z = -m_RenderDistance - 1; z <= m_RenderDistance + 1; z++) {
+    for (int32_t x = -m_RenderDistance - 2; x <= m_RenderDistance + 2; x++) {
+        for (int32_t z = -m_RenderDistance - 2; z <= m_RenderDistance + 2; z++) {
             glm::ivec2 position = origin + glm::ivec2(x, z);
-            if (!IsInRadius(position, origin, m_RenderDistance + 1)) {
+            if (!IsInRadius(position, origin, m_RenderDistance + 2)) {
                 continue;
             }
             if (m_Chunks.count(position) || m_PendingTerrain.count(position)) {
@@ -57,13 +58,44 @@ void World::Update()
         }
     }
 
-    constexpr glm::ivec2 dp[] = {
-        glm::ivec2(-1, 0),
-        glm::ivec2(1, 0),
-        glm::ivec2(0, -1),
-        glm::ivec2(0, 1)
-    };
+    // Lighting stage: compute a chunk's sky light from its full 3x3 block
+    // context and write it into the chunk's storage.
+    for (int32_t x = -m_RenderDistance - 1; x <= m_RenderDistance + 1; x++) {
+        for (int32_t z = -m_RenderDistance - 1; z <= m_RenderDistance + 1; z++) {
+            glm::ivec2 position = origin + glm::ivec2(x, z);
+            if (!IsInRadius(position, origin, m_RenderDistance + 1)) {
+                continue;
+            }
+            auto it = m_Chunks.find(position);
+            if (it == m_Chunks.end() || it->second.state != ChunkState::k_TerrainReady) {
+                continue;
+            }
+            if (m_PendingLight.count(position) || !HasAllTerrainNeighbours(position)) {
+                continue;
+            }
 
+            std::array<std::shared_ptr<Chunk>, 9> grid;
+            for (int32_t dz = -1; dz <= 1; dz++) {
+                for (int32_t dx = -1; dx <= 1; dx++) {
+                    grid[(dz + 1) * 3 + (dx + 1)] = m_Chunks.find(position + glm::ivec2(dx, dz))->second.chunk;
+                }
+            }
+
+            m_PendingLight.insert(position);
+            DispatchJob([this, position, grid = std::move(grid)] {
+                std::array<const Chunk*, 9> gridPtrs;
+                for (size_t i = 0; i < 9; i++) {
+                    gridPtrs[i] = grid[i].get();
+                }
+                ComputeSkyLight(*grid[4], gridPtrs);
+                std::lock_guard<std::mutex> lock(m_LightResultMutex);
+                m_LightResults.push_back(position);
+            });
+        }
+    }
+
+    // Meshing stage: only once the chunk and all 8 neighbours are lit, so
+    // border smooth-lighting and AO sample settled, seam-free light.
     for (int32_t x = -m_RenderDistance; x <= m_RenderDistance; x++) {
         for (int32_t z = -m_RenderDistance; z <= m_RenderDistance; z++) {
             glm::ivec2 position = origin + glm::ivec2(x, z);
@@ -71,28 +103,27 @@ void World::Update()
                 continue;
             }
             auto it = m_Chunks.find(position);
-            if (it == m_Chunks.end() || it->second.state != ChunkState::k_TerrainReady) {
+            if (it == m_Chunks.end() || it->second.state != ChunkState::k_LightReady) {
                 continue;
             }
-            if (m_PendingMesh.count(position) || !HasTerrainNeighbours(position)) {
+            if (m_PendingMesh.count(position) || !HasAllLitNeighbours(position)) {
                 continue;
             }
 
-            std::shared_ptr<Chunk> centerChunk = it->second.chunk;
-            std::array<std::shared_ptr<Chunk>, 4> neighbourChunks;
-            for (size_t i = 0; i < 4; i++) {
-                neighbourChunks[i] = m_Chunks.find(position + dp[i])->second.chunk;
+            std::array<std::shared_ptr<Chunk>, 9> grid;
+            for (int32_t dz = -1; dz <= 1; dz++) {
+                for (int32_t dx = -1; dx <= 1; dx++) {
+                    grid[(dz + 1) * 3 + (dx + 1)] = m_Chunks.find(position + glm::ivec2(dx, dz))->second.chunk;
+                }
             }
 
             m_PendingMesh.insert(position);
-            DispatchJob([this, position, centerChunk = std::move(centerChunk), neighbourChunks = std::move(neighbourChunks)] {
-                std::array<const Chunk*, 4> neighbourPtrs = {
-                    neighbourChunks[0].get(),
-                    neighbourChunks[1].get(),
-                    neighbourChunks[2].get(),
-                    neighbourChunks[3].get()
-                };
-                ChunkMeshData data = ChunkMesh::Compute(*centerChunk, neighbourPtrs, position);
+            DispatchJob([this, position, grid = std::move(grid)] {
+                std::array<const Chunk*, 9> gridPtrs;
+                for (size_t i = 0; i < 9; i++) {
+                    gridPtrs[i] = grid[i].get();
+                }
+                ChunkMeshData data = ChunkMesh::Compute(gridPtrs, position);
                 std::lock_guard<std::mutex> lock(m_MeshResultMutex);
                 m_MeshResults.push_back({ position, std::move(data) });
             });
@@ -100,7 +131,7 @@ void World::Update()
     }
 
     for (auto it = m_Chunks.begin(); it != m_Chunks.end();) {
-        if (!IsInRadius(it->first, origin, m_RenderDistance + 1)) {
+        if (!IsInRadius(it->first, origin, m_RenderDistance + 2)) {
             it = m_Chunks.erase(it);
         } else {
             ++it;
@@ -205,6 +236,19 @@ void World::DrainResults()
         m_Chunks.try_emplace(result.position, std::move(result.chunk), ChunkState::k_TerrainReady);
     }
 
+    std::deque<LightResult> lightResults;
+    {
+        std::lock_guard<std::mutex> lock(m_LightResultMutex);
+        lightResults.swap(m_LightResults);
+    }
+    for (const auto& position : lightResults) {
+        m_PendingLight.erase(position);
+        auto it = m_Chunks.find(position);
+        if (it != m_Chunks.end() && it->second.state == ChunkState::k_TerrainReady) {
+            it->second.state = ChunkState::k_LightReady;
+        }
+    }
+
     size_t meshTake;
     std::deque<MeshResult> meshResults;
     {
@@ -226,17 +270,32 @@ void World::DrainResults()
     }
 }
 
-bool World::HasTerrainNeighbours(const glm::ivec2& chunkPosition) const
+bool World::HasAllTerrainNeighbours(const glm::ivec2& chunkPosition) const
 {
-    constexpr glm::ivec2 dp[] = {
-        glm::ivec2(-1, 0),
-        glm::ivec2(1, 0),
-        glm::ivec2(0, -1),
-        glm::ivec2(0, 1)
-    };
-    for (size_t i = 0; i < 4; i++) {
-        if (!m_Chunks.count(chunkPosition + dp[i])) {
-            return false;
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dz == 0) {
+                continue;
+            }
+            if (!m_Chunks.count(chunkPosition + glm::ivec2(dx, dz))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool World::HasAllLitNeighbours(const glm::ivec2& chunkPosition) const
+{
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dz == 0) {
+                continue;
+            }
+            auto it = m_Chunks.find(chunkPosition + glm::ivec2(dx, dz));
+            if (it == m_Chunks.end() || it->second.state == ChunkState::k_TerrainReady) {
+                return false;
+            }
         }
     }
     return true;

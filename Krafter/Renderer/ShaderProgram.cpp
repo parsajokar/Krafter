@@ -47,6 +47,16 @@ void ShaderProgram::SetUniformInt(int32_t location, int32_t value) const
     glUniform1i(location, value);
 }
 
+void ShaderProgram::SetUniformFloat(int32_t location, float value) const
+{
+    glUniform1f(location, value);
+}
+
+void ShaderProgram::SetUniformVec3(int32_t location, const glm::vec3& value) const
+{
+    glUniform3fv(location, 1, glm::value_ptr(value));
+}
+
 void ShaderProgram::SetUniformVec4(int32_t location, const glm::vec4& value) const
 {
     glUniform4fv(location, 1, glm::value_ptr(value));
