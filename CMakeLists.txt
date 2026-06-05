@@ -47,6 +47,8 @@ target_sources(
     Krafter/World/Chunk.cpp
     Krafter/World/Block.h
     Krafter/World/Block.cpp
+    Krafter/World/Biome.h
+    Krafter/World/Biome.cpp
     Krafter/Renderer/ChunkMesh.h
     Krafter/Renderer/ChunkMesh.cpp
     Krafter/Renderer/Texture.h

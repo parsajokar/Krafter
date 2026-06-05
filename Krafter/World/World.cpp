@@ -3,13 +3,15 @@
 #include "imgui.h"
 
 #include "Krafter/Renderer/Renderer.h"
-#include "Krafter/Window.h"
+#include "Krafter/World/Biome.h"
 #include "Krafter/World/World.h"
 
 namespace Krafter {
 
 World::World()
 {
+    Biome::LoadBiomes();
+
     uint32_t hardware = std::thread::hardware_concurrency();
     uint32_t threadCount = hardware > 1 ? hardware - 1 : 1;
     m_Workers.reserve(threadCount);

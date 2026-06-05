@@ -3,6 +3,7 @@
 
 #include "FastNoiseLite.h"
 
+#include "Krafter/World/Biome.h"
 #include "Krafter/World/Chunk.h"
 
 namespace Krafter {
@@ -30,17 +31,15 @@ Chunk::Chunk(const glm::ivec2& position)
             float noiseValue = noise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
             int32_t height = (int32_t)(32 * noiseValue) + 64; // Range = [32, 96]
 
-            float biomeValue = biomeNoise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
-            bool isDesert = biomeValue > 0.0f;
-
-            const Block surface = isDesert ? Block::k_Sand : Block::k_Grass;
-            const Block subsurface = isDesert ? Block::k_Sand : Block::k_Dirt;
+            float temperature = biomeNoise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
+            const Biome& biome = Biome::Get(Biome::Select(temperature));
 
             for (int32_t y = 0; y < height; y++) {
-                SetBlock(glm::ivec3(x, y, z), (height - y) <= 4 ? subsurface : Block::k_Dirt);
+                bool isSubsurface = (height - y) <= biome.subsurfaceDepth;
+                SetBlock(glm::ivec3(x, y, z), isSubsurface ? biome.subsurface : Block::k_Dirt);
             }
 
-            SetBlock(glm::ivec3(x, height, z), surface);
+            SetBlock(glm::ivec3(x, height, z), biome.surface);
         }
     }
 }
