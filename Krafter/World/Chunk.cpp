@@ -29,10 +29,11 @@ Chunk::Chunk(const glm::ivec2& position)
             const int32_t worldZ = m_Position.y * k_Width + z;
 
             float noiseValue = noise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
-            int32_t height = (int32_t)(32 * noiseValue) + 64; // Range = [32, 96]
 
             float temperature = biomeNoise.GetNoise((float)worldX, (float)worldZ); // Range = [-1, 1]
             const Biome& biome = Biome::Get(Biome::Select(temperature));
+
+            int32_t height = Biome::SampleHeight(temperature, noiseValue);
 
             for (int32_t y = 0; y < height; y++) {
                 bool isSubsurface = (height - y) <= biome.subsurfaceDepth;
