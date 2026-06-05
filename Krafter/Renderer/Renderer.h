@@ -9,15 +9,21 @@
 #include "Krafter/Renderer/Texture.h"
 
 #if defined(_MSC_VER)
-    #define STDCALL __stdcall
+
+#define STDCALL __stdcall
+
 #elif defined(__GNUC__)
-    #if defined(__i386__)
-        #define STDCALL __attribute__((stdcall))
-    #else
-        #define STDCALL 
-    #endif
+
+#if defined(__i386__)
+#define STDCALL __attribute__((stdcall))
 #else
-    #define STDCALL
+#define STDCALL
+#endif
+
+#else
+
+#define STDCALL
+
 #endif
 
 namespace Krafter {
