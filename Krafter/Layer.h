@@ -5,6 +5,8 @@
 
 namespace Krafter {
 
+struct Event;
+
 class Layer {
 public:
     Layer(std::string_view name);
@@ -15,6 +17,7 @@ public:
     void Update();
     void Render();
     void RenderImGui();
+    void HandleEvent(Event& event);
 
     inline const std::string& GetName() const
     {
@@ -27,6 +30,7 @@ private:
     virtual void OnUpdate() { }
     virtual void OnRender() { }
     virtual void OnRenderImGui() { }
+    virtual void OnEvent(Event& event) { }
 
     std::string m_Name;
 };

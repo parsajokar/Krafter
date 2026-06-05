@@ -4,13 +4,17 @@
 
 namespace Krafter {
 
+struct Event;
+class Window;
+
 class Camera {
 public:
-    Camera(const glm::vec3& position, float fov);
+    Camera(Window& window, const glm::vec3& position, float fov);
 
     void Update();
     void UpdateProjection();
     void RenderImGui();
+    void OnEvent(Event& event);
 
     inline const glm::vec3& GetPosition() const
     {
@@ -24,12 +28,20 @@ public:
 
 private:
     void ToggleState();
+    void ApplyControlMode();
+
+    Window& m_Window;
 
     float m_Speed;
     float m_Sensitivity;
 
     bool m_IsControlled;
-    bool m_IsSpaceReleased;
+
+    // Local axes: x = strafe right, y = forward.
+    glm::vec2 m_MoveInput = glm::vec2(0.0f);
+
+    // Swallow the first mouse delta after entering control so the view doesn't jump.
+    bool m_FirstMouse = true;
 
     glm::vec3 m_Position;
     float m_FieldOfView;

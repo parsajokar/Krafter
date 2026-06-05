@@ -1,11 +1,16 @@
 #pragma once
 
+#include <functional>
+
 #include "glm/glm.hpp"
 
 typedef struct GLFWwindow GLFWwindow;
 using WindowId = GLFWwindow*;
 
 namespace Krafter {
+
+struct Event;
+using EventCallback = std::function<void(Event&)>;
 
 enum class Key : int {
     k_Escape = 256,
@@ -16,49 +21,58 @@ enum class Key : int {
     k_A = 65,
 };
 
+enum class MouseButton : int {
+    k_Left = 0,
+    k_Right = 1,
+    k_Middle = 2,
+};
+
 class Window {
 public:
-    static void Init(); // !!! MAKE SURE TO CALL SHUTDOWN
-    static void Shutdown();
+    Window();
+    ~Window();
 
-    static bool IsOpen();
-    static void Close();
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
 
-    static void PollEvents();
-    static void SwapBuffers();
+    bool IsOpen() const;
+    void Close();
 
-    static float GetTime();
+    void PollEvents();
+    void SwapBuffers();
 
-    static bool IsKeyDown(Key key);
+    void SetEventCallback(const EventCallback& callback);
 
-    static void SetCursor(bool enabled);
-    static glm::vec2 GetCursorPosition();
+    float GetTime() const;
 
-    inline static WindowId GetId()
+    void SetCursor(bool enabled);
+
+    inline WindowId GetId() const
     {
-        return s_Window->m_Id;
+        return m_Id;
     }
 
-    inline static const glm::ivec2& GetSize()
+    inline const glm::ivec2& GetSize() const
     {
-        return s_Window->m_Size;
+        return m_Size;
     }
 
-    inline static float GetDelta()
+    inline float GetDelta() const
     {
-        return s_Window->m_Delta;
+        return m_Delta;
     }
 
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-
-    inline static Window* s_Window = nullptr;
-
-    Window();
-    ~Window();
+    static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void CursorPositionCallback(GLFWwindow* window, double x, double y);
+    static void ScrollCallback(GLFWwindow* window, double x, double y);
 
     WindowId m_Id;
     glm::ivec2 m_Size;
+
+    EventCallback m_EventCallback;
 
     float m_LastFrameTime = 0.0f;
     float m_Delta = 0.0f;

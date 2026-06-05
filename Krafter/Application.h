@@ -4,12 +4,14 @@
 #include <string>
 
 #include "Krafter/LayerStack.h"
-#include "Krafter/Renderer/Renderer.h"
-#include "Krafter/Window.h"
 
 int main(int argc, char** argv);
 
 namespace Krafter {
+
+struct Event;
+class Window;
+class Renderer;
 
 struct ApplicationSpecification {
     std::string name;
@@ -24,10 +26,22 @@ public:
     void PushLayer(Layer* layer);
     void PushOverlay(Layer* layer);
 
+protected:
+    inline Window& GetWindow()
+    {
+        return *m_Window;
+    }
+    inline Renderer& GetRenderer()
+    {
+        return *m_Renderer;
+    }
+
 private:
     inline static Application* s_Application = nullptr;
 
     void Run();
+
+    void OnEvent(Event& event);
 
     void InitImGui();
     void ShutdownImGui();
@@ -36,6 +50,10 @@ private:
     void EndImGui();
 
     ApplicationSpecification m_Specification;
+
+    std::unique_ptr<Window> m_Window;
+    std::unique_ptr<Renderer> m_Renderer;
+
     LayerStack m_LayerStack;
 
     friend int ::main(int argc, char** argv);

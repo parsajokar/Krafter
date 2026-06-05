@@ -3,79 +3,50 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "Krafter/Camera.h"
+#include "Krafter/Event.h"
 #include "Krafter/Window.h"
 
 namespace Krafter {
 
-Camera::Camera(const glm::vec3& position, float fov)
-    : m_Speed(50.0f)
+Camera::Camera(Window& window, const glm::vec3& position, float fov)
+    : m_Window(window)
+    , m_Speed(50.0f)
     , m_Sensitivity(50.0f)
     , m_IsControlled(true)
-    , m_IsSpaceReleased(true)
     , m_Position(position)
     , m_FieldOfView(fov)
     , m_Pitch(0.0f)
     , m_Yaw(0.0f)
-    , m_LastCursorPosition(Window::GetCursorPosition())
+    , m_LastCursorPosition(0.0f)
 {
     UpdateProjection();
+    ApplyControlMode();
 }
 
 void Camera::Update()
 {
-    if (Window::IsKeyDown(Key::k_Space) && m_IsSpaceReleased) {
-        ToggleState();
-        m_IsSpaceReleased = false;
-    }
-    if (!Window::IsKeyDown(Key::k_Space)) {
-        m_IsSpaceReleased = true;
+    if (!m_IsControlled) {
+        return;
     }
 
-    if (m_IsControlled) {
-        float delta = Window::GetDelta();
+    float delta = m_Window.GetDelta();
 
-        glm::vec2 cursorPosition = Window::GetCursorPosition();
-        glm::vec2 cursorOffset = cursorPosition - m_LastCursorPosition;
-        m_LastCursorPosition = cursorPosition;
+    glm::vec3 direction = glm::normalize(glm::vec3(
+        glm::cos(m_Yaw) * glm::cos(m_Pitch),
+        glm::sin(m_Pitch),
+        glm::sin(m_Yaw) * glm::cos(m_Pitch)));
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::normalize(glm::cross(direction, up));
 
-        m_Pitch -= cursorOffset.y * m_Sensitivity / 5000.0f;
-        m_Yaw += cursorOffset.x * m_Sensitivity / 5000.0f;
+    m_Position += (right * m_MoveInput.x + direction * m_MoveInput.y) * m_Speed * delta;
 
-        m_Pitch = glm::clamp(m_Pitch, glm::radians(-89.99f), glm::radians(89.99f));
-        if (m_Yaw < 0.0f) {
-            m_Yaw += glm::radians(360.0f);
-        } else if (m_Yaw > glm::radians(360.0f)) {
-            m_Yaw -= glm::radians(360.0f);
-        }
-
-        glm::vec3 direction = glm::normalize(glm::vec3(
-            glm::cos(m_Yaw) * glm::cos(m_Pitch),
-            glm::sin(m_Pitch),
-            glm::sin(m_Yaw) * glm::cos(m_Pitch)));
-        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 right = glm::normalize(glm::cross(direction, up));
-
-        if (Window::IsKeyDown(Key::k_W)) {
-            m_Position += direction * m_Speed * delta;
-        }
-        if (Window::IsKeyDown(Key::k_S)) {
-            m_Position -= direction * m_Speed * delta;
-        }
-        if (Window::IsKeyDown(Key::k_D)) {
-            m_Position += right * m_Speed * delta;
-        }
-        if (Window::IsKeyDown(Key::k_A)) {
-            m_Position -= right * m_Speed * delta;
-        }
-
-        glm::mat4 transform = glm::lookAt(m_Position, m_Position + direction, up);
-        m_ViewProjection = m_Projection * transform;
-    }
+    glm::mat4 transform = glm::lookAt(m_Position, m_Position + direction, up);
+    m_ViewProjection = m_Projection * transform;
 }
 
 void Camera::UpdateProjection()
 {
-    const glm::uvec2& size = Window::GetSize();
+    const glm::ivec2& size = m_Window.GetSize();
     if (size.x > 0 && size.y > 0) {
         float aspectRatio = (float)size.x / (float)size.y;
         m_Projection = glm::perspective(m_FieldOfView, aspectRatio, 0.1f, 1000.0f);
@@ -90,16 +61,96 @@ void Camera::RenderImGui()
     ImGui::Text("Position: %.2f, %.2f, %.2f", m_Position.x, m_Position.y, m_Position.z);
 }
 
-void Camera::ToggleState()
+void Camera::OnEvent(Event& event)
 {
-    if (m_IsControlled) {
-        Window::SetCursor(true);
-    } else {
-        Window::SetCursor(false);
-        m_LastCursorPosition = Window::GetCursorPosition();
+    // Opposite keys cancel; auto-repeats are ignored so a held key counts once.
+    auto applyMove = [&](float sign) {
+        switch (event.key) {
+        case Key::k_W:
+            m_MoveInput.y += sign;
+            break;
+        case Key::k_S:
+            m_MoveInput.y -= sign;
+            break;
+        case Key::k_D:
+            m_MoveInput.x += sign;
+            break;
+        case Key::k_A:
+            m_MoveInput.x -= sign;
+            break;
+        default:
+            break;
+        }
+    };
+
+    switch (event.type) {
+    case EventType::k_KeyPressed:
+        if (event.key == Key::k_Space && !event.isRepeat) {
+            ToggleState();
+            event.handled = true;
+        } else if (!event.isRepeat) {
+            applyMove(1.0f);
+        }
+        break;
+
+    case EventType::k_KeyReleased:
+        applyMove(-1.0f);
+        break;
+
+    case EventType::k_MouseMoved: {
+        if (!m_IsControlled) {
+            break;
+        }
+        if (m_FirstMouse) {
+            m_LastCursorPosition = event.mouse;
+            m_FirstMouse = false;
+            break;
+        }
+
+        glm::vec2 offset = event.mouse - m_LastCursorPosition;
+        m_LastCursorPosition = event.mouse;
+
+        m_Pitch -= offset.y * m_Sensitivity / 5000.0f;
+        m_Yaw += offset.x * m_Sensitivity / 5000.0f;
+
+        m_Pitch = glm::clamp(m_Pitch, glm::radians(-89.99f), glm::radians(89.99f));
+        if (m_Yaw < 0.0f) {
+            m_Yaw += glm::radians(360.0f);
+        } else if (m_Yaw > glm::radians(360.0f)) {
+            m_Yaw -= glm::radians(360.0f);
+        }
+        break;
     }
 
+    case EventType::k_WindowResized:
+        UpdateProjection();
+        break;
+
+    default:
+        break;
+    }
+}
+
+void Camera::ToggleState()
+{
     m_IsControlled = !m_IsControlled;
+    ApplyControlMode();
+
+    // Reset movement and rebaseline the look so toggling doesn't drift or snap.
+    m_MoveInput = glm::vec2(0.0f);
+    m_FirstMouse = true;
+}
+
+void Camera::ApplyControlMode()
+{
+    m_Window.SetCursor(!m_IsControlled);
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (m_IsControlled) {
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    } else {
+        io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
 }
 
 } // namespace Krafter

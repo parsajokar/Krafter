@@ -3,7 +3,8 @@
 #include <cstdint>
 #include <memory>
 
-#include "Krafter/Camera.h"
+#include "glm/glm.hpp"
+
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/Renderer/ShaderProgram.h"
 #include "Krafter/Renderer/Texture.h"
@@ -28,23 +29,21 @@
 
 namespace Krafter {
 
+class Sky;
+
 class Renderer {
 public:
-    static void Init(); // !!! MAKE SURE TO CALL SHUTDOWN
-    static void Shutdown();
+    Renderer();
+    ~Renderer() = default;
 
-    inline static Camera* GetCamera()
-    {
-        return s_Renderer->m_Camera;
-    }
-    inline static void SetCamera(Camera* camera)
-    {
-        s_Renderer->m_Camera = camera;
-    }
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
 
-    static void Clear();
-    static void RenderChunkMesh(const ChunkMesh& chunkMesh);
-    static void RenderImGui();
+    void SetClearColor(const glm::vec3& color);
+    void Clear();
+
+    void RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderImGui();
 
 private:
     static void STDCALL ApiDebugCallback(
@@ -56,14 +55,10 @@ private:
         const char* message,
         const void* userParam);
 
-    inline static Renderer* s_Renderer = nullptr;
-
-    Renderer();
-
     const uint8_t* m_VersionName;
     const uint8_t* m_RendererName;
 
-    Camera* m_Camera;
+    glm::vec3 m_ClearColor = glm::vec3(0.470f, 0.655f, 1.0f);
 
     std::unique_ptr<ShaderProgram> m_Program;
     std::unique_ptr<Texture2D> m_Texture;

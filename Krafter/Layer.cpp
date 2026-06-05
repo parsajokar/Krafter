@@ -40,4 +40,9 @@ void Layer::RenderImGui()
     ImGui::End();
 }
 
+void Layer::HandleEvent(Event& event)
+{
+    OnEvent(event);
+}
+
 } // namespace Krafter

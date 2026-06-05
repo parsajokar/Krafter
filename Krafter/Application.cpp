@@ -1,3 +1,4 @@
+#include <cassert>
 #include <filesystem>
 
 #include "imgui.h"
@@ -5,7 +6,9 @@
 #include "imgui_impl_opengl3.h"
 
 #include "Krafter/Application.h"
+#include "Krafter/Event.h"
 #include "Krafter/Renderer/Renderer.h"
+#include "Krafter/Window.h"
 
 namespace Krafter {
 
@@ -19,8 +22,9 @@ Application::Application(const ApplicationSpecification& specification)
         std::filesystem::current_path(m_Specification.workingDirectory);
     }
 
-    Window::Init();
-    Renderer::Init();
+    m_Window = std::make_unique<Window>();
+    m_Window->SetEventCallback([this](Event& event) { OnEvent(event); });
+    m_Renderer = std::make_unique<Renderer>();
 
     InitImGui();
 }
@@ -34,8 +38,8 @@ Application::~Application()
 
     ShutdownImGui();
 
-    Renderer::Shutdown();
-    Window::Shutdown();
+    // m_Renderer is released before m_Window (reverse declaration order), so the
+    // GL context is still alive while the renderer frees its resources.
 }
 
 void Application::PushLayer(Layer* layer)
@@ -52,14 +56,14 @@ void Application::PushOverlay(Layer* layer)
 
 void Application::Run()
 {
-    while (Window::IsOpen()) {
-        Window::PollEvents();
+    while (m_Window->IsOpen()) {
+        m_Window->PollEvents();
 
         for (Layer* layer : m_LayerStack) {
             layer->Update();
         }
 
-        Renderer::Clear();
+        m_Renderer->Clear();
 
         for (Layer* layer : m_LayerStack) {
             layer->Render();
@@ -71,7 +75,22 @@ void Application::Run()
         }
         EndImGui();
 
-        Window::SwapBuffers();
+        m_Window->SwapBuffers();
+    }
+}
+
+void Application::OnEvent(Event& event)
+{
+    // Let the debug UI consume input it is interacting with first.
+    const ImGuiIO& io = ImGui::GetIO();
+    if ((IsMouseEvent(event.type) && io.WantCaptureMouse)
+        || (IsKeyEvent(event.type) && io.WantCaptureKeyboard)) {
+        return;
+    }
+
+    // Reverse order, so overlays handle events before the layers beneath them.
+    for (auto it = m_LayerStack.rbegin(); it != m_LayerStack.rend() && !event.handled; it++) {
+        (*it)->HandleEvent(event);
     }
 }
 
@@ -84,7 +103,7 @@ void Application::InitImGui()
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = "assets/editorconfig.ini";
 
-    ImGui_ImplGlfw_InitForOpenGL(Window::GetId(), true);
+    ImGui_ImplGlfw_InitForOpenGL(m_Window->GetId(), true);
     ImGui_ImplOpenGL3_Init("#version 450 core");
 }
 

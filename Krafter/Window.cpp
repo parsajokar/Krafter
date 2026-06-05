@@ -2,68 +2,10 @@
 
 #include "GLFW/glfw3.h"
 
-#include "Krafter/Renderer/Renderer.h"
+#include "Krafter/Event.h"
 #include "Krafter/Window.h"
 
 namespace Krafter {
-
-void Window::Init()
-{
-    assert(!s_Window);
-    s_Window = new Window();
-}
-
-void Window::Shutdown()
-{
-    delete s_Window;
-}
-
-bool Window::IsOpen()
-{
-    return !glfwWindowShouldClose(s_Window->m_Id);
-}
-
-void Window::Close()
-{
-    glfwSetWindowShouldClose(s_Window->m_Id, GLFW_TRUE);
-}
-
-void Window::PollEvents()
-{
-    glfwPollEvents();
-
-    float currentFrameTime = GetTime();
-    s_Window->m_Delta = currentFrameTime - s_Window->m_LastFrameTime;
-    s_Window->m_LastFrameTime = currentFrameTime;
-}
-
-void Window::SwapBuffers()
-{
-    glfwSwapBuffers(s_Window->m_Id);
-}
-
-float Window::GetTime()
-{
-    return glfwGetTime();
-}
-
-bool Window::IsKeyDown(Key key)
-{
-    return glfwGetKey(s_Window->m_Id, (int)key) == GLFW_PRESS;
-}
-
-void Window::SetCursor(bool enabled)
-{
-    glfwSetInputMode(s_Window->m_Id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
-}
-
-glm::vec2 Window::GetCursorPosition()
-{
-    double x;
-    double y;
-    glfwGetCursorPos(s_Window->m_Id, &x, &y);
-    return glm::vec2(x, y);
-}
 
 Window::Window()
     : m_Size(1280, 720)
@@ -75,7 +17,12 @@ Window::Window()
     m_Id = glfwCreateWindow(m_Size.x, m_Size.y, "Krafter", nullptr, nullptr);
     glfwMakeContextCurrent(m_Id);
 
+    glfwSetWindowUserPointer(m_Id, this);
     glfwSetFramebufferSizeCallback(m_Id, FramebufferSizeCallback);
+    glfwSetKeyCallback(m_Id, KeyCallback);
+    glfwSetMouseButtonCallback(m_Id, MouseButtonCallback);
+    glfwSetCursorPosCallback(m_Id, CursorPositionCallback);
+    glfwSetScrollCallback(m_Id, ScrollCallback);
 
     glfwSetInputMode(m_Id, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
@@ -86,14 +33,115 @@ Window::~Window()
     glfwTerminate();
 }
 
+bool Window::IsOpen() const
+{
+    return !glfwWindowShouldClose(m_Id);
+}
+
+void Window::Close()
+{
+    glfwSetWindowShouldClose(m_Id, GLFW_TRUE);
+}
+
+void Window::PollEvents()
+{
+    glfwPollEvents();
+
+    float currentFrameTime = GetTime();
+    m_Delta = currentFrameTime - m_LastFrameTime;
+    m_LastFrameTime = currentFrameTime;
+}
+
+void Window::SwapBuffers()
+{
+    glfwSwapBuffers(m_Id);
+}
+
+void Window::SetEventCallback(const EventCallback& callback)
+{
+    m_EventCallback = callback;
+}
+
+float Window::GetTime() const
+{
+    return glfwGetTime();
+}
+
+void Window::SetCursor(bool enabled)
+{
+    glfwSetInputMode(m_Id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+}
+
 void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
-    s_Window->m_Size.x = width;
-    s_Window->m_Size.y = height;
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
 
-    glViewport(0, 0, s_Window->GetSize().x, s_Window->GetSize().y);
+    self->m_Size.x = width;
+    self->m_Size.y = height;
 
-    Renderer::GetCamera()->UpdateProjection();
+    glViewport(0, 0, width, height);
+
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = EventType::k_WindowResized;
+    event.size = self->m_Size;
+    self->m_EventCallback(event);
+}
+
+void Window::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = action == GLFW_RELEASE ? EventType::k_KeyReleased : EventType::k_KeyPressed;
+    event.key = (Key)key;
+    event.isRepeat = action == GLFW_REPEAT;
+    self->m_EventCallback(event);
+}
+
+void Window::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = action == GLFW_RELEASE ? EventType::k_MouseButtonReleased : EventType::k_MouseButtonPressed;
+    event.button = (MouseButton)button;
+    self->m_EventCallback(event);
+}
+
+void Window::CursorPositionCallback(GLFWwindow* window, double x, double y)
+{
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = EventType::k_MouseMoved;
+    event.mouse = glm::vec2(x, y);
+    self->m_EventCallback(event);
+}
+
+void Window::ScrollCallback(GLFWwindow* window, double x, double y)
+{
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = EventType::k_MouseScrolled;
+    event.mouse = glm::vec2(x, y);
+    self->m_EventCallback(event);
 }
 
 } // namespace Krafter

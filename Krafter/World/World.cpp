@@ -3,6 +3,7 @@
 #include "imgui.h"
 
 #include "Krafter/Renderer/Renderer.h"
+#include "Krafter/Sky.h"
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Lighting.h"
 #include "Krafter/World/World.h"
@@ -33,11 +34,10 @@ World::~World()
     }
 }
 
-void World::Update()
+void World::Update(const glm::vec3& cameraPosition)
 {
     DrainResults();
 
-    glm::vec3 cameraPosition = Renderer::GetCamera()->GetPosition();
     glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
 
     for (int32_t x = -m_RenderDistance - 2; x <= m_RenderDistance + 2; x++) {
@@ -139,11 +139,11 @@ void World::Update()
     }
 }
 
-void World::Render()
+void World::Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky)
 {
     for (const auto& [position, record] : m_Chunks) {
         if (record.mesh) {
-            Renderer::RenderChunkMesh(*record.mesh);
+            renderer.RenderChunkMesh(*record.mesh, viewProjection, sky);
         }
     }
 }

@@ -59,10 +59,15 @@ target_sources(
     Krafter/Renderer/ShaderProgram.cpp
     Krafter/Renderer/Renderer.h
     Krafter/Renderer/Renderer.cpp
+    Krafter/Renderer/UIRenderer.h
+    Krafter/Renderer/UIRenderer.cpp
+    Krafter/UILayer.h
+    Krafter/UILayer.cpp
     Krafter/Game.h
     Krafter/Game.cpp
     Krafter/Camera.h
     Krafter/Camera.cpp
+    Krafter/Event.h
     Krafter/Sky.h
     Krafter/Sky.cpp
     Krafter/Window.h

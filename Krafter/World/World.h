@@ -21,6 +21,9 @@
 
 namespace Krafter {
 
+class Renderer;
+class Sky;
+
 class World {
 public:
     World();
@@ -29,8 +32,8 @@ public:
     World(const World&) = delete;
     World& operator=(const World&) = delete;
 
-    void Update();
-    void Render();
+    void Update(const glm::vec3& cameraPosition);
+    void Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky);
     void RenderImGui();
 
     Block GetBlock(const glm::ivec3& worldPosition) const;

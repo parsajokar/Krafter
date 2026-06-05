@@ -11,33 +11,26 @@
 
 namespace Krafter {
 
-void Renderer::Init()
+void Renderer::SetClearColor(const glm::vec3& color)
 {
-    assert(!s_Renderer);
-    s_Renderer = new Renderer();
-}
-
-void Renderer::Shutdown()
-{
-    delete s_Renderer;
+    m_ClearColor = color;
 }
 
 void Renderer::Clear()
 {
-    const glm::vec3& sky = Sky::GetColor();
-    glClearColor(sky.r, sky.g, sky.b, 1.0f);
+    glClearColor(m_ClearColor.r, m_ClearColor.g, m_ClearColor.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh)
+void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
 {
-    s_Renderer->m_Texture->Bind(0);
-    s_Renderer->m_Program->Bind();
-    s_Renderer->m_Program->SetUniformMat4(0, s_Renderer->m_Camera->GetViewProjection());
-    s_Renderer->m_Program->SetUniformInt(1, 0);
-    s_Renderer->m_Program->SetUniformVec3(2, Sky::GetSunColor());
-    s_Renderer->m_Program->SetUniformVec3(3, Sky::GetSunDirection());
-    s_Renderer->m_Program->SetUniformVec3(4, Sky::GetAmbientColor());
+    m_Texture->Bind(0);
+    m_Program->Bind();
+    m_Program->SetUniformMat4(0, viewProjection);
+    m_Program->SetUniformInt(1, 0);
+    m_Program->SetUniformVec3(2, sky.GetSunColor());
+    m_Program->SetUniformVec3(3, sky.GetSunDirection());
+    m_Program->SetUniformVec3(4, sky.GetAmbientColor());
     chunkMesh.Bind();
     glDrawElements(GL_TRIANGLES, chunkMesh.GetElementCount(), GL_UNSIGNED_INT, nullptr);
 }
@@ -45,8 +38,8 @@ void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh)
 void Renderer::RenderImGui()
 {
     ImGui::Text("OpenGL Details:");
-    ImGui::Text("Version: %s", s_Renderer->m_VersionName);
-    ImGui::Text("Renderer: %s", s_Renderer->m_RendererName);
+    ImGui::Text("Version: %s", m_VersionName);
+    ImGui::Text("Renderer: %s", m_RendererName);
 }
 
 void STDCALL Renderer::ApiDebugCallback(
