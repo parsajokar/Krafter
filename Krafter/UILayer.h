@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Krafter/Layer.h"
+#include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
 
 namespace Krafter {
@@ -18,6 +19,7 @@ private:
 
     Window& m_Window;
     UIRenderer m_Renderer;
+    Texture2D m_UITexture;
 };
 
 } // namespace Krafter
