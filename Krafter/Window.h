@@ -14,6 +14,7 @@ using EventCallback = std::function<void(Event&)>;
 
 enum class Key : int {
     k_Escape = 256,
+    k_F11 = 300,
     k_Space = 32,
     k_W = 87,
     k_S = 83,
@@ -57,6 +58,8 @@ public:
 
     void SetCursor(bool enabled);
 
+    void ToggleFullscreen();
+
     inline WindowId GetId() const
     {
         return m_Id;
@@ -83,6 +86,11 @@ private:
     glm::ivec2 m_Size;
 
     EventCallback m_EventCallback;
+
+    // Windowed-mode position and size, saved so fullscreen can be toggled back.
+    bool m_Fullscreen = false;
+    glm::ivec2 m_WindowedPos = glm::ivec2(0);
+    glm::ivec2 m_WindowedSize = glm::ivec2(0);
 
     float m_LastFrameTime = 0.0f;
     float m_Delta = 0.0f;

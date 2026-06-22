@@ -72,6 +72,26 @@ void Window::SetCursor(bool enabled)
     glfwSetInputMode(m_Id, GLFW_CURSOR, enabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
+void Window::ToggleFullscreen()
+{
+    if (m_Fullscreen) {
+        glfwSetWindowMonitor(
+            m_Id, nullptr,
+            m_WindowedPos.x, m_WindowedPos.y, m_WindowedSize.x, m_WindowedSize.y, 0);
+        m_Fullscreen = false;
+        return;
+    }
+
+    // Remember the windowed placement so it can be restored later.
+    glfwGetWindowPos(m_Id, &m_WindowedPos.x, &m_WindowedPos.y);
+    glfwGetWindowSize(m_Id, &m_WindowedSize.x, &m_WindowedSize.y);
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    glfwSetWindowMonitor(m_Id, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    m_Fullscreen = true;
+}
+
 void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
     Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));

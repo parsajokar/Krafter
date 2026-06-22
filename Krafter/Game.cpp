@@ -50,6 +50,12 @@ void GameLayer::OnEvent(Event& event)
         return;
     }
 
+    if (event.type == EventType::k_KeyPressed && event.key == Key::k_F11 && !event.isRepeat) {
+        m_Window.ToggleFullscreen();
+        event.handled = true;
+        return;
+    }
+
     if (event.type == EventType::k_MouseButtonPressed
         && (event.button == MouseButton::k_Left || event.button == MouseButton::k_Right)) {
         glm::ivec3 hit;
