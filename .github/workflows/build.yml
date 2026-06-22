@@ -32,7 +32,8 @@ jobs:
           sudo apt update
           sudo apt install -y ninja-build \
             libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
-            libxcursor-dev libxi-dev libxext-dev
+            libxcursor-dev libxi-dev libxext-dev \
+            wayland-protocols libwayland-dev libxkbcommon-dev
 
       - name: Set up MSVC environment
         if: runner.os == 'Windows'
