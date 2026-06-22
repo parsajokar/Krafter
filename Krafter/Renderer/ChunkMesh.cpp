@@ -106,7 +106,9 @@ ChunkMeshData ChunkMesh::Compute(
             sum += skyLightOf(sideV);
             count++;
         }
-        if (!sc) {
+        // Two solid edges seal off the diagonal, so its light can't reach this
+        // vertex; sampling it anyway is what leaks light through missing corners.
+        if (!sc && !(s1 && s2)) {
             sum += skyLightOf(corner);
             count++;
         }
