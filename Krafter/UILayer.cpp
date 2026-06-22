@@ -1,3 +1,5 @@
+#include <array>
+
 #include "Krafter/UILayer.h"
 #include "Krafter/Window.h"
 
@@ -10,6 +12,7 @@ UILayer::UILayer(Window& window)
     , m_Window(window)
     , m_Renderer(window)
     , m_UITexture("assets/ui.png")
+    , m_BlockTexture("assets/texture.png")
 {
 }
 
@@ -54,10 +57,71 @@ void UILayer::DrawHotbar()
     const float startX = (windowSize.x - totalWidth) * 0.5f;
     const float y = windowSize.y - slotSize.y - k_Margin;
 
+    // Blocks shown in each slot; k_Air leaves the slot empty.
+    constexpr Block k_SlotBlocks[k_SlotCount] = {
+        Block::k_Grass, Block::k_Sand
+    };
+
+    // Inset the icon so it sits inside the slot's border.
+    constexpr float k_IconInset = 4.0f * k_Scale;
+    const glm::vec2 iconSize = slotSize - 2.0f * k_IconInset;
+
     for (int i = 0; i < k_SlotCount; ++i) {
         const glm::vec2 position = glm::vec2(startX + i * stride, y);
         DrawSprite(spritePos, k_SpriteSize, position, slotSize, k_UIOpacity);
+
+        if (k_SlotBlocks[i] != Block::k_Air) {
+            DrawBlockIcon(k_SlotBlocks[i], position + glm::vec2(k_IconInset), iconSize);
+        }
     }
+}
+
+void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::vec2& size)
+{
+    const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
+
+    // Atlas UVs are GPU coordinates (V from the bottom), so the tile's visual top
+    // is at vMax. Corners are wound: top-left, top-right, bottom-right, bottom-left.
+    auto tileUVs = [](const glm::vec2& tile) -> std::array<glm::vec2, 4> {
+        const float uMin = tile.x;
+        const float uMax = tile.x + BlockAtlas::k_Step;
+        const float vMin = tile.y;
+        const float vMax = tile.y + BlockAtlas::k_Step;
+        return {
+            glm::vec2(uMin, vMax), glm::vec2(uMax, vMax),
+            glm::vec2(uMax, vMin), glm::vec2(uMin, vMin)
+        };
+    };
+
+    // Isometric cube in a square box: top diamond is 2:1, side faces hang below.
+    const float side = glm::min(size.x, size.y);
+    const float cx = position.x + size.x * 0.5f;
+    const float boxTop = position.y + (size.y - side) * 0.5f;
+
+    const float w = side * 0.5f; // half width
+    const float t = side * 0.25f; // top diamond half height
+    const float h = side * 0.5f; // side face height
+    const float midY = boxTop + t; // vertical centre of the top diamond
+
+    const glm::vec2 top(cx, boxTop);
+    const glm::vec2 right(cx + w, midY);
+    const glm::vec2 front(cx, midY + t);
+    const glm::vec2 left(cx - w, midY);
+    const glm::vec2 frontBottom(cx, midY + t + h);
+    const glm::vec2 leftBottom(cx - w, midY + h);
+    const glm::vec2 rightBottom(cx + w, midY + h);
+
+    // Shade faces like Minecraft: bright top, dimmer sides.
+    constexpr glm::vec4 k_TopTint = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    constexpr glm::vec4 k_LeftTint = glm::vec4(0.65f, 0.65f, 0.65f, 1.0f);
+    constexpr glm::vec4 k_RightTint = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
+
+    m_Renderer.DrawQuad(
+        { top, right, front, left }, tileUVs(atlas.top), m_BlockTexture, k_TopTint);
+    m_Renderer.DrawQuad(
+        { left, front, frontBottom, leftBottom }, tileUVs(atlas.side), m_BlockTexture, k_LeftTint);
+    m_Renderer.DrawQuad(
+        { front, right, rightBottom, frontBottom }, tileUVs(atlas.side), m_BlockTexture, k_RightTint);
 }
 
 void UILayer::DrawSprite(

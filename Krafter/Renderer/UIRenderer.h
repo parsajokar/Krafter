@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "glm/glm.hpp"
@@ -29,6 +30,13 @@ public:
         const glm::vec4& uvRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f),
         const glm::vec4& tint = glm::vec4(1.0f));
 
+    // Draws a textured quad with four arbitrary corner positions (pixel space),
+    // each paired with a UV. Corners are wound around the quad. Lets callers
+    // build sheared shapes such as isometric block faces.
+    void DrawQuad(
+        const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
+        const Texture2D& texture, const glm::vec4& tint = glm::vec4(1.0f));
+
 private:
     void DrawQuad(
         const glm::vec2& position, const glm::vec2& size,
@@ -41,6 +49,10 @@ private:
     uint32_t m_VertexArray;
     uint32_t m_VertexBuffer;
     uint32_t m_ElementBuffer;
+
+    // Separate dynamic buffer for arbitrary-corner quads, re-uploaded per draw.
+    uint32_t m_PolyVertexArray;
+    uint32_t m_PolyVertexBuffer;
 };
 
 } // namespace Krafter

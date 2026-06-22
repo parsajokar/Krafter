@@ -37,10 +37,30 @@ UIRenderer::UIRenderer(Window& window)
     glEnableVertexArrayAttrib(m_VertexArray, 1);
     glVertexArrayAttribBinding(m_VertexArray, 1, 0);
     glVertexArrayAttribFormat(m_VertexArray, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
+
+    // Dynamic quad: same vertex layout and element buffer, but its four vertices
+    // are re-uploaded on each draw.
+    glCreateVertexArrays(1, &m_PolyVertexArray);
+    glCreateBuffers(1, &m_PolyVertexBuffer);
+
+    glNamedBufferData(m_PolyVertexBuffer, 4 * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+    glVertexArrayVertexBuffer(m_PolyVertexArray, 0, m_PolyVertexBuffer, 0, 4 * sizeof(float));
+    glVertexArrayElementBuffer(m_PolyVertexArray, m_ElementBuffer);
+
+    glEnableVertexArrayAttrib(m_PolyVertexArray, 0);
+    glVertexArrayAttribBinding(m_PolyVertexArray, 0, 0);
+    glVertexArrayAttribFormat(m_PolyVertexArray, 0, 2, GL_FLOAT, GL_FALSE, 0);
+
+    glEnableVertexArrayAttrib(m_PolyVertexArray, 1);
+    glVertexArrayAttribBinding(m_PolyVertexArray, 1, 0);
+    glVertexArrayAttribFormat(m_PolyVertexArray, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
 }
 
 UIRenderer::~UIRenderer()
 {
+    glDeleteBuffers(1, &m_PolyVertexBuffer);
+    glDeleteVertexArrays(1, &m_PolyVertexArray);
     glDeleteBuffers(1, &m_ElementBuffer);
     glDeleteBuffers(1, &m_VertexBuffer);
     glDeleteVertexArrays(1, &m_VertexArray);
@@ -83,6 +103,8 @@ void UIRenderer::DrawQuad(
     const glm::vec2& position, const glm::vec2& size,
     const glm::vec4& uvRect, const glm::vec4& tint, const Texture2D* texture)
 {
+    glBindVertexArray(m_VertexArray);
+
     m_Program.SetUniformVec4(1, glm::vec4(position, size));
     m_Program.SetUniformVec4(2, uvRect);
     m_Program.SetUniformVec4(4, tint);
@@ -94,6 +116,34 @@ void UIRenderer::DrawQuad(
     } else {
         m_Program.SetUniformInt(5, 0);
     }
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+}
+
+void UIRenderer::DrawQuad(
+    const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
+    const Texture2D& texture, const glm::vec4& tint)
+{
+    float vertices[4 * 4];
+    for (int i = 0; i < 4; i++) {
+        vertices[i * 4 + 0] = corners[i].x;
+        vertices[i * 4 + 1] = corners[i].y;
+        vertices[i * 4 + 2] = uvs[i].x;
+        vertices[i * 4 + 3] = uvs[i].y;
+    }
+    glNamedBufferSubData(m_PolyVertexBuffer, 0, sizeof(vertices), vertices);
+
+    glBindVertexArray(m_PolyVertexArray);
+
+    // Corners and UVs are baked into the buffer, so the transform and uv-rect
+    // pass through unchanged.
+    m_Program.SetUniformVec4(1, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    m_Program.SetUniformVec4(2, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    m_Program.SetUniformVec4(4, tint);
+
+    texture.Bind(0);
+    m_Program.SetUniformInt(3, 0);
+    m_Program.SetUniformInt(5, 1);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
