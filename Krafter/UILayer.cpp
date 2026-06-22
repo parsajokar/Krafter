@@ -119,14 +119,23 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
         };
     };
 
-    // Isometric cube in a square box: top diamond is 2:1, side faces hang below.
-    const float side = glm::min(size.x, size.y);
-    const float cx = position.x + size.x * 0.5f;
-    const float boxTop = position.y + (size.y - side) * 0.5f;
+    // Isometric cube proportions: width 2, a 2:1 top diamond, and tall front
+    // faces so the block reads as a cube instead of a flat slab. Scaled to fit
+    // the icon box and centred.
+    constexpr float k_HalfWidth = 1.0f;
+    constexpr float k_DiamondHalf = 0.5f; // half-height of the top diamond
+    constexpr float k_SideHeight = 1.25f; // front-face height
 
-    const float w = side * 0.5f; // half width
-    const float t = side * 0.25f; // top diamond half height
-    const float h = side * 0.5f; // side face height
+    constexpr float k_NatWidth = 2.0f * k_HalfWidth;
+    constexpr float k_NatHeight = 2.0f * k_DiamondHalf + k_SideHeight;
+    const float scale = glm::min(size.x / k_NatWidth, size.y / k_NatHeight);
+
+    const float w = k_HalfWidth * scale; // half width
+    const float t = k_DiamondHalf * scale; // top diamond half height
+    const float h = k_SideHeight * scale; // side face height
+
+    const float cx = position.x + size.x * 0.5f;
+    const float boxTop = position.y + (size.y - k_NatHeight * scale) * 0.5f;
     const float midY = boxTop + t; // vertical centre of the top diamond
 
     const glm::vec2 top(cx, boxTop);
@@ -137,10 +146,11 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
     const glm::vec2 leftBottom(cx - w, midY + h);
     const glm::vec2 rightBottom(cx + w, midY + h);
 
-    // Shade faces like Minecraft: bright top, dimmer sides.
+    // Shade faces like Minecraft: bright top, light from the upper-left so the
+    // left face is brighter than the right.
     constexpr glm::vec4 k_TopTint = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    constexpr glm::vec4 k_LeftTint = glm::vec4(0.65f, 0.65f, 0.65f, 1.0f);
-    constexpr glm::vec4 k_RightTint = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
+    constexpr glm::vec4 k_LeftTint = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
+    constexpr glm::vec4 k_RightTint = glm::vec4(0.6f, 0.6f, 0.6f, 1.0f);
 
     m_Renderer.DrawQuad(
         { top, right, front, left }, tileUVs(atlas.top), m_BlockTexture, k_TopTint);
