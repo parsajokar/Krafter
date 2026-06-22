@@ -34,7 +34,7 @@ class Sky;
 class Renderer {
 public:
     Renderer();
-    ~Renderer() = default;
+    ~Renderer();
 
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -43,6 +43,7 @@ public:
     void Clear();
 
     void RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection);
     void RenderImGui();
 
 private:
@@ -62,6 +63,12 @@ private:
 
     std::unique_ptr<ShaderProgram> m_Program;
     std::unique_ptr<Texture2D> m_Texture;
+
+    std::unique_ptr<ShaderProgram> m_OutlineProgram;
+    uint32_t m_OutlineVertexArray;
+    uint32_t m_OutlineVertexBuffer;
+    uint32_t m_OutlineElementBuffer;
+    uint32_t m_OutlineElementCount;
 };
 
 } // namespace Krafter

@@ -19,6 +19,16 @@ enum class Key : int {
     k_S = 83,
     k_D = 68,
     k_A = 65,
+    k_0 = 48,
+    k_1 = 49,
+    k_2 = 50,
+    k_3 = 51,
+    k_4 = 52,
+    k_5 = 53,
+    k_6 = 54,
+    k_7 = 55,
+    k_8 = 56,
+    k_9 = 57,
 };
 
 enum class MouseButton : int {

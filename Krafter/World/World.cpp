@@ -241,7 +241,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     }
 }
 
-bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit) const
+bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit, glm::ivec3& outBefore) const
 {
     // Amanatides & Woo voxel traversal: walk cell by cell along the ray.
     glm::vec3 dir = glm::normalize(direction);
@@ -267,12 +267,15 @@ bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, fl
     }
 
     float t = 0.0f;
+    glm::ivec3 previous = block;
     while (t <= maxDistance) {
         if (GetBlock(block) != Block::k_Air) {
             outHit = block;
+            outBefore = previous;
             return true;
         }
 
+        previous = block;
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
             block.x += step.x;
             t = tMax.x;

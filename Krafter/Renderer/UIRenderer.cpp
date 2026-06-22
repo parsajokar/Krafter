@@ -120,6 +120,29 @@ void UIRenderer::DrawQuad(
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
+void UIRenderer::DrawQuadInverted(
+    const glm::vec2& position, const glm::vec2& size, const Texture2D& texture,
+    const glm::vec4& uvRect)
+{
+    glBindVertexArray(m_VertexArray);
+    glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+
+    m_Program.SetUniformVec4(1, glm::vec4(position, size));
+    m_Program.SetUniformVec4(2, uvRect);
+    m_Program.SetUniformVec4(4, glm::vec4(1.0f));
+
+    texture.Bind(0);
+    m_Program.SetUniformInt(3, 0);
+    m_Program.SetUniformInt(5, 1);
+    m_Program.SetUniformInt(6, 1);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+    // Restore the default UI blending and mode for following draws.
+    m_Program.SetUniformInt(6, 0);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
 void UIRenderer::DrawQuad(
     const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
     const Texture2D& texture, const glm::vec4& tint)

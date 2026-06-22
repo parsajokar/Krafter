@@ -35,6 +35,17 @@ void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& view
     glDrawElements(GL_TRIANGLES, chunkMesh.GetElementCount(), GL_UNSIGNED_INT, nullptr);
 }
 
+void Renderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection)
+{
+    m_OutlineProgram->Bind();
+    m_OutlineProgram->SetUniformMat4(0, viewProjection);
+    m_OutlineProgram->SetUniformVec3(1, glm::vec3(blockPosition));
+
+    glLineWidth(1.0f);
+    glBindVertexArray(m_OutlineVertexArray);
+    glDrawElements(GL_LINES, m_OutlineElementCount, GL_UNSIGNED_INT, nullptr);
+}
+
 void Renderer::RenderImGui()
 {
     ImGui::Text("OpenGL Details:");
@@ -74,6 +85,47 @@ Renderer::Renderer()
 
     m_Program = std::make_unique<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
     m_Texture = std::make_unique<Texture2D>("assets/texture.png");
+
+    // Unit-cube wireframe for the targeted-block outline.
+    const float cubeCorners[] = {
+        0.0f, 0.0f, 0.0f, // 0
+        1.0f, 0.0f, 0.0f, // 1
+        1.0f, 1.0f, 0.0f, // 2
+        0.0f, 1.0f, 0.0f, // 3
+        0.0f, 0.0f, 1.0f, // 4
+        1.0f, 0.0f, 1.0f, // 5
+        1.0f, 1.0f, 1.0f, // 6
+        0.0f, 1.0f, 1.0f, // 7
+    };
+    const uint32_t cubeEdges[] = {
+        0, 1, 1, 2, 2, 3, 3, 0, // bottom
+        4, 5, 5, 6, 6, 7, 7, 4, // top
+        0, 4, 1, 5, 2, 6, 3, 7, // verticals
+    };
+    m_OutlineElementCount = sizeof(cubeEdges) / sizeof(cubeEdges[0]);
+
+    glCreateVertexArrays(1, &m_OutlineVertexArray);
+    glCreateBuffers(1, &m_OutlineVertexBuffer);
+    glCreateBuffers(1, &m_OutlineElementBuffer);
+
+    glNamedBufferData(m_OutlineVertexBuffer, sizeof(cubeCorners), cubeCorners, GL_STATIC_DRAW);
+    glNamedBufferData(m_OutlineElementBuffer, sizeof(cubeEdges), cubeEdges, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(m_OutlineVertexArray, 0, m_OutlineVertexBuffer, 0, 3 * sizeof(float));
+    glVertexArrayElementBuffer(m_OutlineVertexArray, m_OutlineElementBuffer);
+
+    glEnableVertexArrayAttrib(m_OutlineVertexArray, 0);
+    glVertexArrayAttribBinding(m_OutlineVertexArray, 0, 0);
+    glVertexArrayAttribFormat(m_OutlineVertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
+
+    m_OutlineProgram = std::make_unique<ShaderProgram>("assets/outline.vert.glsl", "assets/outline.frag.glsl");
+}
+
+Renderer::~Renderer()
+{
+    glDeleteBuffers(1, &m_OutlineElementBuffer);
+    glDeleteBuffers(1, &m_OutlineVertexBuffer);
+    glDeleteVertexArrays(1, &m_OutlineVertexArray);
 }
 
 } // namespace Krafter

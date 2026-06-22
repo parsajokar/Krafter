@@ -40,7 +40,8 @@ public:
     void SetBlock(const glm::ivec3& worldPosition, Block block);
 
     // Steps a ray through the voxel grid and reports the first solid block hit.
-    bool RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit) const;
+    // outBefore is the empty cell just before the hit, where a block is placed.
+    bool RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit, glm::ivec3& outBefore) const;
 
 private:
     enum class ChunkState {

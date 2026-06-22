@@ -8,10 +8,11 @@
 
 namespace Krafter {
 
-GameLayer::GameLayer(Window& window, Renderer& renderer)
+GameLayer::GameLayer(Window& window, Renderer& renderer, Hotbar& hotbar)
     : Layer("Game")
     , m_Window(window)
     , m_Renderer(renderer)
+    , m_Hotbar(hotbar)
     , m_Camera(window, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f))
 {
 }
@@ -23,11 +24,22 @@ void GameLayer::OnUpdate()
 
     m_Camera.Update();
     m_World.Update(m_Camera.GetPosition());
+
+    glm::ivec3 hit;
+    glm::ivec3 before;
+    m_HasTarget = m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
+    if (m_HasTarget) {
+        m_TargetBlock = hit;
+    }
 }
 
 void GameLayer::OnRender()
 {
     m_World.Render(m_Renderer, m_Camera.GetViewProjection(), m_Sky);
+
+    if (m_HasTarget) {
+        m_Renderer.RenderBlockOutline(m_TargetBlock, m_Camera.GetViewProjection());
+    }
 }
 
 void GameLayer::OnEvent(Event& event)
@@ -38,11 +50,19 @@ void GameLayer::OnEvent(Event& event)
         return;
     }
 
-    if (event.type == EventType::k_MouseButtonPressed && event.button == MouseButton::k_Left) {
-        constexpr float k_Reach = 8.0f;
+    if (event.type == EventType::k_MouseButtonPressed
+        && (event.button == MouseButton::k_Left || event.button == MouseButton::k_Right)) {
         glm::ivec3 hit;
-        if (m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit)) {
-            m_World.SetBlock(hit, Block::k_Air);
+        glm::ivec3 before;
+        if (m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before)) {
+            if (event.button == MouseButton::k_Left) {
+                m_World.SetBlock(hit, Block::k_Air);
+            } else {
+                const Block block = m_Hotbar.GetSelectedBlock();
+                if (block != Block::k_Air) {
+                    m_World.SetBlock(before, block);
+                }
+            }
         }
         event.handled = true;
         return;
@@ -63,8 +83,8 @@ void GameLayer::OnRenderImGui()
 GameApplication::GameApplication(const ApplicationSpecification& specification)
     : Application(specification)
 {
-    PushLayer(new GameLayer(GetWindow(), GetRenderer()));
-    PushOverlay(new UILayer(GetWindow()));
+    PushLayer(new GameLayer(GetWindow(), GetRenderer(), m_Hotbar));
+    PushOverlay(new UILayer(GetWindow(), m_Hotbar));
 }
 
 } // namespace Krafter

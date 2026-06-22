@@ -63,6 +63,7 @@ target_sources(
     Krafter/Renderer/UIRenderer.cpp
     Krafter/UILayer.h
     Krafter/UILayer.cpp
+    Krafter/Hotbar.h
     Krafter/Game.h
     Krafter/Game.cpp
     Krafter/Camera.h

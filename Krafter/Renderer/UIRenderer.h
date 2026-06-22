@@ -37,6 +37,12 @@ public:
         const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
         const Texture2D& texture, const glm::vec4& tint = glm::vec4(1.0f));
 
+    // Draws a textured quad that inverts the colours behind it (Minecraft-style
+    // crosshair). The texture must be white where opaque, transparent elsewhere.
+    void DrawQuadInverted(
+        const glm::vec2& position, const glm::vec2& size, const Texture2D& texture,
+        const glm::vec4& uvRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+
 private:
     void DrawQuad(
         const glm::vec2& position, const glm::vec2& size,
