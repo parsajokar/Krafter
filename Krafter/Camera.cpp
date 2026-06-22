@@ -31,10 +31,7 @@ void Camera::Update()
 
     float delta = m_Window.GetDelta();
 
-    glm::vec3 direction = glm::normalize(glm::vec3(
-        glm::cos(m_Yaw) * glm::cos(m_Pitch),
-        glm::sin(m_Pitch),
-        glm::sin(m_Yaw) * glm::cos(m_Pitch)));
+    glm::vec3 direction = GetDirection();
     glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 right = glm::normalize(glm::cross(direction, up));
 
@@ -42,6 +39,14 @@ void Camera::Update()
 
     glm::mat4 transform = glm::lookAt(m_Position, m_Position + direction, up);
     m_ViewProjection = m_Projection * transform;
+}
+
+glm::vec3 Camera::GetDirection() const
+{
+    return glm::normalize(glm::vec3(
+        glm::cos(m_Yaw) * glm::cos(m_Pitch),
+        glm::sin(m_Pitch),
+        glm::sin(m_Yaw) * glm::cos(m_Pitch)));
 }
 
 void Camera::UpdateProjection()

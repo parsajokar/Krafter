@@ -37,6 +37,10 @@ public:
     void RenderImGui();
 
     Block GetBlock(const glm::ivec3& worldPosition) const;
+    void SetBlock(const glm::ivec3& worldPosition, Block block);
+
+    // Steps a ray through the voxel grid and reports the first solid block hit.
+    bool RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit) const;
 
 private:
     enum class ChunkState {
@@ -77,6 +81,10 @@ private:
     void DispatchJob(std::function<void()> job);
 
     void DrainResults();
+
+    // Resets a chunk back to the terrain stage so the lighting and meshing
+    // passes recompute it on the next update.
+    void InvalidateChunk(const glm::ivec2& chunkPosition);
 
     // Both stages need the full 3x3 neighbourhood: lighting for block context,
     // meshing so border smooth-lighting and AO read settled neighbour light.

@@ -21,6 +21,9 @@ public:
         return m_Position;
     }
 
+    // Normalized forward (look) direction derived from yaw/pitch.
+    glm::vec3 GetDirection() const;
+
     inline const glm::mat4& GetViewProjection() const
     {
         return m_ViewProjection;

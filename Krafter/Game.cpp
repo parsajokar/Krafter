@@ -38,6 +38,16 @@ void GameLayer::OnEvent(Event& event)
         return;
     }
 
+    if (event.type == EventType::k_MouseButtonPressed && event.button == MouseButton::k_Left) {
+        constexpr float k_Reach = 8.0f;
+        glm::ivec3 hit;
+        if (m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit)) {
+            m_World.SetBlock(hit, Block::k_Air);
+        }
+        event.handled = true;
+        return;
+    }
+
     m_Camera.OnEvent(event);
 }
 

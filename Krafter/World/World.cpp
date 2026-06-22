@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <limits>
 
 #include "imgui.h"
 
@@ -156,40 +157,137 @@ void World::RenderImGui()
     ImGui::Text("Chunks: %zu", m_Chunks.size());
 }
 
+static int32_t FloorDiv(int32_t a, int32_t b)
+{
+    int32_t q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0))) {
+        q--;
+    }
+    return q;
+}
+
+static int32_t FloorMod(int32_t a, int32_t b)
+{
+    int32_t r = a % b;
+    if (r != 0 && (r < 0) != (b < 0)) {
+        r += b;
+    }
+    return r;
+}
+
+static glm::ivec2 ToChunkPosition(const glm::ivec3& worldPosition)
+{
+    return glm::ivec2(
+        FloorDiv(worldPosition.x, Chunk::k_Width),
+        FloorDiv(worldPosition.z, Chunk::k_Width));
+}
+
+static glm::ivec3 ToLocalPosition(const glm::ivec3& worldPosition)
+{
+    return glm::ivec3(
+        FloorMod(worldPosition.x, Chunk::k_Width),
+        worldPosition.y,
+        FloorMod(worldPosition.z, Chunk::k_Width));
+}
+
 Block World::GetBlock(const glm::ivec3& worldPosition) const
 {
     if (worldPosition.y < 0 || worldPosition.y >= Chunk::k_Height) {
         return Block::k_Air;
     }
 
-    auto floorDiv = [](int32_t a, int32_t b) {
-        int32_t q = a / b;
-        if ((a % b != 0) && ((a < 0) != (b < 0))) {
-            q--;
-        }
-        return q;
-    };
-    auto floorMod = [](int32_t a, int32_t b) {
-        int32_t r = a % b;
-        if (r != 0 && (r < 0) != (b < 0)) {
-            r += b;
-        }
-        return r;
-    };
-
-    glm::ivec2 chunkPosition(
-        floorDiv(worldPosition.x, Chunk::k_Width),
-        floorDiv(worldPosition.z, Chunk::k_Width));
-    glm::ivec3 localPosition(
-        floorMod(worldPosition.x, Chunk::k_Width),
-        worldPosition.y,
-        floorMod(worldPosition.z, Chunk::k_Width));
-
-    auto it = m_Chunks.find(chunkPosition);
+    auto it = m_Chunks.find(ToChunkPosition(worldPosition));
     if (it == m_Chunks.end() || !it->second.chunk) {
         return Block::k_Air;
     }
-    return it->second.chunk->GetBlock(localPosition);
+    return it->second.chunk->GetBlock(ToLocalPosition(worldPosition));
+}
+
+void World::SetBlock(const glm::ivec3& worldPosition, Block block)
+{
+    if (worldPosition.y < 0 || worldPosition.y >= Chunk::k_Height) {
+        return;
+    }
+
+    glm::ivec2 chunkPosition = ToChunkPosition(worldPosition);
+    auto it = m_Chunks.find(chunkPosition);
+    if (it == m_Chunks.end() || !it->second.chunk) {
+        return;
+    }
+
+    // Only edit settled terrain. A block on a chunk border changes its
+    // neighbours' light and faces too, so the whole 3x3 must be meshed and have
+    // no light/mesh job in flight; otherwise a worker could be reading a chunk
+    // we are about to mutate or invalidate.
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            glm::ivec2 neighbour = chunkPosition + glm::ivec2(dx, dz);
+            auto nit = m_Chunks.find(neighbour);
+            if (nit == m_Chunks.end() || nit->second.state != ChunkState::k_MeshReady) {
+                return;
+            }
+            if (m_PendingLight.count(neighbour) || m_PendingMesh.count(neighbour)) {
+                return;
+            }
+        }
+    }
+
+    it->second.chunk->SetBlock(ToLocalPosition(worldPosition), block);
+
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
+        }
+    }
+}
+
+bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit) const
+{
+    // Amanatides & Woo voxel traversal: walk cell by cell along the ray.
+    glm::vec3 dir = glm::normalize(direction);
+    glm::ivec3 block = glm::ivec3(glm::floor(origin));
+
+    glm::ivec3 step;
+    glm::vec3 tMax;
+    glm::vec3 tDelta;
+    for (int32_t i = 0; i < 3; i++) {
+        if (dir[i] > 0.0f) {
+            step[i] = 1;
+            tMax[i] = (static_cast<float>(block[i] + 1) - origin[i]) / dir[i];
+            tDelta[i] = 1.0f / dir[i];
+        } else if (dir[i] < 0.0f) {
+            step[i] = -1;
+            tMax[i] = (origin[i] - static_cast<float>(block[i])) / -dir[i];
+            tDelta[i] = 1.0f / -dir[i];
+        } else {
+            step[i] = 0;
+            tMax[i] = std::numeric_limits<float>::infinity();
+            tDelta[i] = std::numeric_limits<float>::infinity();
+        }
+    }
+
+    float t = 0.0f;
+    while (t <= maxDistance) {
+        if (GetBlock(block) != Block::k_Air) {
+            outHit = block;
+            return true;
+        }
+
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            block.x += step.x;
+            t = tMax.x;
+            tMax.x += tDelta.x;
+        } else if (tMax.y < tMax.z) {
+            block.y += step.y;
+            t = tMax.y;
+            tMax.y += tDelta.y;
+        } else {
+            block.z += step.z;
+            t = tMax.z;
+            tMax.z += tDelta.z;
+        }
+    }
+    return false;
 }
 
 constexpr bool World::IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius)
@@ -268,6 +366,20 @@ void World::DrainResults()
         it->second.mesh = std::make_unique<ChunkMesh>(result.data);
         it->second.state = ChunkState::k_MeshReady;
     }
+}
+
+void World::InvalidateChunk(const glm::ivec2& chunkPosition)
+{
+    auto it = m_Chunks.find(chunkPosition);
+    if (it == m_Chunks.end()) {
+        return;
+    }
+
+    // Drop back to the terrain stage so Update re-dispatches lighting and
+    // meshing. The stale mesh keeps rendering until the new one is ready.
+    it->second.state = ChunkState::k_TerrainReady;
+    m_PendingLight.erase(chunkPosition);
+    m_PendingMesh.erase(chunkPosition);
 }
 
 bool World::HasAllTerrainNeighbours(const glm::ivec2& chunkPosition) const
