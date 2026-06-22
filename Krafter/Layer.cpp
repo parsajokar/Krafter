@@ -35,9 +35,7 @@ void Layer::Render()
 
 void Layer::RenderImGui()
 {
-    ImGui::Begin(m_Name.c_str());
     OnRenderImGui();
-    ImGui::End();
 }
 
 void Layer::HandleEvent(Event& event)
