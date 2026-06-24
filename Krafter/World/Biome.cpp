@@ -9,13 +9,43 @@ namespace Krafter {
 
 // Configured once; FastNoiseLite::GetNoise is const, so concurrent reads from
 // the chunk workers and the main thread are safe.
+//
+// Climate fields are fractal (FBm) rather than a single smooth octave. A single
+// octave has near-straight contour lines, so thresholding it for a biome border
+// produces unnaturally straight edges; stacking octaves wrinkles the contour at
+// every scale, the way Minecraft's multi-noise climate does.
 static const FastNoiseLite& TemperatureNoise()
 {
     static const FastNoiseLite noise = [] {
         FastNoiseLite n;
         n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
         n.SetSeed(1337);
-        n.SetFrequency(0.0015f);
+        // Low base frequency keeps biomes large; the threshold is crossed on
+        // this scale. The few low-gain octaves only ride on top to wrinkle the
+        // border without spawning small islands of the other biome.
+        n.SetFrequency(0.0009f);
+        n.SetFractalType(FastNoiseLite::FractalType_FBm);
+        n.SetFractalOctaves(3);
+        n.SetFractalGain(0.35f);
+        return n;
+    }();
+    return noise;
+}
+
+// Second, independent climate axis. Desert is the hot *and* dry corner of the
+// (temperature, humidity) plane, so the border no longer follows the contour of
+// a single field — it's where two unrelated noise fields jointly cross out of
+// the desert box, which is far less regular than either field alone.
+static const FastNoiseLite& HumidityNoise()
+{
+    static const FastNoiseLite noise = [] {
+        FastNoiseLite n;
+        n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+        n.SetSeed(4242);
+        n.SetFrequency(0.0011f);
+        n.SetFractalType(FastNoiseLite::FractalType_FBm);
+        n.SetFractalOctaves(3);
+        n.SetFractalGain(0.35f);
         return n;
     }();
     return noise;
@@ -38,6 +68,11 @@ float Biome::Temperature(float worldX, float worldZ)
     return TemperatureNoise().GetNoise(worldX, worldZ);
 }
 
+float Biome::Humidity(float worldX, float worldZ)
+{
+    return HumidityNoise().GetNoise(worldX, worldZ);
+}
+
 float Biome::Continentalness(float worldX, float worldZ)
 {
     return ContinentNoise().GetNoise(worldX, worldZ);
@@ -57,13 +92,14 @@ static const FastNoiseLite& DetailNoise()
 
 int32_t Biome::SurfaceHeight(float worldX, float worldZ)
 {
-    return SampleHeight(Temperature(worldX, worldZ), Continentalness(worldX, worldZ),
-        DetailNoise().GetNoise(worldX, worldZ));
+    return SampleHeight(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
+        Continentalness(worldX, worldZ), DetailNoise().GetNoise(worldX, worldZ));
 }
 
 BiomeType Biome::At(float worldX, float worldZ)
 {
-    return Select(Temperature(worldX, worldZ), Continentalness(worldX, worldZ));
+    return Select(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
+        Continentalness(worldX, worldZ));
 }
 
 const char* Biome::Name(BiomeType type)
@@ -119,43 +155,52 @@ const Biome& Biome::Get(BiomeType type)
     }
 }
 
-BiomeType Biome::Select(float temperature, float continentalness)
+BiomeType Biome::Select(float temperature, float humidity, float continentalness)
 {
     if (Landness(continentalness) < 0.5f) {
         return BiomeType::k_Ocean;
     }
-    if (temperature > 0.0f) {
+    // The same weight that blends the terrain height also decides the surface
+    // block, so the grass/sand edge always lines up with the height transition.
+    if (Desertness(temperature, humidity) >= 0.5f) {
         return BiomeType::k_Desert;
     }
     return BiomeType::k_Plains;
 }
 
-float Biome::DesertBlend(float temperature)
+// Smoothstep ramp on a single axis, clamped to [0, 1].
+static float SmoothRamp(float value, float start, float end)
 {
-    constexpr float k_BlendStart = -0.2f;
-    constexpr float k_BlendEnd = 0.2f;
-    float t = (temperature - k_BlendStart) / (k_BlendEnd - k_BlendStart);
+    float t = (value - start) / (end - start);
     t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
     return t * t * (3.0f - 2.0f * t);
+}
+
+float Biome::Desertness(float temperature, float humidity)
+{
+    // Desert occupies the hot, dry corner of climate space. Treating it as the
+    // intersection of two independent axes (a soft rectangle, like Minecraft's
+    // multi-noise parameter boxes) keeps the border off any single field's
+    // contour line. The product is a smooth weight reused for height blending.
+    float hot = SmoothRamp(temperature, -0.2f, 0.2f);
+    float dry = SmoothRamp(-humidity, -0.2f, 0.2f);
+    return hot * dry;
 }
 
 float Biome::Landness(float continentalness)
 {
-    constexpr float k_OceanEnd = -0.3f;
-    constexpr float k_LandStart = 0.0f;
-    float t = (continentalness - k_OceanEnd) / (k_LandStart - k_OceanEnd);
-    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-    return t * t * (3.0f - 2.0f * t);
+    return SmoothRamp(continentalness, -0.3f, 0.0f);
 }
 
-int32_t Biome::SampleHeight(float temperature, float continentalness, float noiseValue)
+int32_t Biome::SampleHeight(float temperature, float humidity, float continentalness, float noiseValue)
 {
     const Biome& ocean = Get(BiomeType::k_Ocean);
     const Biome& plains = Get(BiomeType::k_Plains);
     const Biome& desert = Get(BiomeType::k_Desert);
 
-    // Land terrain blends plains into desert by temperature.
-    float landBlend = DesertBlend(temperature);
+    // Land terrain blends plains into desert by the same hot/dry weight that
+    // chooses the surface block.
+    float landBlend = Desertness(temperature, humidity);
     float landBase = plains.baseHeight + (desert.baseHeight - plains.baseHeight) * landBlend;
     float landAmplitude = plains.heightAmplitude + (desert.heightAmplitude - plains.heightAmplitude) * landBlend;
 
