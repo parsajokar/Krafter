@@ -13,6 +13,9 @@ public:
     static constexpr int32_t k_Width = 16;
     static constexpr int32_t k_Height = 256;
 
+    // Global level that oceans and rivers flood up to.
+    static constexpr int32_t k_SeaLevel = 63;
+
     Chunk(const glm::ivec2& position);
     Chunk(const Chunk& other);
     Chunk(Chunk&& other);

@@ -11,9 +11,17 @@
 
 namespace Krafter {
 
-struct ChunkMeshData {
+// Interleaved vertex data plus indices for one render pass.
+struct ChunkMeshBuffer {
     std::vector<float> vertices;
     std::vector<uint32_t> elements;
+};
+
+// Opaque geometry is drawn first; transparent geometry (water) is drawn in a
+// second pass so it blends over what is behind it.
+struct ChunkMeshData {
+    ChunkMeshBuffer opaque;
+    ChunkMeshBuffer transparent;
 };
 
 class ChunkMesh {
@@ -31,31 +39,45 @@ public:
     ChunkMesh(const ChunkMesh&) = delete;
     ChunkMesh& operator=(const ChunkMesh&) = delete;
 
-    inline uint32_t GetElementCount() const
+    inline uint32_t GetOpaqueElementCount() const
     {
-        return m_ElementCount;
+        return m_Opaque.elementCount;
     }
 
-    void Bind() const;
+    inline uint32_t GetTransparentElementCount() const
+    {
+        return m_Transparent.elementCount;
+    }
+
+    void BindOpaque() const;
+    void BindTransparent() const;
 
 private:
+    // One set of GPU buffers for a single render pass.
+    struct Part {
+        uint32_t vertexArray = 0;
+        uint32_t vertexBuffer = 0;
+        uint32_t elementBuffer = 0;
+        uint32_t elementCount = 0;
+    };
+
+    static void Upload(Part& part, const ChunkMeshBuffer& buffer);
+    static void Release(Part& part);
+
     static void AddFaceToData(
         const std::array<glm::vec3, 4>& positionList,
         const std::array<glm::vec2, 2>& uvCoordsList,
-        const glm::vec3& normal,
+        const glm::vec3& normal, float waterDepth,
         const std::array<float, 4>& vertexLight,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
     static void AddFaceToData(
         const glm::vec3& position,
-        Block block, BlockFace face,
+        Block block, BlockFace face, float topInset, float waterDepth,
         const std::array<float, 4>& vertexLight,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
 
-    uint32_t m_ElementCount;
-
-    uint32_t m_VertexArray;
-    uint32_t m_VertexBuffer;
-    uint32_t m_ElementBuffer;
+    Part m_Opaque;
+    Part m_Transparent;
 };
 
 } // namespace Krafter

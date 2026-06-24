@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "glm/glm.hpp"
 
@@ -42,11 +43,20 @@ public:
     void SetClearColor(const glm::vec3& color);
     void Clear();
 
-    void RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void SetDepthMask(bool enabled);
+    void SetBlend(bool enabled);
+
+    // Advances the animated water texture, swapping the current frame into the
+    // atlas's water tile.
+    void AnimateWater();
     void RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection);
     void RenderImGui();
 
 private:
+    void BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky);
+
     static void STDCALL ApiDebugCallback(
         uint32_t source,
         uint32_t type,
@@ -61,6 +71,10 @@ private:
 
     glm::vec3 m_ClearColor = glm::vec3(0.470f, 0.655f, 1.0f);
 
+    // Opacity of deep water; the shader fades toward clear in the shallows.
+    // Tunable live from the ImGui panel.
+    float m_WaterOpacity = 0.95f;
+
     std::unique_ptr<ShaderProgram> m_Program;
     std::unique_ptr<Texture2D> m_Texture;
 
@@ -69,6 +83,12 @@ private:
     uint32_t m_OutlineVertexBuffer;
     uint32_t m_OutlineElementBuffer;
     uint32_t m_OutlineElementCount;
+
+    // Animated water: every 16x16 frame of the strip, stored RGBA back-to-back,
+    // cycled into the atlas's water tile over time.
+    std::vector<uint8_t> m_WaterFrames;
+    int32_t m_WaterFrameCount = 0;
+    int32_t m_WaterFrame = -1;
 };
 
 } // namespace Krafter

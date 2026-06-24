@@ -42,4 +42,9 @@ void Texture2D::Bind(uint32_t unit) const
     glBindTextureUnit(unit, m_Id);
 }
 
+void Texture2D::UpdateRegion(int32_t x, int32_t y, int32_t width, int32_t height, const void* pixels) const
+{
+    glTextureSubImage2D(m_Id, 0, x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
 } // namespace Krafter

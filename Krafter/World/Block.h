@@ -10,8 +10,16 @@ enum class Block {
     k_Air = 0,
     k_Dirt,
     k_Grass,
-    k_Sand
+    k_Sand,
+    k_Water
 };
+
+// Air and water do not hide the faces of blocks behind them, so neighbouring
+// solids still mesh their touching faces (you can see the seabed through water).
+inline bool IsOpaque(Block block)
+{
+    return block != Block::k_Air && block != Block::k_Water;
+}
 
 enum class BlockFace {
     k_Front,

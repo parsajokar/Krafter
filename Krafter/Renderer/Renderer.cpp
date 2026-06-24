@@ -6,10 +6,18 @@
 
 #include "imgui.h"
 
+#include "stb_image.h"
+
 #include "Krafter/Renderer/Renderer.h"
 #include "Krafter/Sky.h"
 
 namespace Krafter {
+
+// Atlas tile the water lives in (column 4, bottom row) and how fast it animates.
+static constexpr int32_t k_WaterTileX = 64;
+static constexpr int32_t k_WaterTileY = 0;
+static constexpr int32_t k_WaterTileSize = 16;
+static constexpr double k_WaterFps = 12.0;
 
 void Renderer::SetClearColor(const glm::vec3& color)
 {
@@ -22,7 +30,7 @@ void Renderer::Clear()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+void Renderer::BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky)
 {
     m_Texture->Bind(0);
     m_Program->Bind();
@@ -31,8 +39,47 @@ void Renderer::RenderChunkMesh(const ChunkMesh& chunkMesh, const glm::mat4& view
     m_Program->SetUniformVec3(2, sky.GetSunColor());
     m_Program->SetUniformVec3(3, sky.GetSunDirection());
     m_Program->SetUniformVec3(4, sky.GetAmbientColor());
-    chunkMesh.Bind();
-    glDrawElements(GL_TRIANGLES, chunkMesh.GetElementCount(), GL_UNSIGNED_INT, nullptr);
+}
+
+void Renderer::RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+{
+    if (chunkMesh.GetOpaqueElementCount() == 0) {
+        return;
+    }
+    BindChunkProgram(viewProjection, sky);
+    m_Program->SetUniformFloat(5, 1.0f);
+    m_Program->SetUniformFloat(6, 0.0f);
+    chunkMesh.BindOpaque();
+    glDrawElements(GL_TRIANGLES, chunkMesh.GetOpaqueElementCount(), GL_UNSIGNED_INT, nullptr);
+}
+
+void Renderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+{
+    if (chunkMesh.GetTransparentElementCount() == 0) {
+        return;
+    }
+    BindChunkProgram(viewProjection, sky);
+    m_Program->SetUniformFloat(5, m_WaterOpacity);
+    m_Program->SetUniformFloat(6, 1.0f);
+    chunkMesh.BindTransparent();
+    glDrawElements(GL_TRIANGLES, chunkMesh.GetTransparentElementCount(), GL_UNSIGNED_INT, nullptr);
+}
+
+void Renderer::SetDepthMask(bool enabled)
+{
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void Renderer::SetBlend(bool enabled)
+{
+    // Other passes (the UI) toggle blending and leave it off, so the water pass
+    // must turn it back on itself rather than trust the global state.
+    if (enabled) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+        glDisable(GL_BLEND);
+    }
 }
 
 void Renderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection)
@@ -46,11 +93,28 @@ void Renderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::ma
     glDrawElements(GL_LINES, m_OutlineElementCount, GL_UNSIGNED_INT, nullptr);
 }
 
+void Renderer::AnimateWater()
+{
+    if (m_WaterFrameCount <= 0) {
+        return;
+    }
+
+    const int32_t frame = static_cast<int32_t>(glfwGetTime() * k_WaterFps) % m_WaterFrameCount;
+    if (frame == m_WaterFrame) {
+        return;
+    }
+    m_WaterFrame = frame;
+
+    const size_t offset = static_cast<size_t>(frame) * k_WaterTileSize * k_WaterTileSize * 4;
+    m_Texture->UpdateRegion(k_WaterTileX, k_WaterTileY, k_WaterTileSize, k_WaterTileSize, m_WaterFrames.data() + offset);
+}
+
 void Renderer::RenderImGui()
 {
     ImGui::Text("OpenGL Details:");
     ImGui::Text("Version: %s", m_VersionName);
     ImGui::Text("Renderer: %s", m_RendererName);
+    ImGui::SliderFloat("Deep Water Opacity", &m_WaterOpacity, 0.0f, 1.0f);
 }
 
 void STDCALL Renderer::ApiDebugCallback(
@@ -85,6 +149,27 @@ Renderer::Renderer()
 
     m_Program = std::make_unique<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
     m_Texture = std::make_unique<Texture2D>("assets/texture.png");
+
+    // Load the water animation strip: a vertical stack of 16x16 frames. Alpha is
+    // forced opaque so the shader alone controls water transparency.
+    stbi_set_flip_vertically_on_load(false);
+    int32_t waterWidth = 0;
+    int32_t waterHeight = 0;
+    int32_t waterChannels = 0;
+    uint8_t* waterData = stbi_load("assets/water_still.png", &waterWidth, &waterHeight, &waterChannels, 4);
+    if (waterData && waterWidth == k_WaterTileSize && waterHeight >= k_WaterTileSize) {
+        m_WaterFrameCount = waterHeight / k_WaterTileSize;
+        const size_t bytes = static_cast<size_t>(m_WaterFrameCount) * k_WaterTileSize * k_WaterTileSize * 4;
+        m_WaterFrames.assign(waterData, waterData + bytes);
+        for (size_t i = 3; i < m_WaterFrames.size(); i += 4) {
+            m_WaterFrames[i] = 255;
+        }
+    } else {
+        std::cerr << "[FILE] Could not load animated water strip" << std::endl;
+    }
+    if (waterData) {
+        stbi_image_free(waterData);
+    }
 
     // Unit-cube wireframe for the targeted-block outline.
     const float cubeCorners[] = {

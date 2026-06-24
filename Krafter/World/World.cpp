@@ -142,11 +142,24 @@ void World::Update(const glm::vec3& cameraPosition)
 
 void World::Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky)
 {
+    // Opaque geometry first, writing depth as usual.
     for (const auto& [position, record] : m_Chunks) {
         if (record.mesh) {
-            renderer.RenderChunkMesh(*record.mesh, viewProjection, sky);
+            renderer.RenderChunkOpaque(*record.mesh, viewProjection, sky);
         }
     }
+
+    // Then water: it blends over what is already there and must not occlude
+    // other water behind it, so blending is on and depth writes are disabled.
+    renderer.SetBlend(true);
+    renderer.SetDepthMask(false);
+    for (const auto& [position, record] : m_Chunks) {
+        if (record.mesh) {
+            renderer.RenderChunkTransparent(*record.mesh, viewProjection, sky);
+        }
+    }
+    renderer.SetDepthMask(true);
+    renderer.SetBlend(false);
 }
 
 void World::RenderImGui()
@@ -269,7 +282,8 @@ bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, fl
     float t = 0.0f;
     glm::ivec3 previous = block;
     while (t <= maxDistance) {
-        if (GetBlock(block) != Block::k_Air) {
+        // The ray passes through water (and air); only solid blocks are targetable.
+        if (IsOpaque(GetBlock(block))) {
             outHit = block;
             outBefore = previous;
             return true;

@@ -4,15 +4,22 @@ layout(location = 1) uniform sampler2D u_Texture;
 layout(location = 2) uniform vec3 u_SunColor;
 layout(location = 3) uniform vec3 u_SunDirection;
 layout(location = 4) uniform vec3 u_AmbientColor;
+layout(location = 5) uniform float u_AlphaScale;
+layout(location = 6) uniform float u_IsWater;
 
 layout(location = 0) out vec4 o_Color;
 
 in vec2 v_UvCoords;
 in vec3 v_Normal;
 in float v_SkyLight;
+in float v_WaterDepth;
 
 // Floor so fully enclosed spaces are dark but not pure black.
 const vec3 k_CaveAmbient = vec3(0.05);
+
+// Water fades from clear in the shallows to fully tinted at this depth (blocks).
+const float k_WaterMaxDepth = 8.0;
+const float k_WaterShallowClarity = 0.2;
 
 void main()
 {
@@ -25,5 +32,10 @@ void main()
     vec3 daylight = u_AmbientColor + u_SunColor * diffuse;
     vec3 light = k_CaveAmbient + v_SkyLight * daylight;
 
-    o_Color = vec4(albedo.rgb * light, albedo.a);
+    // Deeper water hides the bottom; shallow water stays clear. Opaque geometry
+    // (u_IsWater = 0) keeps its full alpha.
+    float depthFade = mix(k_WaterShallowClarity, 1.0, clamp(v_WaterDepth / k_WaterMaxDepth, 0.0, 1.0));
+    float alpha = albedo.a * u_AlphaScale * mix(1.0, depthFade, u_IsWater);
+
+    o_Color = vec4(albedo.rgb * light, alpha);
 }

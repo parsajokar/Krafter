@@ -5,6 +5,7 @@
 #include "Krafter/Renderer/Renderer.h"
 #include "Krafter/UILayer.h"
 #include "Krafter/Window.h"
+#include "Krafter/World/Biome.h"
 
 namespace Krafter {
 
@@ -21,6 +22,7 @@ void GameLayer::OnUpdate()
 {
     m_Sky.Update(m_Window.GetDelta());
     m_Renderer.SetClearColor(m_Sky.GetColor());
+    m_Renderer.AnimateWater();
 
     m_Camera.Update();
     m_World.Update(m_Camera.GetPosition());
@@ -80,6 +82,10 @@ void GameLayer::OnEvent(Event& event)
 void GameLayer::OnRenderImGui()
 {
     ImGui::Text("FPS: %.2f", 1.0f / m_Window.GetDelta());
+
+    const glm::vec3 position = m_Camera.GetPosition();
+    ImGui::Text("Current Biome: %s", Biome::Name(Biome::At(position.x, position.z)));
+
     m_Renderer.RenderImGui();
     m_Sky.RenderImGui();
     m_Camera.RenderImGui();

@@ -28,6 +28,9 @@ static int32_t FloorMod(int32_t a, int32_t b)
 // Ambient-occlusion brightness for the four corner levels (0 = most occluded).
 static constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
 
+// Floats per vertex: position(3), uv(2), normal(3), sky light(1), water depth(1).
+static constexpr int32_t k_VertexStride = 10;
+
 ChunkMeshData ChunkMesh::Compute(
     const std::array<const Chunk*, 9>& grid,
     const glm::ivec2& chunkPosition)
@@ -61,13 +64,30 @@ ChunkMeshData ChunkMesh::Compute(
         return grid[(cz + 1) * 3 + (cx + 1)];
     };
 
-    auto isSolid = [&](const glm::ivec3& cell) -> bool {
+    auto blockAt = [&](const glm::ivec3& cell) -> Block {
         if (cell.y < 0 || cell.y >= Chunk::k_Height) {
-            return false;
+            return Block::k_Air;
         }
         glm::ivec3 query;
         const Chunk* target = resolve(cell, query);
-        return target && target->GetBlock(query) != Block::k_Air;
+        return target ? target->GetBlock(query) : Block::k_Air;
+    };
+
+    // Only opaque blocks occlude and cast ambient occlusion; air and water let
+    // their neighbours' faces through.
+    auto isSolid = [&](const glm::ivec3& cell) -> bool {
+        return IsOpaque(blockAt(cell));
+    };
+
+    // How much a block hides what is behind it: opaque (2) > water (1) > air (0).
+    // A face is only drawn toward a strictly more transparent neighbour, so
+    // opaque-vs-water and water-vs-air surfaces show while shared faces (e.g.
+    // water-vs-water) are culled.
+    auto opacityRank = [](Block block) -> int32_t {
+        if (IsOpaque(block)) {
+            return 2;
+        }
+        return block == Block::k_Water ? 1 : 0;
     };
 
     auto skyLightOf = [&](const glm::ivec3& cell) -> float {
@@ -118,19 +138,53 @@ ChunkMeshData ChunkMesh::Compute(
 
     const Chunk& center = *grid[4];
 
+    // Thickness of the contiguous water column containing this cell, so the
+    // shader can fade water from clear in the shallows to opaque in deep water.
+    auto waterDepth = [&](int32_t lx, int32_t y, int32_t lz) -> float {
+        int32_t top = y;
+        while (top + 1 < Chunk::k_Height && center.GetBlock(glm::ivec3(lx, top + 1, lz)) == Block::k_Water) {
+            top++;
+        }
+        int32_t bottom = y;
+        while (bottom - 1 >= 0 && center.GetBlock(glm::ivec3(lx, bottom - 1, lz)) == Block::k_Water) {
+            bottom--;
+        }
+        return static_cast<float>(top - bottom + 1);
+    };
+
     for (int32_t x = 0; x < Chunk::k_Width; x++) {
         for (int32_t y = 0; y < Chunk::k_Height; y++) {
             for (int32_t z = 0; z < Chunk::k_Width; z++) {
-                if (center.GetBlock(glm::ivec3(x, y, z)) == Block::k_Air) {
+                const Block self = center.GetBlock(glm::ivec3(x, y, z));
+                if (self == Block::k_Air) {
                     continue;
                 }
+
+                const bool transparent = self == Block::k_Water;
+                ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
+                const int32_t selfRank = opacityRank(self);
+
+                // Water that isn't submerged under more water sits below a full
+                // block, so its surface reads as sunken. This holds even when a
+                // solid block covers it: the inset leaves a visible gap.
+                const bool surfaceWater = transparent && blockAt(glm::ivec3(x, y + 1, z)) != Block::k_Water;
+                const float topInset = surfaceWater ? 4.0f / 16.0f : 0.0f;
+
+                const float depth = transparent ? waterDepth(x, y, z) : 0.0f;
 
                 for (size_t k = 0; k < 6; k++) {
                     glm::ivec3 airCell(x + dx[k], y + dy[k], z + dz[k]);
                     if (airCell.y < 0) {
                         continue;
                     }
-                    if (isSolid(airCell)) {
+                    const Block neighbor = blockAt(airCell);
+                    if (transparent && faces[k] == BlockFace::k_Top) {
+                        // The inset surface sits below whatever is above, so draw
+                        // it unless submerged under more water.
+                        if (neighbor == Block::k_Water) {
+                            continue;
+                        }
+                    } else if (opacityRank(neighbor) >= selfRank) {
                         continue;
                     }
 
@@ -145,7 +199,7 @@ ChunkMeshData ChunkMesh::Compute(
                         chunkPosition.x * Chunk::k_Width + x,
                         y,
                         chunkPosition.y * Chunk::k_Width + z);
-                    AddFaceToData(worldPos, center.GetBlock(glm::ivec3(x, y, z)), faces[k], vertexLight, data.vertices, data.elements);
+                    AddFaceToData(worldPos, self, faces[k], topInset, depth, vertexLight, buffer.vertices, buffer.elements);
                 }
             }
         }
@@ -154,57 +208,84 @@ ChunkMeshData ChunkMesh::Compute(
     return data;
 }
 
+void ChunkMesh::Upload(Part& part, const ChunkMeshBuffer& buffer)
+{
+    part.elementCount = static_cast<uint32_t>(buffer.elements.size());
+    if (part.elementCount == 0) {
+        return;
+    }
+
+    glCreateVertexArrays(1, &part.vertexArray);
+    glCreateBuffers(1, &part.vertexBuffer);
+    glCreateBuffers(1, &part.elementBuffer);
+
+    glNamedBufferData(part.vertexBuffer, buffer.vertices.size() * sizeof(float), buffer.vertices.data(), GL_STATIC_DRAW);
+    glNamedBufferData(part.elementBuffer, buffer.elements.size() * sizeof(uint32_t), buffer.elements.data(), GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(part.vertexArray, 0, part.vertexBuffer, 0, k_VertexStride * sizeof(float));
+    glVertexArrayElementBuffer(part.vertexArray, part.elementBuffer);
+
+    glEnableVertexArrayAttrib(part.vertexArray, 0);
+    glVertexArrayAttribBinding(part.vertexArray, 0, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
+
+    glEnableVertexArrayAttrib(part.vertexArray, 1);
+    glVertexArrayAttribBinding(part.vertexArray, 1, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+
+    glEnableVertexArrayAttrib(part.vertexArray, 2);
+    glVertexArrayAttribBinding(part.vertexArray, 2, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 2, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float));
+
+    glEnableVertexArrayAttrib(part.vertexArray, 3);
+    glVertexArrayAttribBinding(part.vertexArray, 3, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 3, 1, GL_FLOAT, GL_FALSE, 8 * sizeof(float));
+
+    glEnableVertexArrayAttrib(part.vertexArray, 4);
+    glVertexArrayAttribBinding(part.vertexArray, 4, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 4, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float));
+}
+
+void ChunkMesh::Release(Part& part)
+{
+    if (part.elementCount == 0) {
+        return;
+    }
+    glDeleteBuffers(1, &part.elementBuffer);
+    glDeleteBuffers(1, &part.vertexBuffer);
+    glDeleteVertexArrays(1, &part.vertexArray);
+}
+
 ChunkMesh::ChunkMesh(const ChunkMeshData& data)
 {
-    m_ElementCount = data.elements.size();
-
-    glCreateVertexArrays(1, &m_VertexArray);
-    glCreateBuffers(1, &m_VertexBuffer);
-    glCreateBuffers(1, &m_ElementBuffer);
-
-    glNamedBufferData(m_VertexBuffer, data.vertices.size() * sizeof(float), data.vertices.data(), GL_STATIC_DRAW);
-    glNamedBufferData(m_ElementBuffer, data.elements.size() * sizeof(uint32_t), data.elements.data(), GL_STATIC_DRAW);
-
-    glVertexArrayVertexBuffer(m_VertexArray, 0, m_VertexBuffer, 0, 9 * sizeof(float));
-    glVertexArrayElementBuffer(m_VertexArray, m_ElementBuffer);
-
-    glEnableVertexArrayAttrib(m_VertexArray, 0);
-    glVertexArrayAttribBinding(m_VertexArray, 0, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
-
-    glEnableVertexArrayAttrib(m_VertexArray, 1);
-    glVertexArrayAttribBinding(m_VertexArray, 1, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
-
-    glEnableVertexArrayAttrib(m_VertexArray, 2);
-    glVertexArrayAttribBinding(m_VertexArray, 2, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 2, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float));
-
-    glEnableVertexArrayAttrib(m_VertexArray, 3);
-    glVertexArrayAttribBinding(m_VertexArray, 3, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 3, 1, GL_FLOAT, GL_FALSE, 8 * sizeof(float));
+    Upload(m_Opaque, data.opaque);
+    Upload(m_Transparent, data.transparent);
 }
 
 ChunkMesh::~ChunkMesh()
 {
-    glDeleteBuffers(1, &m_ElementBuffer);
-    glDeleteBuffers(1, &m_VertexBuffer);
-    glDeleteVertexArrays(1, &m_VertexArray);
+    Release(m_Transparent);
+    Release(m_Opaque);
 }
 
-void ChunkMesh::Bind() const
+void ChunkMesh::BindOpaque() const
 {
-    glBindVertexArray(m_VertexArray);
+    glBindVertexArray(m_Opaque.vertexArray);
+}
+
+void ChunkMesh::BindTransparent() const
+{
+    glBindVertexArray(m_Transparent.vertexArray);
 }
 
 void ChunkMesh::AddFaceToData(
     const std::array<glm::vec3, 4>& positionList,
     const std::array<glm::vec2, 2>& uvCoordsList,
-    const glm::vec3& normal,
+    const glm::vec3& normal, float waterDepth,
     const std::array<float, 4>& vertexLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
-    const uint32_t offset = static_cast<uint32_t>(vertexBufferData.size() / 9);
+    const uint32_t offset = static_cast<uint32_t>(vertexBufferData.size() / k_VertexStride);
 
     const std::array<glm::vec2, 4> uvs = {
         glm::vec2(uvCoordsList[0].x, uvCoordsList[0].y),
@@ -223,6 +304,7 @@ void ChunkMesh::AddFaceToData(
         vertexBufferData.push_back(normal.y);
         vertexBufferData.push_back(normal.z);
         vertexBufferData.push_back(vertexLight[i]);
+        vertexBufferData.push_back(waterDepth);
     }
 
     // Split along the diagonal that avoids anisotropic shading on a face with
@@ -248,7 +330,7 @@ void ChunkMesh::AddFaceToData(
 
 void ChunkMesh::AddFaceToData(
     const glm::vec3& position,
-    const Block block, BlockFace face,
+    const Block block, BlockFace face, float topInset, float waterDepth,
     const std::array<float, 4>& vertexLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
@@ -318,10 +400,20 @@ void ChunkMesh::AddFaceToData(
     positionList[2] = origin + dx + dy;
     positionList[3] = origin + dy;
 
+    // Drop only the vertices on the block's top edge, so the top face lowers and
+    // the side faces shrink to meet it while the bottom stays put.
+    if (topInset > 0.0f) {
+        for (glm::vec3& vertex : positionList) {
+            if (vertex.y > position.y + 0.5f) {
+                vertex.y -= topInset;
+            }
+        }
+    }
+
     uvCoordsList[0] = uvCoords;
     uvCoordsList[1] = uvCoords + glm::vec2(BlockAtlas::k_Step);
 
-    AddFaceToData(positionList, uvCoordsList, normal, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(positionList, uvCoordsList, normal, waterDepth, vertexLight, vertexBufferData, elementBufferData);
 }
 
 } // namespace Krafter
