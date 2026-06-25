@@ -267,6 +267,151 @@ void CarveLake(Chunk& chunk, const glm::ivec2& chunkPosition, const Lake& lake)
     }
 }
 
+// Trees are scattered one per grid cell; the cell is large enough that adjacent
+// trunks keep their canopies mostly apart.
+constexpr int32_t k_TreeCellSize = 10;
+// Chance a plains cell rolls a tree, before the land/water checks reject it.
+constexpr float k_TreeChance = 0.3f;
+// Farthest a canopy leaf sits from the trunk column, so a chunk knows which
+// neighbouring cells' trees can reach into it.
+constexpr int32_t k_MaxTreeReach = 2;
+
+struct Tree {
+    int32_t x = 0, baseY = 0, z = 0; // baseY is the grass column; the trunk sits above it
+    int32_t trunkHeight = 0;         // number of log blocks
+    uint32_t seed = 0;               // drives the deterministic corner pruning
+};
+
+// True if the column lies within a contained lake's pool or sloped bank, so a
+// tree there would float over water or stand in the shore. Reuses the same
+// deterministic lake field the carver does, so the two always agree.
+bool ColumnInLake(int32_t worldX, int32_t worldZ)
+{
+    constexpr float k_BankCutoffSq = 1.8f * 1.8f;
+
+    const int32_t loX = FloorDiv(worldX - k_MaxLakeReach, k_LakeCellSize);
+    const int32_t hiX = FloorDiv(worldX + k_MaxLakeReach, k_LakeCellSize);
+    const int32_t loZ = FloorDiv(worldZ - k_MaxLakeReach, k_LakeCellSize);
+    const int32_t hiZ = FloorDiv(worldZ + k_MaxLakeReach, k_LakeCellSize);
+
+    for (int32_t cz = loZ; cz <= hiZ; cz++) {
+        for (int32_t cx = loX; cx <= hiX; cx++) {
+            Lake lake;
+            if (BuildLake(cx, cz, lake) && LakeContained(lake)
+                && lake.SurfaceField(worldX, worldZ) < k_BankCutoffSq) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Deterministically decides whether a tree grows in this cell and, if so, where
+// and how tall. Returns false unless its trunk lands on dry plains grass.
+bool BuildTree(int32_t cellX, int32_t cellZ, Tree& tree)
+{
+    if (Hash01(cellX, cellZ, 200u) >= k_TreeChance) {
+        return false;
+    }
+
+    // Jitter the trunk within the cell's interior, leaving a canopy-width margin
+    // so trees in neighbouring cells don't merge into a wall.
+    const int32_t span = k_TreeCellSize - 2 * k_MaxTreeReach;
+    const int32_t x = cellX * k_TreeCellSize + k_MaxTreeReach + static_cast<int32_t>(Hash(cellX, cellZ, 201u) % span);
+    const int32_t z = cellZ * k_TreeCellSize + k_MaxTreeReach + static_cast<int32_t>(Hash(cellX, cellZ, 202u) % span);
+
+    if (Biome::At((float)x, (float)z) != BiomeType::k_Plains) {
+        return false;
+    }
+
+    // Above the shore sand band (so the trunk roots in grass) and clear of ponds.
+    const int32_t ground = Biome::SurfaceHeight((float)x, (float)z);
+    if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(x, z)) {
+        return false;
+    }
+
+    tree.x = x;
+    tree.z = z;
+    tree.baseY = ground;
+    tree.trunkHeight = 4 + static_cast<int32_t>(Hash(x, z, 203u) % 3u); // 4..6 logs
+    tree.seed = Hash(x, z, 204u);
+    return true;
+}
+
+// Every tree whose canopy can reach into this chunk.
+std::vector<Tree> GatherTrees(const glm::ivec2& chunkPosition)
+{
+    std::vector<Tree> trees;
+
+    const int32_t minX = chunkPosition.x * Chunk::k_Width - k_MaxTreeReach;
+    const int32_t maxX = chunkPosition.x * Chunk::k_Width + Chunk::k_Width - 1 + k_MaxTreeReach;
+    const int32_t minZ = chunkPosition.y * Chunk::k_Width - k_MaxTreeReach;
+    const int32_t maxZ = chunkPosition.y * Chunk::k_Width + Chunk::k_Width - 1 + k_MaxTreeReach;
+
+    for (int32_t cz = FloorDiv(minZ, k_TreeCellSize); cz <= FloorDiv(maxZ, k_TreeCellSize); cz++) {
+        for (int32_t cx = FloorDiv(minX, k_TreeCellSize); cx <= FloorDiv(maxX, k_TreeCellSize); cx++) {
+            Tree tree;
+            if (BuildTree(cx, cz, tree)) {
+                trees.push_back(tree);
+            }
+        }
+    }
+
+    return trees;
+}
+
+// Writes one tree block into the chunk, clipping to its bounds (the rest is
+// stamped by the neighbour that owns those columns). Leaves only fill air; a log
+// may also punch through a neighbouring tree's leaves so trunks stay solid.
+void PlaceTreeBlock(Chunk& chunk, const glm::ivec2& chunkPosition, int32_t worldX, int32_t y, int32_t worldZ, Block block)
+{
+    if (y < 0 || y >= Chunk::k_Height) {
+        return;
+    }
+    const int32_t lx = worldX - chunkPosition.x * Chunk::k_Width;
+    const int32_t lz = worldZ - chunkPosition.y * Chunk::k_Width;
+    if (lx < 0 || lx >= Chunk::k_Width || lz < 0 || lz >= Chunk::k_Width) {
+        return;
+    }
+
+    const Block current = chunk.GetBlock(glm::ivec3(lx, y, lz));
+    if (current == Block::k_Air || (block == Block::k_OakLog && current == Block::k_OakLeaves)) {
+        chunk.SetBlock(glm::ivec3(lx, y, lz), block);
+    }
+}
+
+// Stamps a small oak in Minecraft's classic shape: a straight trunk topped by
+// two wide leaf layers (radius 2) and two narrow ones (radius 1), with corners
+// pruned so the canopy reads round and a touch ragged.
+void StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
+{
+    // Trunk first, so leaves (which only fill air) never replace a log.
+    for (int32_t h = 1; h <= tree.trunkHeight; h++) {
+        PlaceTreeBlock(chunk, chunkPosition, tree.x, tree.baseY + h, tree.z, Block::k_OakLog);
+    }
+
+    const int32_t topLog = tree.baseY + tree.trunkHeight;
+    for (int32_t y = topLog - 2; y <= topLog + 1; y++) {
+        const int32_t fromTop = y - (topLog + 1); // -3 (widest) .. 0 (cap)
+        const int32_t radius = (fromTop < -1) ? 2 : 1;
+
+        for (int32_t dx = -radius; dx <= radius; dx++) {
+            for (int32_t dz = -radius; dz <= radius; dz++) {
+                const bool corner = (dx == -radius || dx == radius) && (dz == -radius || dz == radius);
+                if (corner) {
+                    // The cap layer always loses its corners (a plus shape); lower
+                    // corners drop on a coin flip. Hashing the leaf's own column
+                    // makes the choice identical from whichever chunk stamps it.
+                    if (fromTop == 0 || Hash01(tree.x + dx, tree.z + dz, tree.seed + 1u) < 0.5f) {
+                        continue;
+                    }
+                }
+                PlaceTreeBlock(chunk, chunkPosition, tree.x + dx, y, tree.z + dz, Block::k_OakLeaves);
+            }
+        }
+    }
+}
+
 } // namespace
 
 Chunk::Chunk(const glm::ivec2& position)
@@ -308,6 +453,13 @@ Chunk::Chunk(const glm::ivec2& position)
     const std::vector<Lake> lakes = GatherLakes(m_Position);
     for (const Lake& lake : lakes) {
         CarveLake(*this, m_Position, lake);
+    }
+
+    // Then scatter oak trees over the dry plains, including the parts of trees
+    // rooted in neighbouring chunks whose canopies spill across the border.
+    const std::vector<Tree> trees = GatherTrees(m_Position);
+    for (const Tree& tree : trees) {
+        StampTree(*this, m_Position, tree);
     }
 }
 
