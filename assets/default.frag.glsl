@@ -13,6 +13,7 @@ in vec2 v_UvCoords;
 in vec3 v_Normal;
 in float v_SkyLight;
 in float v_WaterDepth;
+in vec3 v_Tint;
 
 // Floor so fully enclosed spaces are dark but not pure black.
 const vec3 k_CaveAmbient = vec3(0.05);
@@ -24,6 +25,13 @@ const float k_WaterShallowClarity = 0.2;
 void main()
 {
     vec4 albedo = texture(u_Texture, v_UvCoords);
+
+    // Cutout transparency for foliage (leaves, cactus edges): drop fully clear
+    // texels so they neither shade nor write depth. Water is excluded because its
+    // translucency comes from the shader, not the texture's alpha.
+    if (u_IsWater < 0.5 && albedo.a < 0.5) {
+        discard;
+    }
 
     float diffuse = max(dot(normalize(v_Normal), u_SunDirection), 0.0);
 
@@ -37,5 +45,5 @@ void main()
     float depthFade = mix(k_WaterShallowClarity, 1.0, clamp(v_WaterDepth / k_WaterMaxDepth, 0.0, 1.0));
     float alpha = albedo.a * u_AlphaScale * mix(1.0, depthFade, u_IsWater);
 
-    o_Color = vec4(albedo.rgb * light, alpha);
+    o_Color = vec4(albedo.rgb * v_Tint * light, alpha);
 }

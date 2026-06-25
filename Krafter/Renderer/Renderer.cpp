@@ -13,8 +13,8 @@
 
 namespace Krafter {
 
-// Atlas tile the water lives in (column 4, bottom row) and how fast it animates.
-static constexpr int32_t k_WaterTileX = 64;
+// Atlas tile the water lives in (column 6, bottom row) and how fast it animates.
+static constexpr int32_t k_WaterTileX = 96;
 static constexpr int32_t k_WaterTileY = 0;
 static constexpr int32_t k_WaterTileSize = 16;
 static constexpr double k_WaterFps = 12.0;
@@ -68,6 +68,20 @@ void Renderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat
 void Renderer::SetDepthMask(bool enabled)
 {
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void Renderer::SetCullFace(bool enabled)
+{
+    // Chunk geometry winds counter-clockwise outward, so culling back faces hides
+    // the interiors that would otherwise show through cutout foliage. Water is
+    // drawn double-sided, so its pass turns culling back off.
+    if (enabled) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glFrontFace(GL_CCW);
+    } else {
+        glDisable(GL_CULL_FACE);
+    }
 }
 
 void Renderer::SetBlend(bool enabled)
@@ -142,6 +156,9 @@ Renderer::Renderer()
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
     glEnable(GL_DEPTH_TEST);
+    // LEQUAL so a decal drawn right after a coplanar face (the grass side fringe
+    // over its dirt base) wins the equal-depth test and sits flush.
+    glDepthFunc(GL_LEQUAL);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 

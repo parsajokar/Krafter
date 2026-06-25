@@ -44,6 +44,14 @@ public:
     int32_t baseHeight;
     int32_t heightAmplitude;
 
+    // Multiplied into the grayscale grass top/overlay so each biome greens its
+    // grass differently (lush plains vs. dry desert).
+    glm::vec3 grassColor;
+
+    // Same idea for the grayscale leaf tile: each biome tints its foliage,
+    // typically a shade deeper than its grass.
+    glm::vec3 leafColor;
+
 private:
     // Weight toward the desert biome in [0, 1] from the hot, dry corner of the
     // (temperature, humidity) climate plane. Used both to pick the surface block

@@ -53,8 +53,10 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         if (!chunk) {
             return true;
         }
-        // Water lets skylight through, so the seabed and submerged blocks stay lit.
-        return IsOpaque(chunk->GetBlock(glm::ivec3(FloorMod(x, k_Width), y, FloorMod(z, k_Width))));
+        // Water and cutout foliage let skylight through, so the seabed, submerged
+        // blocks, and the ground beneath leaves all stay lit.
+        const Block block = chunk->GetBlock(glm::ivec3(FloorMod(x, k_Width), y, FloorMod(z, k_Width)));
+        return IsOpaque(block) && !IsCutout(block);
     };
 
     std::vector<uint8_t> solid(k_Span * k_Span * k_Height);

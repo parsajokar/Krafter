@@ -123,7 +123,9 @@ void Biome::LoadBiomes()
         .subsurfaceDepth = 4,
         // Well below sea level, so ocean columns flood into deep water.
         .baseHeight = 40,
-        .heightAmplitude = 5
+        .heightAmplitude = 5,
+        .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
+        .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
     };
 
     // Floor (base - amplitude) sits above sea level so inland plains stay dry;
@@ -133,7 +135,9 @@ void Biome::LoadBiomes()
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
         .baseHeight = 75,
-        .heightAmplitude = 10
+        .heightAmplitude = 10,
+        .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
+        .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
     };
 
     s_Biomes[BiomeType::k_Desert] = {
@@ -141,7 +145,9 @@ void Biome::LoadBiomes()
         .subsurface = Block::k_Sand,
         .subsurfaceDepth = 4,
         .baseHeight = 72,
-        .heightAmplitude = 8
+        .heightAmplitude = 8,
+        .grassColor = glm::vec3(0.749f, 0.718f, 0.333f),
+        .leafColor = glm::vec3(0.659f, 0.612f, 0.333f)
     };
 }
 

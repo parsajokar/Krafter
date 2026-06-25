@@ -47,6 +47,7 @@ public:
     void RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void SetDepthMask(bool enabled);
     void SetBlend(bool enabled);
+    void SetCullFace(bool enabled);
 
     // Advances the animated water texture, swapping the current frame into the
     // atlas's water tile.

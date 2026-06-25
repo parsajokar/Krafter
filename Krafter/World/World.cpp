@@ -142,12 +142,15 @@ void World::Update(const glm::vec3& cameraPosition)
 
 void World::Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky)
 {
-    // Opaque geometry first, writing depth as usual.
+    // Opaque geometry first, writing depth as usual. Back-face culling hides
+    // block interiors that would otherwise show through cutout foliage.
+    renderer.SetCullFace(true);
     for (const auto& [position, record] : m_Chunks) {
         if (record.mesh) {
             renderer.RenderChunkOpaque(*record.mesh, viewProjection, sky);
         }
     }
+    renderer.SetCullFace(false);
 
     // Then water: it blends over what is already there and must not occlude
     // other water behind it, so blending is on and depth writes are disabled.

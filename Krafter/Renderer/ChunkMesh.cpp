@@ -4,8 +4,37 @@
 #include "glad/gl.h"
 
 #include "Krafter/Renderer/ChunkMesh.h"
+#include "Krafter/World/Biome.h"
 
 namespace Krafter {
+
+// Origin and in-plane axes of a block face, shared by the regular face builder
+// and the grass overlay. Vertices wind origin -> +dx -> +dx+dy -> +dy, which is
+// counter-clockwise seen from outside (matching the back-face culling).
+struct FaceQuad {
+    glm::vec3 origin;
+    glm::vec3 dx;
+    glm::vec3 dy;
+    glm::vec3 normal;
+};
+
+static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
+{
+    switch (face) {
+    case BlockFace::k_Front:
+        return { position, glm::vec3(0, 0, 1), glm::vec3(0, 1, 0), glm::vec3(-1, 0, 0) };
+    case BlockFace::k_Back:
+        return { position + glm::vec3(1, 0, 1), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0), glm::vec3(1, 0, 0) };
+    case BlockFace::k_Left:
+        return { position + glm::vec3(1, 0, 0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1) };
+    case BlockFace::k_Right:
+        return { position + glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1) };
+    case BlockFace::k_Bottom:
+        return { position + glm::vec3(1, 0, 0), glm::vec3(0, 0, 1), glm::vec3(-1, 0, 0), glm::vec3(0, -1, 0) };
+    default: // k_Top
+        return { position + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0) };
+    }
+}
 
 static int32_t FloorDiv(int32_t a, int32_t b)
 {
@@ -28,8 +57,9 @@ static int32_t FloorMod(int32_t a, int32_t b)
 // Ambient-occlusion brightness for the four corner levels (0 = most occluded).
 static constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
 
-// Floats per vertex: position(3), uv(2), normal(3), sky light(1), water depth(1).
-static constexpr int32_t k_VertexStride = 10;
+// Floats per vertex: position(3), uv(2), normal(3), sky light(1), water depth(1),
+// tint(3).
+static constexpr int32_t k_VertexStride = 13;
 
 ChunkMeshData ChunkMesh::Compute(
     const std::array<const Chunk*, 9>& grid,
@@ -79,15 +109,22 @@ ChunkMeshData ChunkMesh::Compute(
         return IsOpaque(blockAt(cell));
     };
 
-    // How much a block hides what is behind it: opaque (2) > water (1) > air (0).
-    // A face is only drawn toward a strictly more transparent neighbour, so
-    // opaque-vs-water and water-vs-air surfaces show while shared faces (e.g.
-    // water-vs-water) are culled.
-    auto opacityRank = [](Block block) -> int32_t {
-        if (IsOpaque(block)) {
-            return 2;
+    // Whether `neighbor` fully covers the shared face of `self`, letting us cull
+    // it. Opaque blocks hide anything behind them. Cutout foliage has holes, so
+    // to other solid geometry it never hides a neighbour: the dirt under a leaf
+    // still draws its top, and (like Minecraft's "fancy" leaves) the shared faces
+    // between adjacent leaf blocks are kept, so a canopy reads as dense layers.
+    // To water, though, a leaf reads as solid, so a submerged water surface is
+    // culled against it rather than z-fighting the coplanar leaf face. Water
+    // otherwise only culls against more water, so water-vs-air surfaces show.
+    auto hidesFace = [](Block self, Block neighbor) -> bool {
+        if (IsCutout(neighbor)) {
+            return !IsOpaque(self);
         }
-        return block == Block::k_Water ? 1 : 0;
+        if (IsOpaque(neighbor)) {
+            return true;
+        }
+        return neighbor == self;
     };
 
     auto skyLightOf = [&](const glm::ivec3& cell) -> float {
@@ -162,7 +199,6 @@ ChunkMeshData ChunkMesh::Compute(
 
                 const bool transparent = self == Block::k_Water;
                 ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
-                const int32_t selfRank = opacityRank(self);
 
                 // Water that isn't submerged under more water sits below a full
                 // block, so its surface reads as sunken. This holds even when a
@@ -171,6 +207,19 @@ ChunkMeshData ChunkMesh::Compute(
                 const float topInset = surfaceWater ? 4.0f / 16.0f : 0.0f;
 
                 const float depth = transparent ? waterDepth(x, y, z) : 0.0f;
+
+                // Grass tops/fringes and leaves are grayscale; tint them by the
+                // biome at this column. Grass tints only its top and side fringe;
+                // leaves tint every face. Everything else stays untinted (white).
+                glm::vec3 grassTint(1.0f);
+                glm::vec3 leafTint(1.0f);
+                if (self == Block::k_Grass || self == Block::k_OakLeaves) {
+                    const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
+                    const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
+                    const Biome& biome = Biome::Get(Biome::At(worldX, worldZ));
+                    grassTint = biome.grassColor;
+                    leafTint = biome.leafColor;
+                }
 
                 for (size_t k = 0; k < 6; k++) {
                     glm::ivec3 airCell(x + dx[k], y + dy[k], z + dz[k]);
@@ -184,7 +233,7 @@ ChunkMeshData ChunkMesh::Compute(
                         if (neighbor == Block::k_Water) {
                             continue;
                         }
-                    } else if (opacityRank(neighbor) >= selfRank) {
+                    } else if (hidesFace(self, neighbor)) {
                         continue;
                     }
 
@@ -199,7 +248,27 @@ ChunkMeshData ChunkMesh::Compute(
                         chunkPosition.x * Chunk::k_Width + x,
                         y,
                         chunkPosition.y * Chunk::k_Width + z);
-                    AddFaceToData(worldPos, self, faces[k], topInset, depth, vertexLight, buffer.vertices, buffer.elements);
+
+                    // Only the grass top is the tinted gray tile; the side base
+                    // and bottom are plain dirt and stay untinted. Leaves are
+                    // grayscale on every face, so the whole block is tinted.
+                    const bool grassTop = self == Block::k_Grass && faces[k] == BlockFace::k_Top;
+                    glm::vec3 tint(1.0f);
+                    if (grassTop) {
+                        tint = grassTint;
+                    } else if (self == Block::k_OakLeaves) {
+                        tint = leafTint;
+                    }
+                    AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, buffer.vertices, buffer.elements);
+
+                    // Grass side faces get the biome-tinted fringe layered on top
+                    // of the dirt base.
+                    const bool grassSide = self == Block::k_Grass
+                        && faces[k] != BlockFace::k_Top && faces[k] != BlockFace::k_Bottom;
+                    if (grassSide) {
+                        const glm::vec2 overlay = BlockAtlas::GetAtlasOf(self).sideOverlay;
+                        AddOverlayFace(worldPos, faces[k], overlay, grassTint, vertexLight, buffer.vertices, buffer.elements);
+                    }
                 }
             }
         }
@@ -244,6 +313,10 @@ void ChunkMesh::Upload(Part& part, const ChunkMeshBuffer& buffer)
     glEnableVertexArrayAttrib(part.vertexArray, 4);
     glVertexArrayAttribBinding(part.vertexArray, 4, 0);
     glVertexArrayAttribFormat(part.vertexArray, 4, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float));
+
+    glEnableVertexArrayAttrib(part.vertexArray, 5);
+    glVertexArrayAttribBinding(part.vertexArray, 5, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 5, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float));
 }
 
 void ChunkMesh::Release(Part& part)
@@ -281,7 +354,7 @@ void ChunkMesh::BindTransparent() const
 void ChunkMesh::AddFaceToData(
     const std::array<glm::vec3, 4>& positionList,
     const std::array<glm::vec2, 2>& uvCoordsList,
-    const glm::vec3& normal, float waterDepth,
+    const glm::vec3& normal, float waterDepth, const glm::vec3& tint,
     const std::array<float, 4>& vertexLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
@@ -305,22 +378,27 @@ void ChunkMesh::AddFaceToData(
         vertexBufferData.push_back(normal.z);
         vertexBufferData.push_back(vertexLight[i]);
         vertexBufferData.push_back(waterDepth);
+        vertexBufferData.push_back(tint.x);
+        vertexBufferData.push_back(tint.y);
+        vertexBufferData.push_back(tint.z);
     }
 
     // Split along the diagonal that avoids anisotropic shading on a face with
-    // one occluded corner.
+    // one occluded corner. Both triangles wind counter-clockwise when viewed
+    // from outside (the quad order 0,1,2,3 is CCW there) so back-face culling
+    // keeps the outward face.
     if (vertexLight[0] + vertexLight[2] < vertexLight[1] + vertexLight[3]) {
         elementBufferData.push_back(offset + 1);
         elementBufferData.push_back(offset + 3);
         elementBufferData.push_back(offset + 0);
 
         elementBufferData.push_back(offset + 1);
-        elementBufferData.push_back(offset + 3);
         elementBufferData.push_back(offset + 2);
+        elementBufferData.push_back(offset + 3);
     } else {
         elementBufferData.push_back(offset + 0);
-        elementBufferData.push_back(offset + 2);
         elementBufferData.push_back(offset + 1);
+        elementBufferData.push_back(offset + 2);
 
         elementBufferData.push_back(offset + 0);
         elementBufferData.push_back(offset + 2);
@@ -330,75 +408,22 @@ void ChunkMesh::AddFaceToData(
 
 void ChunkMesh::AddFaceToData(
     const glm::vec3& position,
-    const Block block, BlockFace face, float topInset, float waterDepth,
+    const Block block, BlockFace face, float topInset, float waterDepth, const glm::vec3& tint,
     const std::array<float, 4>& vertexLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
-    std::array<glm::vec3, 4> positionList;
-    std::array<glm::vec2, 2> uvCoordsList;
-
-    glm::vec3 origin;
-    glm::vec3 dx;
-    glm::vec3 dy;
-    glm::vec2 uvCoords;
-    glm::vec3 normal;
-
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
-
-    switch (face) {
-    case BlockFace::k_Front:
-        origin = position;
-        dx = glm::vec3(0.0f, 0.0f, 1.0f);
-        dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoords = atlas.side;
-        normal = glm::vec3(-1.0f, 0.0f, 0.0f);
-        break;
-
-    case BlockFace::k_Back:
-        origin = position + glm::vec3(1.0f, 0.0f, 1.0f);
-        dx = glm::vec3(0.0f, 0.0f, -1.0f);
-        dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoords = atlas.side;
-        normal = glm::vec3(1.0f, 0.0f, 0.0f);
-        break;
-
-    case BlockFace::k_Left:
-        origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
-        dx = glm::vec3(-1.0f, 0.0f, 0.0f);
-        dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoords = atlas.side;
-        normal = glm::vec3(0.0f, 0.0f, -1.0f);
-        break;
-
-    case BlockFace::k_Right:
-        origin = position + glm::vec3(0.0f, 0.0f, 1.0f);
-        dx = glm::vec3(1.0f, 0.0f, 0.0f);
-        dy = glm::vec3(0.0f, 1.0f, 0.0f);
-        uvCoords = atlas.side;
-        normal = glm::vec3(0.0f, 0.0f, 1.0f);
-        break;
-
-    case BlockFace::k_Bottom:
-        origin = position + glm::vec3(1.0f, 0.0f, 0.0f);
-        dx = glm::vec3(0.0f, 0.0f, 1.0f);
-        dy = glm::vec3(-1.0f, 0.0f, 0.0f);
-        uvCoords = atlas.bottom;
-        normal = glm::vec3(0.0f, -1.0f, 0.0f);
-        break;
-
-    default:
-        origin = position + glm::vec3(0.0f, 1.0f, 0.0f);
-        dx = glm::vec3(0.0f, 0.0f, 1.0f);
-        dy = glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec2 uvCoords = atlas.side;
+    if (face == BlockFace::k_Top) {
         uvCoords = atlas.top;
-        normal = glm::vec3(0.0f, 1.0f, 0.0f);
-        break;
+    } else if (face == BlockFace::k_Bottom) {
+        uvCoords = atlas.bottom;
     }
 
-    positionList[0] = origin;
-    positionList[1] = origin + dx;
-    positionList[2] = origin + dx + dy;
-    positionList[3] = origin + dy;
+    const FaceQuad quad = FaceGeometryOf(position, face);
+    std::array<glm::vec3, 4> positionList = {
+        quad.origin, quad.origin + quad.dx, quad.origin + quad.dx + quad.dy, quad.origin + quad.dy
+    };
 
     // Drop only the vertices on the block's top edge, so the top face lowers and
     // the side faces shrink to meet it while the bottom stays put.
@@ -410,10 +435,28 @@ void ChunkMesh::AddFaceToData(
         }
     }
 
-    uvCoordsList[0] = uvCoords;
-    uvCoordsList[1] = uvCoords + glm::vec2(BlockAtlas::k_Step);
+    const std::array<glm::vec2, 2> uvCoordsList = { uvCoords, uvCoords + glm::vec2(BlockAtlas::k_Step) };
 
-    AddFaceToData(positionList, uvCoordsList, normal, waterDepth, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBufferData, elementBufferData);
+}
+
+void ChunkMesh::AddOverlayFace(
+    const glm::vec3& position, BlockFace face,
+    const glm::vec2& tile, const glm::vec3& tint,
+    const std::array<float, 4>& vertexLight,
+    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
+{
+    // Coplanar with the dirt base: it shares the base's exact vertex positions,
+    // so with GL_LEQUAL depth testing the overlay (emitted right after the base)
+    // wins the equal-depth test and sits flush, with no z-fight and no lip.
+    const FaceQuad quad = FaceGeometryOf(position, face);
+    const std::array<glm::vec3, 4> positionList = {
+        quad.origin, quad.origin + quad.dx, quad.origin + quad.dx + quad.dy, quad.origin + quad.dy
+    };
+
+    const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
+
+    AddFaceToData(positionList, uvCoordsList, quad.normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
 }
 
 } // namespace Krafter

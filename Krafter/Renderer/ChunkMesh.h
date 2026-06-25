@@ -67,12 +67,19 @@ private:
     static void AddFaceToData(
         const std::array<glm::vec3, 4>& positionList,
         const std::array<glm::vec2, 2>& uvCoordsList,
-        const glm::vec3& normal, float waterDepth,
+        const glm::vec3& normal, float waterDepth, const glm::vec3& tint,
         const std::array<float, 4>& vertexLight,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
     static void AddFaceToData(
         const glm::vec3& position,
-        Block block, BlockFace face, float topInset, float waterDepth,
+        Block block, BlockFace face, float topInset, float waterDepth, const glm::vec3& tint,
+        const std::array<float, 4>& vertexLight,
+        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
+    // The biome-tinted grass fringe, drawn over a grass side face and nudged
+    // outward so it does not z-fight the dirt base beneath it.
+    static void AddOverlayFace(
+        const glm::vec3& position, BlockFace face,
+        const glm::vec2& tile, const glm::vec3& tint,
         const std::array<float, 4>& vertexLight,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
 

@@ -152,12 +152,31 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
     constexpr glm::vec4 k_LeftTint = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
     constexpr glm::vec4 k_RightTint = glm::vec4(0.6f, 0.6f, 0.6f, 1.0f);
 
+    // Grass top and side fringe are grayscale in the atlas; tint them with a
+    // representative plains grass colour so the icon reads green like in world.
+    const bool grass = block == Block::k_Grass;
+    constexpr glm::vec4 k_GrassColor = glm::vec4(0.569f, 0.741f, 0.349f, 1.0f);
+    const glm::vec4 topTint = grass ? k_TopTint * k_GrassColor : k_TopTint;
+
+    // Leaves are grayscale on every face, so tint the whole icon (all three
+    // faces) with the plains leaf colour, matching the in-world foliage.
+    const bool leaves = block == Block::k_OakLeaves;
+    constexpr glm::vec4 k_LeafColor = glm::vec4(0.471f, 0.671f, 0.302f, 1.0f);
+    const glm::vec4 foliage = leaves ? k_LeafColor : glm::vec4(1.0f);
+
     m_Renderer.DrawQuad(
-        { top, right, front, left }, tileUVs(atlas.top), m_BlockTexture, k_TopTint);
+        { top, right, front, left }, tileUVs(atlas.top), m_BlockTexture, topTint * foliage);
     m_Renderer.DrawQuad(
-        { left, front, frontBottom, leftBottom }, tileUVs(atlas.side), m_BlockTexture, k_LeftTint);
+        { left, front, frontBottom, leftBottom }, tileUVs(atlas.side), m_BlockTexture, k_LeftTint * foliage);
     m_Renderer.DrawQuad(
-        { front, right, rightBottom, frontBottom }, tileUVs(atlas.side), m_BlockTexture, k_RightTint);
+        { front, right, rightBottom, frontBottom }, tileUVs(atlas.side), m_BlockTexture, k_RightTint * foliage);
+
+    if (grass) {
+        m_Renderer.DrawQuad(
+            { left, front, frontBottom, leftBottom }, tileUVs(atlas.sideOverlay), m_BlockTexture, k_LeftTint * k_GrassColor);
+        m_Renderer.DrawQuad(
+            { front, right, rightBottom, frontBottom }, tileUVs(atlas.sideOverlay), m_BlockTexture, k_RightTint * k_GrassColor);
+    }
 }
 
 void UILayer::DrawSprite(
