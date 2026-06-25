@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "Krafter/Layer.h"
+#include "Krafter/Core/Layer.h"
 
 namespace Krafter {
 

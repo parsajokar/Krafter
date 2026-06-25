@@ -1,8 +1,8 @@
 #include <array>
 
-#include "Krafter/Event.h"
+#include "Krafter/Core/Event.h"
 #include "Krafter/UILayer.h"
-#include "Krafter/Window.h"
+#include "Krafter/Core/Window.h"
 
 namespace Krafter {
 
@@ -13,8 +13,8 @@ UILayer::UILayer(Window& window, Hotbar& hotbar)
     , m_Window(window)
     , m_Hotbar(hotbar)
     , m_Renderer(window)
-    , m_UITexture("assets/ui.png")
-    , m_BlockTexture("assets/texture.png")
+    , m_UITexture("assets/textures/ui.png")
+    , m_BlockTexture("assets/textures/blocks.png")
 {
 }
 

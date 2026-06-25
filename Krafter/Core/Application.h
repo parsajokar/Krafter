@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "Krafter/LayerStack.h"
+#include "Krafter/Core/LayerStack.h"
 
 int main(int argc, char** argv);
 

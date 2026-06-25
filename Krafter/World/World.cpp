@@ -3,10 +3,11 @@
 
 #include "imgui.h"
 
-#include "Krafter/Renderer/Renderer.h"
-#include "Krafter/Sky.h"
+#include "Krafter/Renderer/WorldRenderer.h"
 #include "Krafter/World/Biome.h"
+#include "Krafter/World/Coords.h"
 #include "Krafter/World/Lighting.h"
+#include "Krafter/World/Sky.h"
 #include "Krafter/World/World.h"
 
 namespace Krafter {
@@ -14,26 +15,11 @@ namespace Krafter {
 World::World()
 {
     Biome::LoadBiomes();
-
-    uint32_t hardware = std::thread::hardware_concurrency();
-    uint32_t threadCount = hardware > 1 ? hardware - 1 : 1;
-    m_Workers.reserve(threadCount);
-    for (uint32_t i = 0; i < threadCount; i++) {
-        m_Workers.emplace_back([this] { WorkerLoop(); });
-    }
 }
 
-World::~World()
-{
-    {
-        std::lock_guard<std::mutex> lock(m_JobMutex);
-        m_Stop = true;
-    }
-    m_JobCv.notify_all();
-    for (auto& worker : m_Workers) {
-        worker.join();
-    }
-}
+// m_JobSystem is declared last, so it is destroyed first: its workers stop and
+// join before the result queues they push into are torn down.
+World::~World() = default;
 
 void World::Update(const glm::vec3& cameraPosition)
 {
@@ -51,10 +37,9 @@ void World::Update(const glm::vec3& cameraPosition)
                 continue;
             }
             m_PendingTerrain.insert(position);
-            DispatchJob([this, position] {
+            m_JobSystem.Dispatch([this, position] {
                 auto chunk = std::make_shared<Chunk>(position);
-                std::lock_guard<std::mutex> lock(m_TerrainResultMutex);
-                m_TerrainResults.push_back({ position, std::move(chunk) });
+                m_TerrainResults.Push({ position, std::move(chunk) });
             });
         }
     }
@@ -75,22 +60,10 @@ void World::Update(const glm::vec3& cameraPosition)
                 continue;
             }
 
-            std::array<std::shared_ptr<Chunk>, 9> grid;
-            for (int32_t dz = -1; dz <= 1; dz++) {
-                for (int32_t dx = -1; dx <= 1; dx++) {
-                    grid[(dz + 1) * 3 + (dx + 1)] = m_Chunks.find(position + glm::ivec2(dx, dz))->second.chunk;
-                }
-            }
-
             m_PendingLight.insert(position);
-            DispatchJob([this, position, grid = std::move(grid)] {
-                std::array<const Chunk*, 9> gridPtrs;
-                for (size_t i = 0; i < 9; i++) {
-                    gridPtrs[i] = grid[i].get();
-                }
-                ComputeSkyLight(*grid[4], gridPtrs);
-                std::lock_guard<std::mutex> lock(m_LightResultMutex);
-                m_LightResults.push_back(position);
+            m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
+                ComputeSkyLight(*grid[4], AsPointers(grid));
+                m_LightResults.Push(position);
             });
         }
     }
@@ -111,22 +84,10 @@ void World::Update(const glm::vec3& cameraPosition)
                 continue;
             }
 
-            std::array<std::shared_ptr<Chunk>, 9> grid;
-            for (int32_t dz = -1; dz <= 1; dz++) {
-                for (int32_t dx = -1; dx <= 1; dx++) {
-                    grid[(dz + 1) * 3 + (dx + 1)] = m_Chunks.find(position + glm::ivec2(dx, dz))->second.chunk;
-                }
-            }
-
             m_PendingMesh.insert(position);
-            DispatchJob([this, position, grid = std::move(grid)] {
-                std::array<const Chunk*, 9> gridPtrs;
-                for (size_t i = 0; i < 9; i++) {
-                    gridPtrs[i] = grid[i].get();
-                }
-                ChunkMeshData data = ChunkMesh::Compute(gridPtrs, position);
-                std::lock_guard<std::mutex> lock(m_MeshResultMutex);
-                m_MeshResults.push_back({ position, std::move(data) });
+            m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
+                ChunkMeshData data = ChunkMesh::Compute(AsPointers(grid), position);
+                m_MeshResults.Push({ position, std::move(data) });
             });
         }
     }
@@ -140,7 +101,7 @@ void World::Update(const glm::vec3& cameraPosition)
     }
 }
 
-void World::Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky)
+void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, const Sky& sky)
 {
     // Opaque geometry first, writing depth as usual. Back-face culling hides
     // block interiors that would otherwise show through cutout foliage.
@@ -169,41 +130,8 @@ void World::RenderImGui()
 {
     ImGui::InputInt("Render Distance", &m_RenderDistance);
     ImGui::InputInt("Max Mesh Uploads Per Frame", &m_MaxMeshUploadsPerFrame);
-    ImGui::Text("Workers: %zu", m_Workers.size());
+    ImGui::Text("Workers: %zu", m_JobSystem.WorkerCount());
     ImGui::Text("Chunks: %zu", m_Chunks.size());
-}
-
-static int32_t FloorDiv(int32_t a, int32_t b)
-{
-    int32_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) {
-        q--;
-    }
-    return q;
-}
-
-static int32_t FloorMod(int32_t a, int32_t b)
-{
-    int32_t r = a % b;
-    if (r != 0 && (r < 0) != (b < 0)) {
-        r += b;
-    }
-    return r;
-}
-
-static glm::ivec2 ToChunkPosition(const glm::ivec3& worldPosition)
-{
-    return glm::ivec2(
-        FloorDiv(worldPosition.x, Chunk::k_Width),
-        FloorDiv(worldPosition.z, Chunk::k_Width));
-}
-
-static glm::ivec3 ToLocalPosition(const glm::ivec3& worldPosition)
-{
-    return glm::ivec3(
-        FloorMod(worldPosition.x, Chunk::k_Width),
-        worldPosition.y,
-        FloorMod(worldPosition.z, Chunk::k_Width));
 }
 
 Block World::GetBlock(const glm::ivec3& worldPosition) const
@@ -316,50 +244,34 @@ constexpr bool World::IsInRadius(const glm::ivec2& entity, const glm::ivec2& ori
     return d.x * d.x + d.y * d.y <= radius * radius;
 }
 
-void World::WorkerLoop()
+std::array<std::shared_ptr<Chunk>, 9> World::Gather3x3(const glm::ivec2& center) const
 {
-    while (true) {
-        std::function<void()> job;
-        {
-            std::unique_lock<std::mutex> lock(m_JobMutex);
-            m_JobCv.wait(lock, [this] { return m_Stop.load() || !m_Jobs.empty(); });
-            if (m_Stop.load() && m_Jobs.empty()) {
-                return;
-            }
-            job = std::move(m_Jobs.front());
-            m_Jobs.pop_front();
+    std::array<std::shared_ptr<Chunk>, 9> grid;
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            grid[(dz + 1) * 3 + (dx + 1)] = m_Chunks.find(center + glm::ivec2(dx, dz))->second.chunk;
         }
-        job();
     }
+    return grid;
 }
 
-void World::DispatchJob(std::function<void()> job)
+std::array<const Chunk*, 9> World::AsPointers(const std::array<std::shared_ptr<Chunk>, 9>& grid)
 {
-    {
-        std::lock_guard<std::mutex> lock(m_JobMutex);
-        m_Jobs.push_back(std::move(job));
+    std::array<const Chunk*, 9> pointers;
+    for (size_t i = 0; i < 9; i++) {
+        pointers[i] = grid[i].get();
     }
-    m_JobCv.notify_one();
+    return pointers;
 }
 
 void World::DrainResults()
 {
-    std::deque<TerrainResult> terrainResults;
-    {
-        std::lock_guard<std::mutex> lock(m_TerrainResultMutex);
-        terrainResults.swap(m_TerrainResults);
-    }
-    for (auto& result : terrainResults) {
+    for (auto& result : m_TerrainResults.Drain()) {
         m_PendingTerrain.erase(result.position);
         m_Chunks.try_emplace(result.position, std::move(result.chunk), ChunkState::k_TerrainReady);
     }
 
-    std::deque<LightResult> lightResults;
-    {
-        std::lock_guard<std::mutex> lock(m_LightResultMutex);
-        lightResults.swap(m_LightResults);
-    }
-    for (const auto& position : lightResults) {
+    for (const auto& position : m_LightResults.Drain()) {
         m_PendingLight.erase(position);
         auto it = m_Chunks.find(position);
         if (it != m_Chunks.end() && it->second.state == ChunkState::k_TerrainReady) {
@@ -367,17 +279,10 @@ void World::DrainResults()
         }
     }
 
-    size_t meshTake;
-    std::deque<MeshResult> meshResults;
-    {
-        std::lock_guard<std::mutex> lock(m_MeshResultMutex);
-        meshTake = std::min(static_cast<size_t>(std::max(m_MaxMeshUploadsPerFrame, 0)), m_MeshResults.size());
-        for (size_t i = 0; i < meshTake; i++) {
-            meshResults.push_back(std::move(m_MeshResults.front()));
-            m_MeshResults.pop_front();
-        }
-    }
-    for (auto& result : meshResults) {
+    // Uploading a finished mesh to the GPU is the expensive part, so cap how
+    // many we take per frame; the rest wait in the queue for the next frames.
+    size_t meshBudget = static_cast<size_t>(std::max(m_MaxMeshUploadsPerFrame, 0));
+    for (auto& result : m_MeshResults.DrainUpTo(meshBudget)) {
         m_PendingMesh.erase(result.position);
         auto it = m_Chunks.find(result.position);
         if (it == m_Chunks.end()) {

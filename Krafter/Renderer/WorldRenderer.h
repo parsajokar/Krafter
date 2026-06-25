@@ -10,38 +10,20 @@
 #include "Krafter/Renderer/ShaderProgram.h"
 #include "Krafter/Renderer/Texture.h"
 
-#if defined(_MSC_VER)
-
-#define STDCALL __stdcall
-
-#elif defined(__GNUC__)
-
-#if defined(__i386__)
-#define STDCALL __attribute__((stdcall))
-#else
-#define STDCALL
-#endif
-
-#else
-
-#define STDCALL
-
-#endif
-
 namespace Krafter {
 
 class Sky;
 
-class Renderer {
+// Draws the voxel world: chunk geometry (opaque and transparent water passes),
+// the animated water texture, and the targeted-block outline. Owned by the game
+// layer, since it only exists while a world is being played.
+class WorldRenderer {
 public:
-    Renderer();
-    ~Renderer();
+    WorldRenderer();
+    ~WorldRenderer();
 
-    Renderer(const Renderer&) = delete;
-    Renderer& operator=(const Renderer&) = delete;
-
-    void SetClearColor(const glm::vec3& color);
-    void Clear();
+    WorldRenderer(const WorldRenderer&) = delete;
+    WorldRenderer& operator=(const WorldRenderer&) = delete;
 
     void RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
@@ -57,20 +39,6 @@ public:
 
 private:
     void BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky);
-
-    static void STDCALL ApiDebugCallback(
-        uint32_t source,
-        uint32_t type,
-        uint32_t id,
-        uint32_t severity,
-        int32_t length,
-        const char* message,
-        const void* userParam);
-
-    const uint8_t* m_VersionName;
-    const uint8_t* m_RendererName;
-
-    glm::vec3 m_ClearColor = glm::vec3(0.470f, 0.655f, 1.0f);
 
     // Opacity of deep water; the shader fades toward clear in the shallows.
     // Tunable live from the ImGui panel.

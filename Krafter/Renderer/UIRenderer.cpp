@@ -3,13 +3,13 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "Krafter/Renderer/UIRenderer.h"
-#include "Krafter/Window.h"
+#include "Krafter/Core/Window.h"
 
 namespace Krafter {
 
 UIRenderer::UIRenderer(Window& window)
     : m_Window(window)
-    , m_Program("assets/ui.vert.glsl", "assets/ui.frag.glsl")
+    , m_Program("assets/shaders/ui.vert.glsl", "assets/shaders/ui.frag.glsl")
 {
     // Unit quad: (0,0) top-left to (1,1) bottom-right, with matching UVs.
     const float vertices[] = {

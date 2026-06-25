@@ -51,16 +51,21 @@ target_sources(
     Krafter/World/Biome.cpp
     Krafter/World/Lighting.h
     Krafter/World/Lighting.cpp
+    Krafter/World/Sky.h
+    Krafter/World/Sky.cpp
+    Krafter/World/Coords.h
     Krafter/Renderer/ChunkMesh.h
     Krafter/Renderer/ChunkMesh.cpp
     Krafter/Renderer/Texture.h
     Krafter/Renderer/Texture.cpp
     Krafter/Renderer/ShaderProgram.h
     Krafter/Renderer/ShaderProgram.cpp
-    Krafter/Renderer/Renderer.h
-    Krafter/Renderer/Renderer.cpp
+    Krafter/Renderer/WorldRenderer.h
+    Krafter/Renderer/WorldRenderer.cpp
     Krafter/Renderer/UIRenderer.h
     Krafter/Renderer/UIRenderer.cpp
+    Krafter/WorldLayer.h
+    Krafter/WorldLayer.cpp
     Krafter/UILayer.h
     Krafter/UILayer.cpp
     Krafter/Hotbar.h
@@ -68,17 +73,23 @@ target_sources(
     Krafter/Game.cpp
     Krafter/Camera.h
     Krafter/Camera.cpp
-    Krafter/Event.h
-    Krafter/Sky.h
-    Krafter/Sky.cpp
-    Krafter/Window.h
-    Krafter/Window.cpp
-    Krafter/LayerStack.h
-    Krafter/LayerStack.cpp
-    Krafter/Layer.h
-    Krafter/Layer.cpp
-    Krafter/Application.h
-    Krafter/Application.cpp
+    Krafter/Player.h
+    Krafter/Player.cpp
+    Krafter/Core/Application.h
+    Krafter/Core/Application.cpp
+    Krafter/Core/Renderer.h
+    Krafter/Core/Renderer.cpp
+    Krafter/Core/Layer.h
+    Krafter/Core/Layer.cpp
+    Krafter/Core/LayerStack.h
+    Krafter/Core/LayerStack.cpp
+    Krafter/Core/Window.h
+    Krafter/Core/Window.cpp
+    Krafter/Core/Event.h
+    Krafter/Core/JobSystem.h
+    Krafter/Core/JobSystem.cpp
+    Krafter/Core/ResultQueue.h
+    Krafter/Core/Platform.h
     Krafter/Main.cpp
 )
 

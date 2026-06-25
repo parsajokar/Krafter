@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Krafter/Hotbar.h"
-#include "Krafter/Layer.h"
+#include "Krafter/Core/Layer.h"
 #include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/World/Block.h"

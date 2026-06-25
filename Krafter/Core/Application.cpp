@@ -5,10 +5,10 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-#include "Krafter/Application.h"
-#include "Krafter/Event.h"
-#include "Krafter/Renderer/Renderer.h"
-#include "Krafter/Window.h"
+#include "Krafter/Core/Application.h"
+#include "Krafter/Core/Event.h"
+#include "Krafter/Core/Renderer.h"
+#include "Krafter/Core/Window.h"
 
 namespace Krafter {
 

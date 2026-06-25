@@ -6,8 +6,9 @@
 
 namespace Krafter {
 
-// Shared hotbar state: the blocks held in each slot and which slot is active.
-// Owned by the application so the UI and the game layer agree on the selection.
+// The player's hotbar: the blocks held in each slot and which slot is active.
+// Owned by the Player (it is the quick-select slice of what will grow into a
+// full inventory) and shared by reference with the HUD that draws it.
 class Hotbar {
 public:
     static constexpr int k_SlotCount = 10;

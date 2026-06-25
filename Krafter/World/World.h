@@ -1,27 +1,23 @@
 #pragma once
 
-#include <atomic>
-#include <condition_variable>
+#include <array>
 #include <cstdint>
-#include <deque>
-#include <functional>
 #include <memory>
-#include <mutex>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
 #include "glm/glm.hpp"
 #include "glm/gtx/hash.hpp"
 
+#include "Krafter/Core/JobSystem.h"
+#include "Krafter/Core/ResultQueue.h"
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/World/Block.h"
 #include "Krafter/World/Chunk.h"
 
 namespace Krafter {
 
-class Renderer;
+class WorldRenderer;
 class Sky;
 
 class World {
@@ -33,7 +29,7 @@ public:
     World& operator=(const World&) = delete;
 
     void Update(const glm::vec3& cameraPosition);
-    void Render(Renderer& renderer, const glm::mat4& viewProjection, const Sky& sky);
+    void Render(WorldRenderer& renderer, const glm::mat4& viewProjection, const Sky& sky);
     void RenderImGui();
 
     Block GetBlock(const glm::ivec3& worldPosition) const;
@@ -78,8 +74,10 @@ private:
 
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
-    void WorkerLoop();
-    void DispatchJob(std::function<void()> job);
+    // The 3x3 chunk neighbourhood around `center`, indexed (dz + 1) * 3 + (dx + 1)
+    // with the centre at 4. Both the lighting and meshing jobs need it.
+    std::array<std::shared_ptr<Chunk>, 9> Gather3x3(const glm::ivec2& center) const;
+    static std::array<const Chunk*, 9> AsPointers(const std::array<std::shared_ptr<Chunk>, 9>& grid);
 
     void DrainResults();
 
@@ -100,21 +98,11 @@ private:
     std::unordered_set<glm::ivec2> m_PendingLight;
     std::unordered_set<glm::ivec2> m_PendingMesh;
 
-    std::mutex m_JobMutex;
-    std::condition_variable m_JobCv;
-    std::deque<std::function<void()>> m_Jobs;
+    ResultQueue<TerrainResult> m_TerrainResults;
+    ResultQueue<LightResult> m_LightResults;
+    ResultQueue<MeshResult> m_MeshResults;
 
-    std::mutex m_TerrainResultMutex;
-    std::deque<TerrainResult> m_TerrainResults;
-
-    std::mutex m_LightResultMutex;
-    std::deque<LightResult> m_LightResults;
-
-    std::mutex m_MeshResultMutex;
-    std::deque<MeshResult> m_MeshResults;
-
-    std::atomic<bool> m_Stop = false;
-    std::vector<std::thread> m_Workers;
+    JobSystem m_JobSystem;
 };
 
 } // namespace Krafter

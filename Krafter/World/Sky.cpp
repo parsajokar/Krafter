@@ -4,7 +4,7 @@
 
 #include "imgui.h"
 
-#include "Krafter/Sky.h"
+#include "Krafter/World/Sky.h"
 
 namespace Krafter {
 

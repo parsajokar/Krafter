@@ -2,8 +2,8 @@
 
 #include "GLFW/glfw3.h"
 
-#include "Krafter/Event.h"
-#include "Krafter/Window.h"
+#include "Krafter/Core/Event.h"
+#include "Krafter/Core/Window.h"
 
 namespace Krafter {
 

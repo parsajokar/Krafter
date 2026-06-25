@@ -2,7 +2,7 @@
 
 #include "glm/glm.hpp"
 
-#include "Krafter/Window.h"
+#include "Krafter/Core/Window.h"
 
 namespace Krafter {
 

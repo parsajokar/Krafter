@@ -8,8 +8,9 @@
 
 #include "stb_image.h"
 
-#include "Krafter/Renderer/Renderer.h"
-#include "Krafter/Sky.h"
+#include "Krafter/Renderer/WorldRenderer.h"
+#include "Krafter/World/Block.h"
+#include "Krafter/World/Sky.h"
 
 namespace Krafter {
 
@@ -19,18 +20,7 @@ static constexpr int32_t k_WaterTileY = 0;
 static constexpr int32_t k_WaterTileSize = 16;
 static constexpr double k_WaterFps = 12.0;
 
-void Renderer::SetClearColor(const glm::vec3& color)
-{
-    m_ClearColor = color;
-}
-
-void Renderer::Clear()
-{
-    glClearColor(m_ClearColor.r, m_ClearColor.g, m_ClearColor.b, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void Renderer::BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky)
+void WorldRenderer::BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky)
 {
     m_Texture->Bind(0);
     m_Program->Bind();
@@ -41,7 +31,7 @@ void Renderer::BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky)
     m_Program->SetUniformVec3(4, sky.GetAmbientColor());
 }
 
-void Renderer::RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+void WorldRenderer::RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
 {
     if (chunkMesh.GetOpaqueElementCount() == 0) {
         return;
@@ -53,7 +43,7 @@ void Renderer::RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& vi
     glDrawElements(GL_TRIANGLES, chunkMesh.GetOpaqueElementCount(), GL_UNSIGNED_INT, nullptr);
 }
 
-void Renderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+void WorldRenderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
 {
     if (chunkMesh.GetTransparentElementCount() == 0) {
         return;
@@ -65,12 +55,12 @@ void Renderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat
     glDrawElements(GL_TRIANGLES, chunkMesh.GetTransparentElementCount(), GL_UNSIGNED_INT, nullptr);
 }
 
-void Renderer::SetDepthMask(bool enabled)
+void WorldRenderer::SetDepthMask(bool enabled)
 {
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
 }
 
-void Renderer::SetCullFace(bool enabled)
+void WorldRenderer::SetCullFace(bool enabled)
 {
     // Chunk geometry winds counter-clockwise outward, so culling back faces hides
     // the interiors that would otherwise show through cutout foliage. Water is
@@ -84,7 +74,7 @@ void Renderer::SetCullFace(bool enabled)
     }
 }
 
-void Renderer::SetBlend(bool enabled)
+void WorldRenderer::SetBlend(bool enabled)
 {
     // Other passes (the UI) toggle blending and leave it off, so the water pass
     // must turn it back on itself rather than trust the global state.
@@ -96,7 +86,7 @@ void Renderer::SetBlend(bool enabled)
     }
 }
 
-void Renderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection)
+void WorldRenderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection)
 {
     m_OutlineProgram->Bind();
     m_OutlineProgram->SetUniformMat4(0, viewProjection);
@@ -107,7 +97,7 @@ void Renderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::ma
     glDrawElements(GL_LINES, m_OutlineElementCount, GL_UNSIGNED_INT, nullptr);
 }
 
-void Renderer::AnimateWater()
+void WorldRenderer::AnimateWater()
 {
     if (m_WaterFrameCount <= 0) {
         return;
@@ -123,49 +113,17 @@ void Renderer::AnimateWater()
     m_Texture->UpdateRegion(k_WaterTileX, k_WaterTileY, k_WaterTileSize, k_WaterTileSize, m_WaterFrames.data() + offset);
 }
 
-void Renderer::RenderImGui()
+void WorldRenderer::RenderImGui()
 {
-    ImGui::Text("OpenGL Details:");
-    ImGui::Text("Version: %s", m_VersionName);
-    ImGui::Text("Renderer: %s", m_RendererName);
     ImGui::SliderFloat("Deep Water Opacity", &m_WaterOpacity, 0.0f, 1.0f);
 }
 
-void STDCALL Renderer::ApiDebugCallback(
-    uint32_t source,
-    uint32_t type,
-    uint32_t id,
-    uint32_t severity,
-    int32_t length,
-    const char* message,
-    const void* userParam)
+WorldRenderer::WorldRenderer()
 {
-    std::cerr << "[OPENGL] " << message << std::endl;
-    assert(severity != GL_DEBUG_SEVERITY_HIGH);
-}
-
-Renderer::Renderer()
-{
-    gladLoadGL(glfwGetProcAddress);
-
-    m_VersionName = glGetString(GL_VERSION);
-    m_RendererName = glGetString(GL_RENDERER);
-
-    glDebugMessageCallback(ApiDebugCallback, nullptr);
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-
-    glEnable(GL_DEPTH_TEST);
-    // LEQUAL so a decal drawn right after a coplanar face (the grass side fringe
-    // over its dirt base) wins the equal-depth test and sits flush.
-    glDepthFunc(GL_LEQUAL);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     BlockAtlas::LoadAtlases();
 
-    m_Program = std::make_unique<ShaderProgram>("assets/default.vert.glsl", "assets/default.frag.glsl");
-    m_Texture = std::make_unique<Texture2D>("assets/texture.png");
+    m_Program = std::make_unique<ShaderProgram>("assets/shaders/default.vert.glsl", "assets/shaders/default.frag.glsl");
+    m_Texture = std::make_unique<Texture2D>("assets/textures/blocks.png");
 
     // Load the water animation strip: a vertical stack of 16x16 frames. Alpha is
     // forced opaque so the shader alone controls water transparency.
@@ -173,7 +131,7 @@ Renderer::Renderer()
     int32_t waterWidth = 0;
     int32_t waterHeight = 0;
     int32_t waterChannels = 0;
-    uint8_t* waterData = stbi_load("assets/water_still.png", &waterWidth, &waterHeight, &waterChannels, 4);
+    uint8_t* waterData = stbi_load("assets/textures/water_still.png", &waterWidth, &waterHeight, &waterChannels, 4);
     if (waterData && waterWidth == k_WaterTileSize && waterHeight >= k_WaterTileSize) {
         m_WaterFrameCount = waterHeight / k_WaterTileSize;
         const size_t bytes = static_cast<size_t>(m_WaterFrameCount) * k_WaterTileSize * k_WaterTileSize * 4;
@@ -220,10 +178,10 @@ Renderer::Renderer()
     glVertexArrayAttribBinding(m_OutlineVertexArray, 0, 0);
     glVertexArrayAttribFormat(m_OutlineVertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
 
-    m_OutlineProgram = std::make_unique<ShaderProgram>("assets/outline.vert.glsl", "assets/outline.frag.glsl");
+    m_OutlineProgram = std::make_unique<ShaderProgram>("assets/shaders/outline.vert.glsl", "assets/shaders/outline.frag.glsl");
 }
 
-Renderer::~Renderer()
+WorldRenderer::~WorldRenderer()
 {
     glDeleteBuffers(1, &m_OutlineElementBuffer);
     glDeleteBuffers(1, &m_OutlineVertexBuffer);
