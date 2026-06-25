@@ -188,14 +188,32 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     Chunk& chunk = *it->second.chunk;
     chunk.SetBlock(ToLocalPosition(worldPosition), block);
 
-    // A plant resting on the block we just changed loses its footing when that
-    // block stops being solid ground, so break it (its cell is always in this
-    // same column, hence this same chunk).
-    const glm::ivec3 above(worldPosition.x, worldPosition.y + 1, worldPosition.z);
-    if (above.y < Chunk::k_Height) {
-        const glm::ivec3 local = ToLocalPosition(above);
-        if (IsPlant(chunk.GetBlock(local)) && !IsOpaque(block)) {
-            chunk.SetBlock(local, Block::k_Air);
+    // Plants and cactus need solid ground under them. When the block we changed
+    // stops being that ground, break the fragile column above it: each block
+    // that falls in turn removes the support of the one above. The whole column
+    // is the same (x, z), so it never leaves this chunk.
+    for (int32_t y = worldPosition.y + 1; y < Chunk::k_Height; y++) {
+        const glm::ivec3 local = ToLocalPosition(glm::ivec3(worldPosition.x, y, worldPosition.z));
+        const Block fragile = chunk.GetBlock(local);
+        if (!IsPlant(fragile) && fragile != Block::k_Cactus) {
+            break;
+        }
+        if (IsOpaque(chunk.GetBlock(local - glm::ivec3(0, 1, 0)))) {
+            break; // still supported, and so is anything stacked on it
+        }
+        chunk.SetBlock(local, Block::k_Air);
+    }
+
+    // Putting a solid block beside a cactus snaps it off: the touched segment and
+    // everything stacked above it break, so a cactus never ends up flush against
+    // another block. A neighbour cactus can sit in an adjacent chunk, but always
+    // within this edit's 3x3, so it is reachable and will be re-meshed below.
+    if (IsOpaque(block)) {
+        constexpr glm::ivec3 sides[] = {
+            { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+        };
+        for (const glm::ivec3& side : sides) {
+            BreakCactusColumn(worldPosition + side);
         }
     }
 
@@ -203,6 +221,25 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
         for (int32_t dx = -1; dx <= 1; dx++) {
             InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
         }
+    }
+}
+
+void World::BreakCactusColumn(const glm::ivec3& worldPosition)
+{
+    // Break the cactus at this cell and every cactus stacked directly above it;
+    // segments below the contact keep their footing and stay.
+    for (int32_t y = worldPosition.y; y < Chunk::k_Height; y++) {
+        const glm::ivec3 cell(worldPosition.x, y, worldPosition.z);
+        auto it = m_Chunks.find(ToChunkPosition(cell));
+        if (it == m_Chunks.end() || !it->second.chunk) {
+            return;
+        }
+        Chunk& chunk = *it->second.chunk;
+        const glm::ivec3 local = ToLocalPosition(cell);
+        if (chunk.GetBlock(local) != Block::k_Cactus) {
+            return;
+        }
+        chunk.SetBlock(local, Block::k_Air);
     }
 }
 
@@ -217,6 +254,19 @@ void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
         const glm::ivec3 below(worldPosition.x, worldPosition.y - 1, worldPosition.z);
         if (below.y < 0 || !IsOpaque(GetBlock(below)) || GetBlock(worldPosition) != Block::k_Air) {
             return;
+        }
+    }
+
+    if (block == Block::k_Cactus) {
+        // Cactus can't touch a solid block on any of its four sides, so cacti
+        // can't be placed next to each other (or flush against terrain).
+        constexpr glm::ivec3 sides[] = {
+            { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+        };
+        for (const glm::ivec3& side : sides) {
+            if (IsOpaque(GetBlock(worldPosition + side))) {
+                return;
+            }
         }
     }
 

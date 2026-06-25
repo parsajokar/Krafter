@@ -83,9 +83,13 @@ void UILayer::DrawHotbar()
     const float startX = glm::floor((windowSize.x - totalWidth) * 0.5f);
     const float y = glm::floor(windowSize.y - slotSize.y - k_Margin);
 
-    // Inset the icon so it sits inside the slot's border.
+    // Inset the icon so it sits inside the slot's border, then shrink it a touch
+    // more and re-centre so the art doesn't crowd the slot edges.
     constexpr float k_IconInset = 4.0f * k_Scale;
-    const glm::vec2 iconSize = slotSize - 2.0f * k_IconInset;
+    constexpr float k_IconScale = 0.87f;
+    const glm::vec2 insetSize = slotSize - 2.0f * k_IconInset;
+    const glm::vec2 iconSize = insetSize * k_IconScale;
+    const glm::vec2 iconOffset = glm::vec2(k_IconInset) + (insetSize - iconSize) * 0.5f;
 
     for (int i = 0; i < k_SlotCount; ++i) {
         const glm::vec2 position = glm::vec2(startX + i * stride, y);
@@ -93,7 +97,7 @@ void UILayer::DrawHotbar()
 
         const Block block = m_Hotbar.GetBlock(i);
         if (block != Block::k_Air) {
-            DrawBlockIcon(block, position + glm::vec2(k_IconInset), iconSize);
+            DrawBlockIcon(block, position + iconOffset, iconSize);
         }
 
         if (i == m_Hotbar.GetSelected()) {
@@ -119,78 +123,34 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
         };
     };
 
-    // Cross plants aren't cubes: draw their tile as a flat sprite filling the
-    // icon box, the way Minecraft shows foliage in the inventory. Grass and ferns
-    // take the plains grass tint; the dead bush keeps its own brown.
-    if (IsPlant(block)) {
-        constexpr glm::vec4 k_GrassColor = glm::vec4(0.569f, 0.741f, 0.349f, 1.0f);
-        const glm::vec4 k_GrassTint = block == Block::k_DeadBush ? glm::vec4(1.0f) : k_GrassColor;
-        const glm::vec2 topLeft(position.x, position.y);
-        const glm::vec2 topRight(position.x + size.x, position.y);
-        const glm::vec2 bottomRight(position.x + size.x, position.y + size.y);
-        const glm::vec2 bottomLeft(position.x, position.y + size.y);
-        m_Renderer.DrawQuad(
-            { topLeft, topRight, bottomRight, bottomLeft }, tileUVs(atlas.side), m_BlockTexture, k_GrassTint);
-        return;
-    }
+    // Every block draws as a flat sprite of its side tile filling the icon box.
+    // The side reads best across the set (grass keeps its fringe, the log shows
+    // bark rather than end-rings), and it matches how the foliage already looks.
+    const std::array<glm::vec2, 4> corners = {
+        glm::vec2(position.x, position.y),
+        glm::vec2(position.x + size.x, position.y),
+        glm::vec2(position.x + size.x, position.y + size.y),
+        glm::vec2(position.x, position.y + size.y)
+    };
 
-    // Isometric cube proportions: width 2, a 2:1 top diamond, and tall front
-    // faces so the block reads as a cube instead of a flat slab. Scaled to fit
-    // the icon box and centred.
-    constexpr float k_HalfWidth = 1.0f;
-    constexpr float k_DiamondHalf = 0.5f; // half-height of the top diamond
-    constexpr float k_SideHeight = 1.25f; // front-face height
-
-    constexpr float k_NatWidth = 2.0f * k_HalfWidth;
-    constexpr float k_NatHeight = 2.0f * k_DiamondHalf + k_SideHeight;
-    const float scale = glm::min(size.x / k_NatWidth, size.y / k_NatHeight);
-
-    const float w = k_HalfWidth * scale; // half width
-    const float t = k_DiamondHalf * scale; // top diamond half height
-    const float h = k_SideHeight * scale; // side face height
-
-    const float cx = position.x + size.x * 0.5f;
-    const float boxTop = position.y + (size.y - k_NatHeight * scale) * 0.5f;
-    const float midY = boxTop + t; // vertical centre of the top diamond
-
-    const glm::vec2 top(cx, boxTop);
-    const glm::vec2 right(cx + w, midY);
-    const glm::vec2 front(cx, midY + t);
-    const glm::vec2 left(cx - w, midY);
-    const glm::vec2 frontBottom(cx, midY + t + h);
-    const glm::vec2 leftBottom(cx - w, midY + h);
-    const glm::vec2 rightBottom(cx + w, midY + h);
-
-    // Shade faces like Minecraft: bright top, light from the upper-left so the
-    // left face is brighter than the right.
-    constexpr glm::vec4 k_TopTint = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    constexpr glm::vec4 k_LeftTint = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f);
-    constexpr glm::vec4 k_RightTint = glm::vec4(0.6f, 0.6f, 0.6f, 1.0f);
-
-    // Grass top and side fringe are grayscale in the atlas; tint them with a
-    // representative plains grass colour so the icon reads green like in world.
-    const bool grass = block == Block::k_Grass;
+    // Representative plains tints for the grayscale grass and leaf tiles.
     constexpr glm::vec4 k_GrassColor = glm::vec4(0.569f, 0.741f, 0.349f, 1.0f);
-    const glm::vec4 topTint = grass ? k_TopTint * k_GrassColor : k_TopTint;
-
-    // Leaves are grayscale on every face, so tint the whole icon (all three
-    // faces) with the plains leaf colour, matching the in-world foliage.
-    const bool leaves = block == Block::k_OakLeaves;
     constexpr glm::vec4 k_LeafColor = glm::vec4(0.471f, 0.671f, 0.302f, 1.0f);
-    const glm::vec4 foliage = leaves ? k_LeafColor : glm::vec4(1.0f);
 
-    m_Renderer.DrawQuad(
-        { top, right, front, left }, tileUVs(atlas.top), m_BlockTexture, topTint * foliage);
-    m_Renderer.DrawQuad(
-        { left, front, frontBottom, leftBottom }, tileUVs(atlas.side), m_BlockTexture, k_LeftTint * foliage);
-    m_Renderer.DrawQuad(
-        { front, right, rightBottom, frontBottom }, tileUVs(atlas.side), m_BlockTexture, k_RightTint * foliage);
+    // Leaves, grass tufts, and ferns are grayscale and get tinted; the grass
+    // block's side base is plain dirt (untinted) with its fringe added below.
+    glm::vec4 tint = glm::vec4(1.0f);
+    if (block == Block::k_OakLeaves) {
+        tint = k_LeafColor;
+    } else if (block == Block::k_ShortGrass || block == Block::k_Fern) {
+        tint = k_GrassColor;
+    }
+    m_Renderer.DrawQuad(corners, tileUVs(atlas.side), m_BlockTexture, tint);
 
-    if (grass) {
-        m_Renderer.DrawQuad(
-            { left, front, frontBottom, leftBottom }, tileUVs(atlas.sideOverlay), m_BlockTexture, k_LeftTint * k_GrassColor);
-        m_Renderer.DrawQuad(
-            { front, right, rightBottom, frontBottom }, tileUVs(atlas.sideOverlay), m_BlockTexture, k_RightTint * k_GrassColor);
+    // The grass block's side is dirt with a biome-tinted fringe layered over it,
+    // so draw that fringe on top to read green like the in-world block.
+    if (block == Block::k_Grass) {
+        m_Renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), m_BlockTexture, k_GrassColor);
     }
 }
 

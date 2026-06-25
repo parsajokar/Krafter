@@ -413,9 +413,28 @@ void StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
 }
 
 // Fraction of plains grass columns that sprout grass/ferns, and the (much
-// sparser) fraction of desert sand columns that sprout a dead bush.
+// sparser) fractions of desert sand columns that grow a cactus or a dead bush.
 constexpr float k_GrassPlantChance = 0.2f;
+constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
+// Tallest a cactus column grows.
+constexpr int32_t k_MaxCactusHeight = 3;
+
+// The deterministic per-column cactus roll, before adjacency rules. A column and
+// its neighbours both consult this (across chunk borders, since it reads only
+// noise) so they agree on where cacti want to grow and can keep clear of one
+// another.
+bool ColumnRollsCactus(int32_t worldX, int32_t worldZ)
+{
+    if (Biome::At((float)worldX, (float)worldZ) != BiomeType::k_Desert) {
+        return false;
+    }
+    const int32_t ground = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+    if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(worldX, worldZ)) {
+        return false;
+    }
+    return Hash01(worldX, worldZ, 300u) < k_CactusChance;
+}
 
 // Scatters cross-shaped plants over the chunk's own surface: grass tufts and
 // ferns on plains grass, dead bushes on desert sand. Each plant lives in a
@@ -458,8 +477,32 @@ void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
                 const Block plant = Hash01(worldX, worldZ, 301u) < 0.2f ? Block::k_Fern : Block::k_ShortGrass;
                 chunk.SetBlock(glm::ivec3(x, py, z), plant);
             } else if (surface == Block::k_Sand && biome == BiomeType::k_Desert) {
-                // Dead bushes dot the dunes.
-                if (roll < k_DeadBushChance) {
+                // Cactus columns and dead bushes dot the dunes.
+                if (roll < k_CactusChance) {
+                    // A cactus needs air on all four sides: no neighbouring cactus
+                    // and no terrain rising to its base, so it never touches
+                    // another block (matching the placement rule).
+                    constexpr int32_t sideX[] = { 1, -1, 0, 0 };
+                    constexpr int32_t sideZ[] = { 0, 0, 1, -1 };
+                    bool clear = true;
+                    for (int32_t i = 0; i < 4 && clear; i++) {
+                        const int32_t ax = worldX + sideX[i];
+                        const int32_t az = worldZ + sideZ[i];
+                        if (ColumnRollsCactus(ax, az) || Biome::SurfaceHeight((float)ax, (float)az) >= py) {
+                            clear = false;
+                        }
+                    }
+                    if (clear) {
+                        const int32_t height = 1 + static_cast<int32_t>(Hash(worldX, worldZ, 302u) % k_MaxCactusHeight);
+                        for (int32_t h = 0; h < height; h++) {
+                            const int32_t cy = py + h;
+                            if (cy >= Chunk::k_Height || chunk.GetBlock(glm::ivec3(x, cy, z)) != Block::k_Air) {
+                                break;
+                            }
+                            chunk.SetBlock(glm::ivec3(x, cy, z), Block::k_Cactus);
+                        }
+                    }
+                } else if (roll < k_CactusChance + k_DeadBushChance) {
                     chunk.SetBlock(glm::ivec3(x, py, z), Block::k_DeadBush);
                 }
             }

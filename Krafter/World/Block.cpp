@@ -61,6 +61,14 @@ void BlockAtlas::LoadAtlases()
     s_BlockAtlases[Block::k_DeadBush] = {
         .side = glm::vec2(5.0f / 16.0f, 2.0f / 16.0f)
     };
+
+    // Cactus is a cube with distinct top, side, and bottom tiles. The mesher
+    // insets its side faces so the top and bottom overhang, as in Minecraft.
+    s_BlockAtlases[Block::k_Cactus] = {
+        .top = glm::vec2(4.0f / 16.0f, 1.0f / 16.0f),
+        .side = glm::vec2(5.0f / 16.0f, 1.0f / 16.0f),
+        .bottom = glm::vec2(3.0f / 16.0f, 1.0f / 16.0f)
+    };
 }
 
 const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)

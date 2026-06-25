@@ -16,7 +16,8 @@ enum class Block {
     k_OakLeaves,
     k_ShortGrass,
     k_Fern,
-    k_DeadBush
+    k_DeadBush,
+    k_Cactus
 };
 
 // Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
@@ -47,10 +48,10 @@ inline bool IsTargetable(Block block)
 // Foliage with see-through texels (leaves, cactus). It still counts as opaque
 // for targeting and lighting, but its holes mean it never fully hides a
 // neighbour's face, so the mesher keeps those faces (e.g. the dirt beneath a
-// leaf block) instead of culling them and leaving a hole.
+// leaf block, or the sand a cactus stands on) instead of culling them.
 inline bool IsCutout(Block block)
 {
-    return block == Block::k_OakLeaves;
+    return block == Block::k_OakLeaves || block == Block::k_Cactus;
 }
 
 enum class BlockFace {

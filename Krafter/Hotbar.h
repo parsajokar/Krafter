@@ -39,7 +39,7 @@ private:
     // Unspecified slots default to k_Air (empty).
     std::array<Block, k_SlotCount> m_Slots = { Block::k_Grass, Block::k_Sand,
         Block::k_OakLog, Block::k_OakLeaves, Block::k_ShortGrass, Block::k_Fern,
-        Block::k_DeadBush };
+        Block::k_DeadBush, Block::k_Cactus };
 };
 
 } // namespace Krafter

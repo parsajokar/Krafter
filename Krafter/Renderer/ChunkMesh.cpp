@@ -103,10 +103,13 @@ ChunkMeshData ChunkMesh::Compute(
         return target ? target->GetBlock(query) : Block::k_Air;
     };
 
-    // Only opaque blocks occlude and cast ambient occlusion; air and water let
-    // their neighbours' faces through.
+    // Ambient occlusion and smooth lighting share the sky-light pass's notion of
+    // a solid occluder: a full opaque cube. Air, water, and cutout foliage (leaves
+    // and cactus) let their neighbours' faces through, so a cactus doesn't shade
+    // the sand it stands on the way a real block would.
     auto isSolid = [&](const glm::ivec3& cell) -> bool {
-        return IsOpaque(blockAt(cell));
+        const Block block = blockAt(cell);
+        return IsOpaque(block) && !IsCutout(block);
     };
 
     // Whether `neighbor` fully covers the shared face of `self`, letting us cull
@@ -118,6 +121,11 @@ ChunkMeshData ChunkMesh::Compute(
     // culled against it rather than z-fighting the coplanar leaf face. Water
     // otherwise only culls against more water, so water-vs-air surfaces show.
     auto hidesFace = [](Block self, Block neighbor) -> bool {
+        // Stacked cactus culls its shared cap/base faces against itself, so the
+        // coplanar segment boundary doesn't draw two z-fighting faces.
+        if (self == Block::k_Cactus && neighbor == Block::k_Cactus) {
+            return true;
+        }
         if (IsCutout(neighbor)) {
             return !IsOpaque(self);
         }
@@ -448,6 +456,15 @@ void ChunkMesh::AddFaceToData(
     std::array<glm::vec3, 4> positionList = {
         quad.origin, quad.origin + quad.dx, quad.origin + quad.dx + quad.dy, quad.origin + quad.dy
     };
+
+    // Cactus pulls its four side faces inward by 1/16 (the top and bottom stay
+    // full), so the cap and base overhang the stem like Minecraft's model.
+    if (block == Block::k_Cactus && face != BlockFace::k_Top && face != BlockFace::k_Bottom) {
+        const glm::vec3 inset = quad.normal * (1.0f / 16.0f);
+        for (glm::vec3& vertex : positionList) {
+            vertex -= inset;
+        }
+    }
 
     // Drop only the vertices on the block's top edge, so the top face lowers and
     // the side faces shrink to meet it while the bottom stays put.

@@ -87,6 +87,10 @@ private:
 
     void DrainResults();
 
+    // Breaks the cactus at a cell and every cactus stacked above it. Used when a
+    // newly placed block ends up beside a cactus, which snaps it off.
+    void BreakCactusColumn(const glm::ivec3& worldPosition);
+
     // Resets a chunk back to the terrain stage so the lighting and meshing
     // passes recompute it on the next update.
     void InvalidateChunk(const glm::ivec2& chunkPosition);
