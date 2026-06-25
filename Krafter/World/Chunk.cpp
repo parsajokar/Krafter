@@ -412,6 +412,61 @@ void StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
     }
 }
 
+// Fraction of plains grass columns that sprout grass/ferns, and the (much
+// sparser) fraction of desert sand columns that sprout a dead bush.
+constexpr float k_GrassPlantChance = 0.2f;
+constexpr float k_DeadBushChance = 0.02f;
+
+// Scatters cross-shaped plants over the chunk's own surface: grass tufts and
+// ferns on plains grass, dead bushes on desert sand. Each plant lives in a
+// single column, so unlike trees it never spills across a border and can be
+// stamped purely from this chunk's own blocks.
+void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
+{
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
+            const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
+
+            const BiomeType biome = Biome::At((float)worldX, (float)worldZ);
+            if (biome == BiomeType::k_Ocean) {
+                continue;
+            }
+            const int32_t ground = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(worldX, worldZ)) {
+                continue;
+            }
+
+            const int32_t py = ground + 1;
+            if (py >= Chunk::k_Height) {
+                continue;
+            }
+            // The cell above the surface must be clear (skip ponds and the columns
+            // already taken by a tree trunk or canopy).
+            if (chunk.GetBlock(glm::ivec3(x, py, z)) != Block::k_Air) {
+                continue;
+            }
+
+            const Block surface = chunk.GetBlock(glm::ivec3(x, ground, z));
+            const float roll = Hash01(worldX, worldZ, 300u);
+
+            if (surface == Block::k_Grass) {
+                // Mostly short grass with a sprinkling of ferns.
+                if (roll >= k_GrassPlantChance) {
+                    continue;
+                }
+                const Block plant = Hash01(worldX, worldZ, 301u) < 0.2f ? Block::k_Fern : Block::k_ShortGrass;
+                chunk.SetBlock(glm::ivec3(x, py, z), plant);
+            } else if (surface == Block::k_Sand && biome == BiomeType::k_Desert) {
+                // Dead bushes dot the dunes.
+                if (roll < k_DeadBushChance) {
+                    chunk.SetBlock(glm::ivec3(x, py, z), Block::k_DeadBush);
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
 Chunk::Chunk(const glm::ivec2& position)
@@ -461,6 +516,10 @@ Chunk::Chunk(const glm::ivec2& position)
     for (const Tree& tree : trees) {
         StampTree(*this, m_Position, tree);
     }
+
+    // Finally, dust the plains grass with low foliage, after trees so it can
+    // avoid the columns their trunks and canopies occupy.
+    ScatterPlants(*this, m_Position);
 }
 
 Chunk::Chunk(const Chunk& other)

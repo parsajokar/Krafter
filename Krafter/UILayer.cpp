@@ -119,6 +119,21 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
         };
     };
 
+    // Cross plants aren't cubes: draw their tile as a flat sprite filling the
+    // icon box, the way Minecraft shows foliage in the inventory. Grass and ferns
+    // take the plains grass tint; the dead bush keeps its own brown.
+    if (IsPlant(block)) {
+        constexpr glm::vec4 k_GrassColor = glm::vec4(0.569f, 0.741f, 0.349f, 1.0f);
+        const glm::vec4 k_GrassTint = block == Block::k_DeadBush ? glm::vec4(1.0f) : k_GrassColor;
+        const glm::vec2 topLeft(position.x, position.y);
+        const glm::vec2 topRight(position.x + size.x, position.y);
+        const glm::vec2 bottomRight(position.x + size.x, position.y + size.y);
+        const glm::vec2 bottomLeft(position.x, position.y + size.y);
+        m_Renderer.DrawQuad(
+            { topLeft, topRight, bottomRight, bottomLeft }, tileUVs(atlas.side), m_BlockTexture, k_GrassTint);
+        return;
+    }
+
     // Isometric cube proportions: width 2, a 2:1 top diamond, and tall front
     // faces so the block reads as a cube instead of a flat slab. Scaled to fit
     // the icon box and centred.

@@ -52,7 +52,10 @@ void Player::OnEvent(Event& event)
             } else {
                 const Block block = m_Hotbar.GetSelectedBlock();
                 if (block != Block::k_Air) {
-                    m_World.SetBlock(before, block);
+                    // Replaceable foliage is overwritten in place; everything else
+                    // is placed against the targeted face.
+                    const glm::ivec3 target = IsPlant(m_World.GetBlock(hit)) ? hit : before;
+                    m_World.PlaceBlock(target, block);
                 }
             }
         }

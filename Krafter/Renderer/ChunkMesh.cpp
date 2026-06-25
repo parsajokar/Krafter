@@ -197,6 +197,28 @@ ChunkMeshData ChunkMesh::Compute(
                     continue;
                 }
 
+                glm::vec3 worldPos(
+                    chunkPosition.x * Chunk::k_Width + x,
+                    y,
+                    chunkPosition.y * Chunk::k_Width + z);
+
+                // Cross plants short-circuit the per-face cube path: they are two
+                // crossed billboards, lit flatly from their own cell's sky light
+                // (no AO, since they cast none). Grass and ferns are grayscale and
+                // biome-tinted; the dead bush keeps its own brown (untinted).
+                if (IsPlant(self)) {
+                    glm::vec3 tint(1.0f);
+                    if (self != Block::k_DeadBush) {
+                        const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
+                        const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
+                        tint = Biome::Get(Biome::At(worldX, worldZ)).grassColor;
+                    }
+                    const float light = skyLightOf(glm::ivec3(x, y, z));
+                    const glm::vec2 tile = BlockAtlas::GetAtlasOf(self).side;
+                    AddCrossToData(worldPos, tile, tint, light, data.cross.vertices, data.cross.elements);
+                    continue;
+                }
+
                 const bool transparent = self == Block::k_Water;
                 ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
 
@@ -243,11 +265,6 @@ ChunkMeshData ChunkMesh::Compute(
                         cornerLight(airCell, faceU[k], faceV[k], 1, 1),
                         cornerLight(airCell, faceU[k], faceV[k], -1, 1)
                     };
-
-                    glm::vec3 worldPos(
-                        chunkPosition.x * Chunk::k_Width + x,
-                        y,
-                        chunkPosition.y * Chunk::k_Width + z);
 
                     // Only the grass top is the tinted gray tile; the side base
                     // and bottom are plain dirt and stay untinted. Leaves are
@@ -332,18 +349,25 @@ void ChunkMesh::Release(Part& part)
 ChunkMesh::ChunkMesh(const ChunkMeshData& data)
 {
     Upload(m_Opaque, data.opaque);
+    Upload(m_Cross, data.cross);
     Upload(m_Transparent, data.transparent);
 }
 
 ChunkMesh::~ChunkMesh()
 {
     Release(m_Transparent);
+    Release(m_Cross);
     Release(m_Opaque);
 }
 
 void ChunkMesh::BindOpaque() const
 {
     glBindVertexArray(m_Opaque.vertexArray);
+}
+
+void ChunkMesh::BindCross() const
+{
+    glBindVertexArray(m_Cross.vertexArray);
 }
 
 void ChunkMesh::BindTransparent() const
@@ -457,6 +481,32 @@ void ChunkMesh::AddOverlayFace(
     const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
 
     AddFaceToData(positionList, uvCoordsList, quad.normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
+}
+
+void ChunkMesh::AddCrossToData(
+    const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light,
+    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
+{
+    // Flat lighting: every corner takes the cell's own sky light, and the normal
+    // points up so the plant catches sun like the ground it stands on. The cross
+    // pass disables back-face culling, so each plane shows from both sides.
+    const std::array<float, 4> vertexLight = { light, light, light, light };
+    const glm::vec3 normal(0.0f, 1.0f, 0.0f);
+    const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
+
+    // Two diagonal planes, each wound origin -> +dx -> +dx+dy -> +dy so the V
+    // axis runs bottom-to-top (matching the cube faces, so the tile is upright).
+    const std::array<glm::vec3, 4> plane1 = {
+        position + glm::vec3(0, 0, 0), position + glm::vec3(1, 0, 1),
+        position + glm::vec3(1, 1, 1), position + glm::vec3(0, 1, 0)
+    };
+    AddFaceToData(plane1, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
+
+    const std::array<glm::vec3, 4> plane2 = {
+        position + glm::vec3(1, 0, 0), position + glm::vec3(0, 0, 1),
+        position + glm::vec3(0, 1, 1), position + glm::vec3(1, 1, 0)
+    };
+    AddFaceToData(plane2, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
 }
 
 } // namespace Krafter

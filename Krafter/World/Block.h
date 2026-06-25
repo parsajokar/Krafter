@@ -13,14 +13,35 @@ enum class Block {
     k_Sand,
     k_Water,
     k_OakLog,
-    k_OakLeaves
+    k_OakLeaves,
+    k_ShortGrass,
+    k_Fern,
+    k_DeadBush
 };
 
-// Air and water do not hide the faces of blocks behind them, so neighbouring
-// solids still mesh their touching faces (you can see the seabed through water).
+// Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
+// billboards instead of a cube. It has no collision, lets light through, and
+// never hides a neighbour's face.
+inline bool IsPlant(Block block)
+{
+    return block == Block::k_ShortGrass || block == Block::k_Fern
+        || block == Block::k_DeadBush;
+}
+
+// Air, water, and cross plants do not hide the faces of blocks behind them, so
+// neighbouring solids still mesh their touching faces (you can see the seabed
+// through water, and the dirt beneath a grass tuft still draws its top).
 inline bool IsOpaque(Block block)
 {
-    return block != Block::k_Air && block != Block::k_Water;
+    return block != Block::k_Air && block != Block::k_Water && !IsPlant(block);
+}
+
+// Blocks a raycast can target for breaking/placing: solid blocks plus the
+// pass-through plants (so a grass tuft can be clicked away even though it
+// neither collides nor occludes).
+inline bool IsTargetable(Block block)
+{
+    return IsOpaque(block) || IsPlant(block);
 }
 
 // Foliage with see-through texels (leaves, cactus). It still counts as opaque

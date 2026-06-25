@@ -113,6 +113,15 @@ void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, con
     }
     renderer.SetCullFace(false);
 
+    // Cross plants next: cutout (the shader discards clear texels) and still
+    // depth-writing like opaque geometry, but drawn double-sided so both faces of
+    // each billboard show, so culling stays off.
+    for (const auto& [position, record] : m_Chunks) {
+        if (record.mesh) {
+            renderer.RenderChunkCross(*record.mesh, viewProjection, sky);
+        }
+    }
+
     // Then water: it blends over what is already there and must not occlude
     // other water behind it, so blending is on and depth writes are disabled.
     renderer.SetBlend(true);
@@ -176,13 +185,42 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
         }
     }
 
-    it->second.chunk->SetBlock(ToLocalPosition(worldPosition), block);
+    Chunk& chunk = *it->second.chunk;
+    chunk.SetBlock(ToLocalPosition(worldPosition), block);
+
+    // A plant resting on the block we just changed loses its footing when that
+    // block stops being solid ground, so break it (its cell is always in this
+    // same column, hence this same chunk).
+    const glm::ivec3 above(worldPosition.x, worldPosition.y + 1, worldPosition.z);
+    if (above.y < Chunk::k_Height) {
+        const glm::ivec3 local = ToLocalPosition(above);
+        if (IsPlant(chunk.GetBlock(local)) && !IsOpaque(block)) {
+            chunk.SetBlock(local, Block::k_Air);
+        }
+    }
 
     for (int32_t dz = -1; dz <= 1; dz++) {
         for (int32_t dx = -1; dx <= 1; dx++) {
             InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
         }
     }
+}
+
+void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
+{
+    if (block == Block::k_Air) {
+        return;
+    }
+
+    if (IsPlant(block)) {
+        // Foliage only sits on solid ground and needs an empty cell to fill.
+        const glm::ivec3 below(worldPosition.x, worldPosition.y - 1, worldPosition.z);
+        if (below.y < 0 || !IsOpaque(GetBlock(below)) || GetBlock(worldPosition) != Block::k_Air) {
+            return;
+        }
+    }
+
+    SetBlock(worldPosition, block);
 }
 
 bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit, glm::ivec3& outBefore) const
@@ -213,8 +251,8 @@ bool World::RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, fl
     float t = 0.0f;
     glm::ivec3 previous = block;
     while (t <= maxDistance) {
-        // The ray passes through water (and air); only solid blocks are targetable.
-        if (IsOpaque(GetBlock(block))) {
+        // The ray passes through water and air; solids and plants are targetable.
+        if (IsTargetable(GetBlock(block))) {
             outHit = block;
             outBefore = previous;
             return true;

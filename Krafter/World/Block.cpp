@@ -47,6 +47,20 @@ void BlockAtlas::LoadAtlases()
         .side = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f),
         .bottom = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f)
     };
+
+    // Cross plants store their single tile in `side`. Fern and short grass are
+    // grayscale and biome-tinted like grass; the dead bush keeps its own brown.
+    s_BlockAtlases[Block::k_Fern] = {
+        .side = glm::vec2(3.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_ShortGrass] = {
+        .side = glm::vec2(4.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_DeadBush] = {
+        .side = glm::vec2(5.0f / 16.0f, 2.0f / 16.0f)
+    };
 }
 
 const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)

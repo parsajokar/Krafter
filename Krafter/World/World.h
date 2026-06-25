@@ -35,8 +35,14 @@ public:
     Block GetBlock(const glm::ivec3& worldPosition) const;
     void SetBlock(const glm::ivec3& worldPosition, Block block);
 
-    // Steps a ray through the voxel grid and reports the first solid block hit.
-    // outBefore is the empty cell just before the hit, where a block is placed.
+    // Places a held block, applying plant rules: foliage needs solid ground
+    // below, and tall grass also claims the cell above for its upper half.
+    // Invalid placements (no support, no room) are simply ignored.
+    void PlaceBlock(const glm::ivec3& worldPosition, Block block);
+
+    // Steps a ray through the voxel grid and reports the first targetable block
+    // hit (solids and plants). outBefore is the empty cell just before the hit,
+    // where a block is placed.
     bool RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit, glm::ivec3& outBefore) const;
 
 private:

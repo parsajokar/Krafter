@@ -26,6 +26,7 @@ public:
     WorldRenderer& operator=(const WorldRenderer&) = delete;
 
     void RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderChunkCross(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void SetDepthMask(bool enabled);
     void SetBlend(bool enabled);

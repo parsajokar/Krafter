@@ -43,6 +43,18 @@ void WorldRenderer::RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat
     glDrawElements(GL_TRIANGLES, chunkMesh.GetOpaqueElementCount(), GL_UNSIGNED_INT, nullptr);
 }
 
+void WorldRenderer::RenderChunkCross(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+{
+    if (chunkMesh.GetCrossElementCount() == 0) {
+        return;
+    }
+    BindChunkProgram(viewProjection, sky);
+    m_Program->SetUniformFloat(5, 1.0f);
+    m_Program->SetUniformFloat(6, 0.0f);
+    chunkMesh.BindCross();
+    glDrawElements(GL_TRIANGLES, chunkMesh.GetCrossElementCount(), GL_UNSIGNED_INT, nullptr);
+}
+
 void WorldRenderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
 {
     if (chunkMesh.GetTransparentElementCount() == 0) {

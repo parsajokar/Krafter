@@ -17,10 +17,12 @@ struct ChunkMeshBuffer {
     std::vector<uint32_t> elements;
 };
 
-// Opaque geometry is drawn first; transparent geometry (water) is drawn in a
-// second pass so it blends over what is behind it.
+// Opaque geometry is drawn first; cross-shaped plants follow in a cutout pass
+// (double-sided, depth-writing); transparent water is last so it blends over
+// what is behind it.
 struct ChunkMeshData {
     ChunkMeshBuffer opaque;
+    ChunkMeshBuffer cross;
     ChunkMeshBuffer transparent;
 };
 
@@ -44,12 +46,18 @@ public:
         return m_Opaque.elementCount;
     }
 
+    inline uint32_t GetCrossElementCount() const
+    {
+        return m_Cross.elementCount;
+    }
+
     inline uint32_t GetTransparentElementCount() const
     {
         return m_Transparent.elementCount;
     }
 
     void BindOpaque() const;
+    void BindCross() const;
     void BindTransparent() const;
 
 private:
@@ -83,7 +91,14 @@ private:
         const std::array<float, 4>& vertexLight,
         std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
 
+    // Two crossed billboards filling the cell corner-to-corner, used for plants.
+    // Lit flatly from the cell's own sky light and drawn double-sided.
+    static void AddCrossToData(
+        const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light,
+        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
+
     Part m_Opaque;
+    Part m_Cross;
     Part m_Transparent;
 };
 
