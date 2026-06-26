@@ -72,7 +72,10 @@ target_sources(
     Krafter/UILayer.cpp
     Krafter/MainMenuLayer.h
     Krafter/MainMenuLayer.cpp
+    Krafter/PauseMenuLayer.h
+    Krafter/PauseMenuLayer.cpp
     Krafter/Hotbar.h
+    Krafter/GameMode.h
     Krafter/Game.h
     Krafter/Game.cpp
     Krafter/Camera.h

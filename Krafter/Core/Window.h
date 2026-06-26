@@ -16,6 +16,7 @@ enum class Key : int {
     k_Escape = 256,
     k_Enter = 257,
     k_Backspace = 259,
+    k_F3 = 292,
     k_F11 = 300,
     k_Space = 32,
     k_W = 87,

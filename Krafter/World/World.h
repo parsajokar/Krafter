@@ -38,6 +38,11 @@ public:
     Block GetBlock(const glm::ivec3& worldPosition) const;
     void SetBlock(const glm::ivec3& worldPosition, Block block);
 
+    // Whether the chunk column at this world position has its terrain generated.
+    // Survival physics check this before applying gravity so the player rests in
+    // mid-air over still-loading terrain instead of falling through into the void.
+    bool IsChunkLoaded(const glm::vec3& worldPosition) const;
+
     // Places a held block, applying plant rules: foliage needs solid ground
     // below, and tall grass also claims the cell above for its upper half.
     // Invalid placements (no support, no room) are simply ignored.

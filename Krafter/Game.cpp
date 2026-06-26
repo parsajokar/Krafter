@@ -1,5 +1,6 @@
 #include "Krafter/Game.h"
 #include "Krafter/MainMenuLayer.h"
+#include "Krafter/PauseMenuLayer.h"
 #include "Krafter/UILayer.h"
 #include "Krafter/WorldLayer.h"
 
@@ -8,23 +9,24 @@ namespace Krafter {
 GameApplication::GameApplication(const ApplicationSpecification& specification)
     : Application(specification)
 {
-    // Start on the main menu alone; the world is not built until "Play!".
-    m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed) { StartGame(seed); });
+    // Start on the main menu alone; the world is not built until a play mode is
+    // chosen ("Survive" or "Spectate").
+    m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
     PushOverlay(m_MainMenu);
 }
 
-void GameApplication::StartGame(int32_t seed)
+void GameApplication::StartGame(int32_t seed, GameMode mode)
 {
     // Defer the layer swap: this runs from the menu's click handler, while the
     // layer stack is being iterated, so the world cannot be pushed in place.
-    QueueAfterFrame([this, seed]() {
+    QueueAfterFrame([this, seed, mode]() {
         // Ignore a duplicate trigger from the same frame: the menu is gone once
         // the first swap ran.
         if (m_MainMenu == nullptr) {
             return;
         }
 
-        m_World = new WorldLayer(GetWindow(), GetRenderer(), seed, [this]() { ReturnToMenu(); });
+        m_World = new WorldLayer(GetWindow(), GetRenderer(), seed, mode, [this]() { PauseGame(); });
         PushLayer(m_World);
 
         // The HUD shares the world's player hotbar. The overlay is pushed after
@@ -42,15 +44,58 @@ void GameApplication::StartGame(int32_t seed)
     });
 }
 
+void GameApplication::PauseGame()
+{
+    // Defer the layer push: this runs from the world layer's event handler while
+    // the stack is mid-iteration.
+    QueueAfterFrame([this]() {
+        // Ignore if there's no world, or the menu is already up (a repeat Escape).
+        if (m_World == nullptr || m_PauseMenu != nullptr) {
+            return;
+        }
+
+        m_World->Pause();
+        m_PauseMenu = new PauseMenuLayer(
+            GetWindow(),
+            [this]() { ResumeGame(); },
+            [this]() { ReturnToMenu(); });
+        PushOverlay(m_PauseMenu);
+    });
+}
+
+void GameApplication::ResumeGame()
+{
+    // Defer the layer removal: this runs from the pause menu's event handler while
+    // the stack is mid-iteration.
+    QueueAfterFrame([this]() {
+        if (m_PauseMenu == nullptr) {
+            return;
+        }
+
+        RemoveLayer(m_PauseMenu);
+        m_PauseMenu = nullptr;
+
+        if (m_World != nullptr) {
+            m_World->Resume();
+        }
+    });
+}
+
 void GameApplication::ReturnToMenu()
 {
-    // Defer the swap for the same reason as StartGame: this runs from the world
-    // layer's event handler while the stack is mid-iteration.
+    // Defer the swap for the same reason as StartGame: this runs from the pause
+    // menu's event handler while the stack is mid-iteration.
     QueueAfterFrame([this]() {
         // Ignore a duplicate trigger from the same frame: the world is gone once
         // the first swap ran.
         if (m_World == nullptr) {
             return;
+        }
+
+        // The pause menu sits on top; remove it first if it's still up.
+        if (m_PauseMenu != nullptr) {
+            RemoveLayer(m_PauseMenu);
+            m_PauseMenu = nullptr;
         }
 
         // Remove the HUD before the world: the HUD holds a reference into the
@@ -60,7 +105,7 @@ void GameApplication::ReturnToMenu()
         RemoveLayer(m_World);
         m_World = nullptr;
 
-        m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed) { StartGame(seed); });
+        m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
         PushOverlay(m_MainMenu);
     });
 }

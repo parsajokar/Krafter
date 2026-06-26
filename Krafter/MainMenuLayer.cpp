@@ -33,7 +33,7 @@ constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
 constexpr float k_SlotSpriteX = 15.0f;
 constexpr float k_OutlineSpriteX = 37.0f;
 
-MainMenuLayer::MainMenuLayer(Window& window, std::function<void(int32_t)> onPlay)
+MainMenuLayer::MainMenuLayer(Window& window, std::function<void(int32_t, GameMode)> onPlay)
     : Layer("MainMenu")
     , m_Window(window)
     , m_OnPlay(std::move(onPlay))
@@ -61,8 +61,10 @@ glm::vec4 MainMenuLayer::SeedRect() const
     // The title stacks above the field, then the Play and Exit buttons, each
     // separated by a gap; the whole group is centred in the window.
     const float titleHeight = m_Font.LineHeight(k_TitleScale);
-    const float groupHeight = titleHeight + k_Gap
-        + k_FieldSize.y + k_Gap + k_ButtonSize.y + k_Gap + k_ButtonSize.y;
+    // Title, seed field, then two button rows: Survive and Spectate share one row,
+    // with Exit on its own row below. Each element is separated by a gap.
+    const float groupHeight = titleHeight + k_Gap + k_FieldSize.y
+        + 2.0f * (k_Gap + k_ButtonSize.y);
     // Snap to the pixel grid so the stretched sprites and text stay crisp.
     const float top = glm::floor((windowSize.y - groupHeight) * 0.5f);
     const float fieldTop = top + titleHeight + k_Gap;
@@ -70,18 +72,28 @@ glm::vec4 MainMenuLayer::SeedRect() const
     return glm::vec4(x, fieldTop, k_FieldSize);
 }
 
-glm::vec4 MainMenuLayer::ButtonRect() const
+glm::vec4 MainMenuLayer::SurviveRect() const
 {
+    // Left half of the button row below the seed field. The two halves split the
+    // field's width with a gap between them, so the row lines up with the field.
     const glm::vec4 seed = SeedRect();
-    const glm::vec2 windowSize = glm::vec2(m_Window.GetSize());
-    const float x = glm::floor((windowSize.x - k_ButtonSize.x) * 0.5f);
-    return glm::vec4(x, seed.y + k_FieldSize.y + k_Gap, k_ButtonSize);
+    const float halfWidth = glm::floor((k_ButtonSize.x - k_Gap) * 0.5f);
+    return glm::vec4(seed.x, seed.y + k_FieldSize.y + k_Gap, halfWidth, k_ButtonSize.y);
+}
+
+glm::vec4 MainMenuLayer::SpectateRect() const
+{
+    // Right half of the same row, aligned to the field's right edge.
+    const glm::vec4 survive = SurviveRect();
+    const float x = survive.x + k_ButtonSize.x - survive.z;
+    return glm::vec4(x, survive.y, survive.z, survive.w);
 }
 
 glm::vec4 MainMenuLayer::ExitRect() const
 {
-    const glm::vec4 play = ButtonRect();
-    return glm::vec4(play.x, play.y + k_ButtonSize.y + k_Gap, k_ButtonSize);
+    // Full-width row beneath the Survive/Spectate row.
+    const glm::vec4 survive = SurviveRect();
+    return glm::vec4(survive.x, survive.y + k_ButtonSize.y + k_Gap, k_ButtonSize);
 }
 
 bool MainMenuLayer::Contains(const glm::vec4& rect, const glm::vec2& point)
@@ -156,7 +168,8 @@ void MainMenuLayer::OnRender()
         m_Renderer.ClearScissor();
     }
 
-    DrawButton(ButtonRect(), "Play!");
+    DrawButton(SurviveRect(), "Survive");
+    DrawButton(SpectateRect(), "Spectate");
     DrawButton(ExitRect(), "Exit");
 
     m_Renderer.End();
@@ -178,8 +191,10 @@ void MainMenuLayer::OnEvent(Event& event)
             // A click focuses the field, fires a button, or clears focus.
             if (Contains(SeedRect(), m_Cursor)) {
                 m_SeedFocused = true;
-            } else if (Contains(ButtonRect(), m_Cursor)) {
-                Play();
+            } else if (Contains(SurviveRect(), m_Cursor)) {
+                Play(GameMode::k_Survival);
+            } else if (Contains(SpectateRect(), m_Cursor)) {
+                Play(GameMode::k_Spectator);
             } else if (Contains(ExitRect(), m_Cursor)) {
                 m_Window.Close();
             } else {
@@ -200,7 +215,8 @@ void MainMenuLayer::OnEvent(Event& event)
         if (event.key == Key::k_Backspace && m_SeedFocused && !m_Seed.empty()) {
             m_Seed.pop_back();
         } else if (event.key == Key::k_Enter) {
-            Play();
+            // Enter is the quick path into the default mode, Survive.
+            Play(GameMode::k_Survival);
         }
         break;
 
@@ -236,10 +252,10 @@ int32_t MainMenuLayer::SeedFromText() const
     return static_cast<int32_t>(hash);
 }
 
-void MainMenuLayer::Play()
+void MainMenuLayer::Play(GameMode mode)
 {
     m_Active = false;
-    m_OnPlay(SeedFromText());
+    m_OnPlay(SeedFromText(), mode);
 }
 
 void MainMenuLayer::DrawButton(const glm::vec4& rect, std::string_view label)

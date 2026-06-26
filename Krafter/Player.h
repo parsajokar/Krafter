@@ -3,6 +3,7 @@
 #include "glm/glm.hpp"
 
 #include "Krafter/Camera.h"
+#include "Krafter/GameMode.h"
 #include "Krafter/Hotbar.h"
 
 namespace Krafter {
@@ -16,7 +17,7 @@ class World;
 // breaking/placing against the world).
 class Player {
 public:
-    Player(Window& window, World& world, const glm::vec3& position, float fov);
+    Player(Window& window, World& world, const glm::vec3& position, float fov, GameMode mode);
 
     void Update();
     void OnEvent(Event& event);
@@ -55,24 +56,78 @@ public:
     }
 
 private:
-    // Toggles between controlling the player and freeing the cursor for the UI.
-    void ToggleControl();
     void ApplyControlMode();
 
-    // Tracks whether the player is currently driving the camera. Starts false so
-    // the world opens behind the main menu with the cursor free.
+    // Per-frame movement for each mode. Spectator flies free along the look
+    // direction; survival walks the ground plane under gravity with collision.
+    void UpdateSpectator();
+    void UpdateSurvival();
+
+    // The inclusive block-cell bounds the body spans with its eye at `eye`.
+    void BodyCellBounds(const glm::vec3& eye, glm::ivec3& outLo, glm::ivec3& outHi) const;
+
+    // True if the player's body, placed with its eye at `eye`, overlaps any solid
+    // block. Drives the axis-separated collision resolution in survival mode.
+    bool CollidesAt(const glm::vec3& eye) const;
+
+    // True if `cell` lies within the player's body right now. Used to refuse a
+    // block placement that would seal the survival player inside it.
+    bool OccupiesCell(const glm::ivec3& cell) const;
+
+    // Places the held hotbar block against the block under the crosshair, applying
+    // the plant and self-trap rules. A no-op when nothing is targeted or the slot
+    // is empty. Driven by the right mouse button, including while it is held.
+    void PlaceTargetBlock();
 
     // How far the player can reach to break, place, or target a block.
     static constexpr float k_Reach = 8.0f;
+
+    // Survival body and physics tuning, in blocks and blocks/second. The eye sits
+    // k_EyeHeight above the feet; the body is a k_Width-wide, k_Height-tall box.
+    static constexpr float k_Width = 0.6f;
+    static constexpr float k_Height = 1.8f;
+    static constexpr float k_EyeHeight = 1.62f;
+    static constexpr float k_Gravity = 36.0f;
+    static constexpr float k_JumpSpeed = 9.0f;
+    static constexpr float k_TerminalSpeed = 60.0f;
+
+    // Default movement speed (blocks/second) for each mode, used to seed the
+    // adjustable m_Speed: brisk free-flight for spectator, a walk for survival.
+    static constexpr float k_DefaultFlySpeed = 50.0f;
+    static constexpr float k_DefaultWalkSpeed = 5.6f;
+
+    // Seconds between placements while the right mouse button is held.
+    static constexpr float k_PlaceInterval = 0.2f;
 
     Window& m_Window;
     World& m_World;
     Hotbar m_Hotbar;
     Camera m_Camera;
 
-    float m_Speed = 50.0f;
+    GameMode m_Mode;
+
+    // Movement speed in blocks/second, adjustable from the debug UI. Seeded in the
+    // constructor from the mode's default and used by both movement modes.
+    float m_Speed;
     float m_Sensitivity = 50.0f;
+
+    // Tracks whether the player is currently driving the camera. Starts false so
+    // the world opens behind the main menu with the cursor free.
     bool m_IsControlled = false;
+
+    // Survival vertical velocity and whether the body is resting on a block; only
+    // used in survival mode (spectator flies and ignores both).
+    float m_VerticalVelocity = 0.0f;
+    bool m_OnGround = false;
+
+    // Whether jump (space) is currently held, so holding it re-jumps on every
+    // landing instead of needing a fresh press each time.
+    bool m_JumpHeld = false;
+
+    // Whether the right mouse button is held, and the countdown to the next
+    // placement, so holding it keeps placing blocks on a fixed cadence.
+    bool m_PlaceHeld = false;
+    float m_PlaceCooldown = 0.0f;
 
     // Local move axes from held keys: x = strafe right, y = forward.
     glm::vec2 m_MoveInput = glm::vec2(0.0f);

@@ -158,6 +158,13 @@ Block World::GetBlock(const glm::ivec3& worldPosition) const
     return it->second.chunk->GetBlock(ToLocalPosition(worldPosition));
 }
 
+bool World::IsChunkLoaded(const glm::vec3& worldPosition) const
+{
+    const glm::ivec2 chunkPosition = ToChunkPosition(glm::ivec3(glm::floor(worldPosition)));
+    auto it = m_Chunks.find(chunkPosition);
+    return it != m_Chunks.end() && it->second.chunk != nullptr;
+}
+
 void World::SetBlock(const glm::ivec3& worldPosition, Block block)
 {
     if (worldPosition.y < 0 || worldPosition.y >= Chunk::k_Height) {

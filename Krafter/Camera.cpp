@@ -34,13 +34,24 @@ glm::vec3 Camera::GetDirection() const
         glm::sin(m_Yaw) * glm::cos(m_Pitch)));
 }
 
+void Camera::SetFieldOfView(float fov)
+{
+    m_FieldOfView = fov;
+    RecalculateProjection();
+}
+
 void Camera::SetViewportSize(int32_t width, int32_t height)
 {
     if (width > 0 && height > 0) {
-        float aspectRatio = (float)width / (float)height;
-        m_Projection = glm::perspective(m_FieldOfView, aspectRatio, 0.1f, 1000.0f);
-        RecalculateViewProjection();
+        m_AspectRatio = (float)width / (float)height;
+        RecalculateProjection();
     }
+}
+
+void Camera::RecalculateProjection()
+{
+    m_Projection = glm::perspective(m_FieldOfView, m_AspectRatio, 0.1f, 1000.0f);
+    RecalculateViewProjection();
 }
 
 void Camera::RecalculateViewProjection()

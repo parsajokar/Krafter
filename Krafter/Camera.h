@@ -33,6 +33,13 @@ public:
     // Normalized forward (look) direction derived from yaw/pitch.
     glm::vec3 GetDirection() const;
 
+    // Vertical field of view, in radians. Setting it rebuilds the projection.
+    void SetFieldOfView(float fov);
+    inline float GetFieldOfView() const
+    {
+        return m_FieldOfView;
+    }
+
     // Rebuilds the projection for a new viewport; degenerate sizes are ignored.
     void SetViewportSize(int32_t width, int32_t height);
 
@@ -42,12 +49,16 @@ public:
     }
 
 private:
+    void RecalculateProjection();
     void RecalculateViewProjection();
 
     glm::vec3 m_Position;
     float m_Yaw;
     float m_Pitch;
     float m_FieldOfView;
+
+    // Cached so the projection can be rebuilt when only the field of view changes.
+    float m_AspectRatio = 1.0f;
 
     glm::mat4 m_Projection = glm::mat4(1.0f);
     glm::mat4 m_ViewProjection = glm::mat4(1.0f);

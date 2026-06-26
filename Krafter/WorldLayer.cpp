@@ -2,6 +2,7 @@
 
 #include "imgui.h"
 
+#include "Krafter/Core/Application.h"
 #include "Krafter/Core/Event.h"
 #include "Krafter/Core/Renderer.h"
 #include "Krafter/Core/Window.h"
@@ -10,14 +11,21 @@
 
 namespace Krafter {
 
-WorldLayer::WorldLayer(Window& window, Renderer& renderer, int32_t seed, std::function<void()> onExitToMenu)
+WorldLayer::WorldLayer(Window& window, Renderer& renderer, int32_t seed, GameMode mode, std::function<void()> onPause)
     : Layer("World")
     , m_Window(window)
     , m_Renderer(renderer)
-    , m_OnExitToMenu(std::move(onExitToMenu))
+    , m_OnPause(std::move(onPause))
     , m_World(seed)
-    , m_Player(window, m_World, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f))
+    , m_Player(window, m_World, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f), mode)
 {
+}
+
+void WorldLayer::OnDetach()
+{
+    // The debug overlay belongs to the world; make sure it doesn't linger over the
+    // menu after leaving.
+    Application::Get().SetDebugUI(false);
 }
 
 void WorldLayer::OnUpdate()
@@ -42,8 +50,15 @@ void WorldLayer::OnRender()
 void WorldLayer::OnEvent(Event& event)
 {
     if (event.type == EventType::k_KeyPressed && event.key == Key::k_Escape && !event.isRepeat) {
-        // Leave the world and return to the main menu rather than quitting.
-        m_OnExitToMenu();
+        // Open the pause menu rather than quitting straight to the main menu.
+        m_OnPause();
+        event.handled = true;
+        return;
+    }
+
+    if (event.type == EventType::k_KeyPressed && event.key == Key::k_F3 && !event.isRepeat) {
+        // F3 toggles the debug overlay, as in Minecraft.
+        Application::Get().ToggleDebugUI();
         event.handled = true;
         return;
     }

@@ -81,9 +81,16 @@ void Application::Run()
             layer->Render();
         }
 
+        // Always run an ImGui frame so its input-capture state stays current, but
+        // only build the debug overlay (and let layers contribute to it) when it
+        // is toggled on. With no windows, ImGui captures nothing and draws nothing.
         BeginImGui();
-        for (Layer* layer : m_LayerStack) {
-            layer->RenderImGui();
+        if (m_ShowDebugUI) {
+            ImGui::Begin("Settings");
+            for (Layer* layer : m_LayerStack) {
+                layer->RenderImGui();
+            }
+            ImGui::End();
         }
         EndImGui();
 
@@ -147,14 +154,10 @@ void Application::BeginImGui()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    ImGui::Begin("Settings");
 }
 
 void Application::EndImGui()
 {
-    ImGui::End();
-
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }

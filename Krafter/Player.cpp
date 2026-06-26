@@ -8,10 +8,12 @@
 
 namespace Krafter {
 
-Player::Player(Window& window, World& world, const glm::vec3& position, float fov)
+Player::Player(Window& window, World& world, const glm::vec3& position, float fov, GameMode mode)
     : m_Window(window)
     , m_World(world)
     , m_Camera(position, fov)
+    , m_Mode(mode)
+    , m_Speed(mode == GameMode::k_Survival ? k_DefaultWalkSpeed : k_DefaultFlySpeed)
 {
     const glm::ivec2& size = m_Window.GetSize();
     m_Camera.SetViewportSize(size.x, size.y);
@@ -21,15 +23,11 @@ Player::Player(Window& window, World& world, const glm::vec3& position, float fo
 void Player::Update()
 {
     if (m_IsControlled) {
-        float delta = m_Window.GetDelta();
-
-        glm::vec3 direction = m_Camera.GetDirection();
-        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 right = glm::normalize(glm::cross(direction, up));
-
-        glm::vec3 position = m_Camera.GetPosition()
-            + (right * m_MoveInput.x + direction * m_MoveInput.y) * m_Speed * delta;
-        m_Camera.SetPosition(position);
+        if (m_Mode == GameMode::k_Survival) {
+            UpdateSurvival();
+        } else {
+            UpdateSpectator();
+        }
     }
 
     glm::ivec3 hit;
@@ -38,29 +36,184 @@ void Player::Update()
     if (m_HasTarget) {
         m_TargetBlock = hit;
     }
+
+    // Holding right click keeps placing on a fixed cadence; the first placement
+    // fired on the press, so this only handles the repeats.
+    if (m_IsControlled && m_PlaceHeld) {
+        m_PlaceCooldown -= m_Window.GetDelta();
+        if (m_PlaceCooldown <= 0.0f) {
+            PlaceTargetBlock();
+            m_PlaceCooldown = k_PlaceInterval;
+        }
+    }
+}
+
+void Player::UpdateSpectator()
+{
+    float delta = m_Window.GetDelta();
+
+    glm::vec3 direction = m_Camera.GetDirection();
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::normalize(glm::cross(direction, up));
+
+    glm::vec3 position = m_Camera.GetPosition()
+        + (right * m_MoveInput.x + direction * m_MoveInput.y) * m_Speed * delta;
+    m_Camera.SetPosition(position);
+}
+
+void Player::UpdateSurvival()
+{
+    glm::vec3 position = m_Camera.GetPosition();
+
+    // Hold the player in place until the terrain below has generated, so it
+    // doesn't fall through the not-yet-loaded world on first spawn.
+    if (!m_World.IsChunkLoaded(position)) {
+        m_VerticalVelocity = 0.0f;
+        return;
+    }
+
+    const float delta = m_Window.GetDelta();
+
+    // Walk along the ground plane: the look direction flattened to XZ, so looking
+    // up or down never lifts or sinks the player.
+    glm::vec3 direction = m_Camera.GetDirection();
+    glm::vec3 forward = glm::vec3(direction.x, 0.0f, direction.z);
+    if (glm::dot(forward, forward) > 0.0f) {
+        forward = glm::normalize(forward);
+    }
+    glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+    glm::vec3 wish = right * m_MoveInput.x + forward * m_MoveInput.y;
+    if (glm::dot(wish, wish) > 1.0f) {
+        wish = glm::normalize(wish);
+    }
+    const glm::vec3 horizontal = wish * m_Speed;
+
+    // Jump while grounded; holding the key re-jumps on each landing.
+    if (m_JumpHeld && m_OnGround) {
+        m_VerticalVelocity = k_JumpSpeed;
+        m_OnGround = false;
+    }
+
+    // Gravity, capped at a terminal speed so a long fall can't tunnel through the
+    // ground in a single step.
+    m_VerticalVelocity = glm::max(m_VerticalVelocity - k_Gravity * delta, -k_TerminalSpeed);
+
+    // Resolve each axis on its own so a wall stops only that axis and the player
+    // slides along it instead of sticking.
+    position.x += horizontal.x * delta;
+    if (CollidesAt(position)) {
+        position.x = m_Camera.GetPosition().x;
+    }
+
+    position.z += horizontal.z * delta;
+    if (CollidesAt(position)) {
+        position.z = m_Camera.GetPosition().z;
+    }
+
+    m_OnGround = false;
+    position.y += m_VerticalVelocity * delta;
+    if (CollidesAt(position)) {
+        position.y = m_Camera.GetPosition().y;
+        // Hitting something while falling means we've landed; while rising it's a
+        // ceiling. Either way the vertical motion stops.
+        m_OnGround = m_VerticalVelocity < 0.0f;
+        m_VerticalVelocity = 0.0f;
+    }
+
+    m_Camera.SetPosition(position);
+}
+
+void Player::BodyCellBounds(const glm::vec3& eye, glm::ivec3& outLo, glm::ivec3& outHi) const
+{
+    const float half = k_Width * 0.5f;
+    const glm::vec3 min = eye - glm::vec3(half, k_EyeHeight, half);
+    const glm::vec3 max = eye + glm::vec3(half, k_Height - k_EyeHeight, half);
+    outLo = glm::ivec3(glm::floor(min));
+    outHi = glm::ivec3(glm::floor(max));
+}
+
+bool Player::CollidesAt(const glm::vec3& eye) const
+{
+    glm::ivec3 lo;
+    glm::ivec3 hi;
+    BodyCellBounds(eye, lo, hi);
+
+    for (int32_t x = lo.x; x <= hi.x; x++) {
+        for (int32_t y = lo.y; y <= hi.y; y++) {
+            for (int32_t z = lo.z; z <= hi.z; z++) {
+                if (IsOpaque(m_World.GetBlock(glm::ivec3(x, y, z)))) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool Player::OccupiesCell(const glm::ivec3& cell) const
+{
+    glm::ivec3 lo;
+    glm::ivec3 hi;
+    BodyCellBounds(m_Camera.GetPosition(), lo, hi);
+
+    return cell.x >= lo.x && cell.x <= hi.x
+        && cell.y >= lo.y && cell.y <= hi.y
+        && cell.z >= lo.z && cell.z <= hi.z;
+}
+
+void Player::PlaceTargetBlock()
+{
+    glm::ivec3 hit;
+    glm::ivec3 before;
+    if (!m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before)) {
+        return;
+    }
+
+    const Block block = m_Hotbar.GetSelectedBlock();
+    if (block == Block::k_Air) {
+        return;
+    }
+
+    // Replaceable foliage is overwritten in place; everything else is placed
+    // against the targeted face.
+    const glm::ivec3 target = IsPlant(m_World.GetBlock(hit)) ? hit : before;
+
+    // In survival the body collides, so refuse a placement that would land inside
+    // the player and seal them in.
+    if (m_Mode == GameMode::k_Survival && OccupiesCell(target)) {
+        return;
+    }
+
+    m_World.PlaceBlock(target, block);
 }
 
 void Player::OnEvent(Event& event)
 {
-    if (event.type == EventType::k_MouseButtonPressed
-        && (event.button == MouseButton::k_Left || event.button == MouseButton::k_Right)) {
+    if (event.type == EventType::k_MouseButtonPressed && event.button == MouseButton::k_Left) {
         glm::ivec3 hit;
         glm::ivec3 before;
         if (m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before)) {
-            if (event.button == MouseButton::k_Left) {
-                m_World.SetBlock(hit, Block::k_Air);
-            } else {
-                const Block block = m_Hotbar.GetSelectedBlock();
-                if (block != Block::k_Air) {
-                    // Replaceable foliage is overwritten in place; everything else
-                    // is placed against the targeted face.
-                    const glm::ivec3 target = IsPlant(m_World.GetBlock(hit)) ? hit : before;
-                    m_World.PlaceBlock(target, block);
-                }
-            }
+            m_World.SetBlock(hit, Block::k_Air);
         }
         event.handled = true;
         return;
+    }
+
+    if (event.button == MouseButton::k_Right) {
+        if (event.type == EventType::k_MouseButtonPressed) {
+            // Place once now, then keep placing while the button stays held.
+            m_PlaceHeld = true;
+            m_PlaceCooldown = k_PlaceInterval;
+            PlaceTargetBlock();
+            event.handled = true;
+            return;
+        }
+        if (event.type == EventType::k_MouseButtonReleased) {
+            m_PlaceHeld = false;
+            event.handled = true;
+            return;
+        }
     }
 
     // Opposite keys cancel; auto-repeats are ignored so a held key counts once.
@@ -85,16 +238,24 @@ void Player::OnEvent(Event& event)
 
     switch (event.type) {
     case EventType::k_KeyPressed:
-        if (event.key == Key::k_Space && !event.isRepeat) {
-            ToggleControl();
-            event.handled = true;
+        if (event.key == Key::k_Space) {
+            // Survival jumps (hold to keep jumping on each landing); spectator
+            // flies freely and leaves space unbound.
+            if (m_Mode == GameMode::k_Survival) {
+                m_JumpHeld = true;
+                event.handled = true;
+            }
         } else if (!event.isRepeat) {
             applyMove(1.0f);
         }
         break;
 
     case EventType::k_KeyReleased:
-        applyMove(-1.0f);
+        if (event.key == Key::k_Space) {
+            m_JumpHeld = false;
+        } else {
+            applyMove(-1.0f);
+        }
         break;
 
     case EventType::k_MouseMoved: {
@@ -136,15 +297,15 @@ void Player::RenderImGui()
 {
     ImGui::SliderFloat("Movement Speed", &m_Speed, 1.0f, 100.0f);
     ImGui::SliderFloat("Mouse Sensitivity", &m_Sensitivity, 1.0f, 100.0f);
+
+    float fov = glm::degrees(m_Camera.GetFieldOfView());
+    if (ImGui::SliderFloat("Field of View", &fov, 30.0f, 110.0f)) {
+        m_Camera.SetFieldOfView(glm::radians(fov));
+    }
     ImGui::Text("Yaw: %.2f, Pitch: %.2f", glm::degrees(m_Camera.GetYaw()), glm::degrees(m_Camera.GetPitch()));
 
     const glm::vec3 position = m_Camera.GetPosition();
     ImGui::Text("Position: %.2f, %.2f, %.2f", position.x, position.y, position.z);
-}
-
-void Player::ToggleControl()
-{
-    SetControlled(!m_IsControlled);
 }
 
 void Player::SetControlled(bool controlled)
@@ -154,6 +315,9 @@ void Player::SetControlled(bool controlled)
 
     // Reset movement and rebaseline the look so toggling doesn't drift or snap.
     m_MoveInput = glm::vec2(0.0f);
+    m_VerticalVelocity = 0.0f;
+    m_JumpHeld = false;
+    m_PlaceHeld = false;
     m_FirstMouse = true;
 }
 

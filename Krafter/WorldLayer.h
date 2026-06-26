@@ -4,6 +4,7 @@
 #include <functional>
 
 #include "Krafter/Core/Layer.h"
+#include "Krafter/GameMode.h"
 #include "Krafter/Player.h"
 #include "Krafter/Renderer/WorldRenderer.h"
 #include "Krafter/World/Sky.h"
@@ -19,9 +20,10 @@ class Hotbar;
 // player, the sky, and the renderer that draws it).
 class WorldLayer : public Layer {
 public:
-    // `onExitToMenu` is invoked when the player leaves the world (Escape), so the
-    // application can tear this scene down and return to the main menu.
-    WorldLayer(Window& window, Renderer& renderer, int32_t seed, std::function<void()> onExitToMenu);
+    // `mode` picks the control scheme (survival physics or spectator flight).
+    // `onPause` is invoked when the player presses Escape, so the application can
+    // bring up the pause menu over this scene.
+    WorldLayer(Window& window, Renderer& renderer, int32_t seed, GameMode mode, std::function<void()> onPause);
 
     // The player's hotbar, exposed so the HUD overlay can share it without
     // depending on the player.
@@ -31,13 +33,25 @@ public:
     }
 
     // Hands control of the world to the player (mouse-look and movement). Called
-    // by the main menu when "Play!" is pressed.
+    // by the main menu when a play mode is chosen.
     void BeginPlay()
     {
         m_Player.SetControlled(true);
     }
 
+    // Freezes the player and frees the cursor while the pause menu is up; Resume
+    // hands control back. The owner pairs these with showing/hiding that menu.
+    void Pause()
+    {
+        m_Player.SetControlled(false);
+    }
+    void Resume()
+    {
+        m_Player.SetControlled(true);
+    }
+
 private:
+    void OnDetach() override;
     void OnUpdate() override;
     void OnRender() override;
     void OnEvent(Event& event) override;
@@ -46,7 +60,7 @@ private:
     Window& m_Window;
     Renderer& m_Renderer;
 
-    std::function<void()> m_OnExitToMenu;
+    std::function<void()> m_OnPause;
 
     Sky m_Sky;
     World m_World;

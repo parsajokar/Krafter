@@ -8,6 +8,7 @@
 #include "glm/glm.hpp"
 
 #include "Krafter/Core/Layer.h"
+#include "Krafter/GameMode.h"
 #include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
@@ -16,23 +17,25 @@ namespace Krafter {
 
 class Window;
 
-// The main menu, shown over the world on startup. A seed text field, a "Play!"
-// button (runs the supplied callback with the chosen seed and dismisses the
-// menu), and an "Exit" button that closes the window.
+// The main menu, shown over the world on startup. A seed text field, a "Survive"
+// and a "Spectate" button (each runs the supplied callback with the chosen seed
+// and game mode, then dismisses the menu), and an "Exit" button that closes the
+// window.
 class MainMenuLayer : public Layer {
 public:
-    MainMenuLayer(Window& window, std::function<void(int32_t)> onPlay);
+    MainMenuLayer(Window& window, std::function<void(int32_t, GameMode)> onPlay);
 
 private:
     void OnAttach() override;
     void OnRender() override;
     void OnEvent(Event& event) override;
 
-    // The seed field, Play button, and Exit button rectangles (xy = top-left,
-    // zw = size), stacked and centred in the window, recomputed each use so they
-    // track window resizes.
+    // The seed field, Survive button, Spectate button, and Exit button rectangles
+    // (xy = top-left, zw = size), stacked and centred in the window, recomputed
+    // each use so they track window resizes.
     glm::vec4 SeedRect() const;
-    glm::vec4 ButtonRect() const;
+    glm::vec4 SurviveRect() const;
+    glm::vec4 SpectateRect() const;
     glm::vec4 ExitRect() const;
     static bool Contains(const glm::vec4& rect, const glm::vec2& point);
 
@@ -40,8 +43,8 @@ private:
     // typed, any other text is hashed, and an empty field gets a time-based seed.
     int32_t SeedFromText() const;
 
-    // Dismisses the menu and starts the world with the current seed.
-    void Play();
+    // Dismisses the menu and starts the world with the current seed in `mode`.
+    void Play(GameMode mode);
 
     // Draws a button: the slot sprite stretched to the rect, a hover highlight,
     // and the label centred inside.
@@ -61,7 +64,7 @@ private:
         const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
 
     Window& m_Window;
-    std::function<void(int32_t)> m_OnPlay;
+    std::function<void(int32_t, GameMode)> m_OnPlay;
 
     UIRenderer m_Renderer;
     Texture2D m_UITexture;
