@@ -1,7 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "Krafter/Core/LayerStack.h"
 
@@ -27,6 +29,10 @@ public:
     void PushOverlay(Layer* layer);
 
 protected:
+    // Detaches, removes, and deletes a layer. Call only from outside the layer
+    // iteration (e.g. via QueueAfterFrame), never from a layer's own callback.
+    void RemoveLayer(Layer* layer);
+
     inline Window& GetWindow()
     {
         return *m_Window;
@@ -35,6 +41,11 @@ protected:
     {
         return *m_Renderer;
     }
+
+    // Runs `action` once, after the current frame finishes. Use this to mutate
+    // the layer stack (e.g. swapping scenes) from inside a layer's event or
+    // update, where the stack is mid-iteration and cannot be changed directly.
+    void QueueAfterFrame(std::function<void()> action);
 
 private:
     inline static Application* s_Application = nullptr;
@@ -55,6 +66,9 @@ private:
     std::unique_ptr<Renderer> m_Renderer;
 
     LayerStack m_LayerStack;
+
+    // Actions deferred from a layer callback, drained at the end of each frame.
+    std::vector<std::function<void()>> m_DeferredActions;
 
     friend int ::main(int argc, char** argv);
 };

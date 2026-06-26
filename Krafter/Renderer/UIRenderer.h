@@ -24,6 +24,12 @@ public:
     void Begin();
     void End();
 
+    // Clips subsequent draws to a pixel rectangle (top-left origin, like the rest
+    // of the UI). Used to keep overflowing text inside a field. Call ClearScissor
+    // to resume drawing to the whole screen.
+    void SetScissor(const glm::vec2& position, const glm::vec2& size);
+    void ClearScissor();
+
     void DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
     void DrawQuad(
         const glm::vec2& position, const glm::vec2& size, const Texture2D& texture,

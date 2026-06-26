@@ -64,10 +64,14 @@ target_sources(
     Krafter/Renderer/WorldRenderer.cpp
     Krafter/Renderer/UIRenderer.h
     Krafter/Renderer/UIRenderer.cpp
+    Krafter/Renderer/Font.h
+    Krafter/Renderer/Font.cpp
     Krafter/WorldLayer.h
     Krafter/WorldLayer.cpp
     Krafter/UILayer.h
     Krafter/UILayer.cpp
+    Krafter/MainMenuLayer.h
+    Krafter/MainMenuLayer.cpp
     Krafter/Hotbar.h
     Krafter/Game.h
     Krafter/Game.cpp

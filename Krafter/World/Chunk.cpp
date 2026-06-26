@@ -22,9 +22,15 @@ int32_t FloorDiv(int32_t a, int32_t b)
     return q;
 }
 
+// World seed mixed into every feature hash, so changing it reshuffles trees,
+// plants, and lakes. Set once via Chunk::SetSeed before generation begins; 0
+// reproduces the original fixed world.
+static uint32_t s_WorldSeed = 0;
+
 uint32_t Hash(int32_t x, int32_t z, uint32_t salt)
 {
-    uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(z) * 668265263u + salt * 2246822519u;
+    uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(z) * 668265263u
+        + salt * 2246822519u + s_WorldSeed * 3266489917u;
     h = (h ^ (h >> 13)) * 1274126177u;
     return h ^ (h >> 16);
 }
@@ -32,6 +38,12 @@ uint32_t Hash(int32_t x, int32_t z, uint32_t salt)
 float Hash01(int32_t x, int32_t z, uint32_t salt)
 {
     return Hash(x, z, salt) * (1.0f / 4294967296.0f);
+}
+
+// Lets Chunk::SetSeed (defined outside this anonymous namespace) reach the seed.
+void StoreWorldSeed(uint32_t seed)
+{
+    s_WorldSeed = seed;
 }
 
 constexpr int32_t k_LakeCellSize = 96;
@@ -665,6 +677,11 @@ void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
 }
 
 } // namespace
+
+void Chunk::SetSeed(uint32_t seed)
+{
+    StoreWorldSeed(seed);
+}
 
 Chunk::Chunk(const glm::ivec2& position)
     : m_Position(position)

@@ -14,6 +14,8 @@ using EventCallback = std::function<void(Event&)>;
 
 enum class Key : int {
     k_Escape = 256,
+    k_Enter = 257,
+    k_Backspace = 259,
     k_F11 = 300,
     k_Space = 32,
     k_W = 87,
@@ -78,6 +80,7 @@ public:
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void CharCallback(GLFWwindow* window, unsigned int codepoint);
     static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void CursorPositionCallback(GLFWwindow* window, double x, double y);
     static void ScrollCallback(GLFWwindow* window, double x, double y);

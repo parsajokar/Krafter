@@ -16,7 +16,9 @@ enum class BiomeType {
 
 class Biome {
 public:
-    static void LoadBiomes();
+    // Configures the terrain for a world seed: seeds the climate/detail noise and
+    // loads the biome table. Call once before any chunk is generated.
+    static void Configure(int32_t seed);
     static const Biome& Get(BiomeType type);
 
     // Biome-shaping noise sampled at a world column. Shared by terrain
@@ -55,6 +57,10 @@ public:
     glm::vec3 leafColor;
 
 private:
+    // Populates the biome table. Split from Configure so the seed setup and the
+    // (seed-independent) biome definitions stay separate.
+    static void LoadBiomes();
+
     // Weight toward the desert biome in [0, 1] from the hot, dry corner of the
     // (temperature, humidity) climate plane. Used both to pick the surface block
     // and to blend terrain height, so the two always agree.

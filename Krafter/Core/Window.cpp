@@ -20,6 +20,7 @@ Window::Window()
     glfwSetWindowUserPointer(m_Id, this);
     glfwSetFramebufferSizeCallback(m_Id, FramebufferSizeCallback);
     glfwSetKeyCallback(m_Id, KeyCallback);
+    glfwSetCharCallback(m_Id, CharCallback);
     glfwSetMouseButtonCallback(m_Id, MouseButtonCallback);
     glfwSetCursorPosCallback(m_Id, CursorPositionCallback);
     glfwSetScrollCallback(m_Id, ScrollCallback);
@@ -122,6 +123,19 @@ void Window::KeyCallback(GLFWwindow* window, int key, int scancode, int action, 
     event.type = action == GLFW_RELEASE ? EventType::k_KeyReleased : EventType::k_KeyPressed;
     event.key = (Key)key;
     event.isRepeat = action == GLFW_REPEAT;
+    self->m_EventCallback(event);
+}
+
+void Window::CharCallback(GLFWwindow* window, unsigned int codepoint)
+{
+    Window* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (!self->m_EventCallback) {
+        return;
+    }
+
+    Event event;
+    event.type = EventType::k_TextInput;
+    event.codepoint = codepoint;
     self->m_EventCallback(event);
 }
 

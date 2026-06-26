@@ -144,7 +144,12 @@ void Player::RenderImGui()
 
 void Player::ToggleControl()
 {
-    m_IsControlled = !m_IsControlled;
+    SetControlled(!m_IsControlled);
+}
+
+void Player::SetControlled(bool controlled)
+{
+    m_IsControlled = controlled;
     ApplyControlMode();
 
     // Reset movement and rebaseline the look so toggling doesn't drift or snap.

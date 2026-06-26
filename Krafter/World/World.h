@@ -22,7 +22,10 @@ class Sky;
 
 class World {
 public:
-    World();
+    // `seed` drives terrain generation: the climate/detail noise and the feature
+    // placement hashing. The same seed always rebuilds the same world; 0 is the
+    // original fixed world.
+    World(int32_t seed);
     ~World();
 
     World(const World&) = delete;

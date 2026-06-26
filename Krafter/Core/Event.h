@@ -9,6 +9,7 @@ namespace Krafter {
 enum class EventType {
     k_KeyPressed,
     k_KeyReleased,
+    k_TextInput,
     k_MouseButtonPressed,
     k_MouseButtonReleased,
     k_MouseMoved,
@@ -23,6 +24,9 @@ struct Event {
 
     Key key = {};
     bool isRepeat = false;
+
+    // A typed Unicode code point (k_TextInput), for text fields.
+    unsigned int codepoint = 0;
 
     MouseButton button = {};
 
@@ -42,7 +46,8 @@ inline bool IsMouseEvent(EventType type)
 
 inline bool IsKeyEvent(EventType type)
 {
-    return type == EventType::k_KeyPressed || type == EventType::k_KeyReleased;
+    return type == EventType::k_KeyPressed || type == EventType::k_KeyReleased
+        || type == EventType::k_TextInput;
 }
 
 } // namespace Krafter

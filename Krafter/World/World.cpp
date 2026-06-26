@@ -12,9 +12,11 @@
 
 namespace Krafter {
 
-World::World()
+World::World(int32_t seed)
 {
-    Biome::LoadBiomes();
+    // Configure generation before the job system starts producing chunks.
+    Biome::Configure(seed);
+    Chunk::SetSeed(static_cast<uint32_t>(seed));
 }
 
 // m_JobSystem is declared last, so it is destroyed first: its workers stop and

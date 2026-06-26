@@ -21,6 +21,10 @@ public:
     Chunk(Chunk&& other);
     ~Chunk();
 
+    // Sets the world seed mixed into feature placement (trees, plants, lakes).
+    // Call once before any chunk is generated.
+    static void SetSeed(uint32_t seed);
+
     inline const glm::ivec2& GetPosition() const
     {
         return m_Position;

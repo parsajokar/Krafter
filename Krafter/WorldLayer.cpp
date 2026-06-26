@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "imgui.h"
 
 #include "Krafter/Core/Event.h"
@@ -8,10 +10,12 @@
 
 namespace Krafter {
 
-WorldLayer::WorldLayer(Window& window, Renderer& renderer)
+WorldLayer::WorldLayer(Window& window, Renderer& renderer, int32_t seed, std::function<void()> onExitToMenu)
     : Layer("World")
     , m_Window(window)
     , m_Renderer(renderer)
+    , m_OnExitToMenu(std::move(onExitToMenu))
+    , m_World(seed)
     , m_Player(window, m_World, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f))
 {
 }
@@ -37,14 +41,9 @@ void WorldLayer::OnRender()
 
 void WorldLayer::OnEvent(Event& event)
 {
-    if (event.type == EventType::k_KeyPressed && event.key == Key::k_Escape) {
-        m_Window.Close();
-        event.handled = true;
-        return;
-    }
-
-    if (event.type == EventType::k_KeyPressed && event.key == Key::k_F11 && !event.isRepeat) {
-        m_Window.ToggleFullscreen();
+    if (event.type == EventType::k_KeyPressed && event.key == Key::k_Escape && !event.isRepeat) {
+        // Leave the world and return to the main menu rather than quitting.
+        m_OnExitToMenu();
         event.handled = true;
         return;
     }

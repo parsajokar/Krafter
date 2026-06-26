@@ -22,6 +22,11 @@ public:
     void OnEvent(Event& event);
     void RenderImGui();
 
+    // Grabs or releases the player: capturing the cursor for mouse-look, or
+    // freeing it for menus. Used by the main menu to drop the player into the
+    // game once "Play!" is pressed.
+    void SetControlled(bool controlled);
+
     const glm::vec3& GetPosition() const
     {
         return m_Camera.GetPosition();
@@ -54,6 +59,9 @@ private:
     void ToggleControl();
     void ApplyControlMode();
 
+    // Tracks whether the player is currently driving the camera. Starts false so
+    // the world opens behind the main menu with the cursor free.
+
     // How far the player can reach to break, place, or target a block.
     static constexpr float k_Reach = 8.0f;
 
@@ -64,7 +72,7 @@ private:
 
     float m_Speed = 50.0f;
     float m_Sensitivity = 50.0f;
-    bool m_IsControlled = true;
+    bool m_IsControlled = false;
 
     // Local move axes from held keys: x = strafe right, y = forward.
     glm::vec2 m_MoveInput = glm::vec2(0.0f);

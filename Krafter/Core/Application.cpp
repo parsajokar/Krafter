@@ -54,6 +54,18 @@ void Application::PushOverlay(Layer* layer)
     layer->Attach();
 }
 
+void Application::RemoveLayer(Layer* layer)
+{
+    layer->Detach();
+    m_LayerStack.Remove(layer);
+    delete layer;
+}
+
+void Application::QueueAfterFrame(std::function<void()> action)
+{
+    m_DeferredActions.push_back(std::move(action));
+}
+
 void Application::Run()
 {
     while (m_Window->IsOpen()) {
@@ -76,11 +88,27 @@ void Application::Run()
         EndImGui();
 
         m_Window->SwapBuffers();
+
+        // Drain deferred actions now that the layer stack is no longer being
+        // iterated, so scene changes can safely add or remove layers.
+        if (!m_DeferredActions.empty()) {
+            std::vector<std::function<void()>> actions = std::move(m_DeferredActions);
+            m_DeferredActions.clear();
+            for (const std::function<void()>& action : actions) {
+                action();
+            }
+        }
     }
 }
 
 void Application::OnEvent(Event& event)
 {
+    // F11 toggles fullscreen everywhere, ahead of the debug UI and every layer.
+    if (event.type == EventType::k_KeyPressed && event.key == Key::k_F11 && !event.isRepeat) {
+        m_Window->ToggleFullscreen();
+        return;
+    }
+
     // Let the debug UI consume input it is interacting with first.
     const ImGuiIO& io = ImGui::GetIO();
     if ((IsMouseEvent(event.type) && io.WantCaptureMouse)

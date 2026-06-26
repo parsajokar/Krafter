@@ -7,93 +7,77 @@
 
 namespace Krafter {
 
-// Configured once; FastNoiseLite::GetNoise is const, so concurrent reads from
-// the chunk workers and the main thread are safe.
+// The climate and detail fields, configured once by Biome::Configure before any
+// chunk is generated. FastNoiseLite::GetNoise is const, so the chunk workers and
+// the main thread can read them concurrently afterwards.
 //
 // Climate fields are fractal (FBm) rather than a single smooth octave. A single
 // octave has near-straight contour lines, so thresholding it for a biome border
 // produces unnaturally straight edges; stacking octaves wrinkles the contour at
 // every scale, the way Minecraft's multi-noise climate does.
-static const FastNoiseLite& TemperatureNoise()
-{
-    static const FastNoiseLite noise = [] {
-        FastNoiseLite n;
-        n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        n.SetSeed(1337);
-        // Low base frequency keeps biomes large; the threshold is crossed on
-        // this scale. The few low-gain octaves only ride on top to wrinkle the
-        // border without spawning small islands of the other biome.
-        n.SetFrequency(0.0009f);
-        n.SetFractalType(FastNoiseLite::FractalType_FBm);
-        n.SetFractalOctaves(3);
-        n.SetFractalGain(0.35f);
-        return n;
-    }();
-    return noise;
-}
+static FastNoiseLite s_TemperatureNoise;
+static FastNoiseLite s_HumidityNoise;
+static FastNoiseLite s_ContinentNoise;
+static FastNoiseLite s_DetailNoise;
 
-// Second, independent climate axis. Desert is the hot *and* dry corner of the
-// (temperature, humidity) plane, so the border no longer follows the contour of
-// a single field — it's where two unrelated noise fields jointly cross out of
-// the desert box, which is far less regular than either field alone.
-static const FastNoiseLite& HumidityNoise()
+void Biome::Configure(int32_t seed)
 {
-    static const FastNoiseLite noise = [] {
-        FastNoiseLite n;
-        n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        n.SetSeed(4242);
-        n.SetFrequency(0.0011f);
-        n.SetFractalType(FastNoiseLite::FractalType_FBm);
-        n.SetFractalOctaves(3);
-        n.SetFractalGain(0.35f);
-        return n;
-    }();
-    return noise;
-}
+    // Each field offsets the shared seed by its own constant, so one seed drives
+    // all of them while keeping the fields independent. Seed 0 reproduces the
+    // original fixed world.
+    s_TemperatureNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_TemperatureNoise.SetSeed(1337 + seed);
+    // Low base frequency keeps biomes large; the threshold is crossed on this
+    // scale. The few low-gain octaves only ride on top to wrinkle the border
+    // without spawning small islands of the other biome.
+    s_TemperatureNoise.SetFrequency(0.0009f);
+    s_TemperatureNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    s_TemperatureNoise.SetFractalOctaves(3);
+    s_TemperatureNoise.SetFractalGain(0.35f);
 
-static const FastNoiseLite& ContinentNoise()
-{
-    static const FastNoiseLite noise = [] {
-        FastNoiseLite n;
-        n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        n.SetSeed(2024);
-        n.SetFrequency(0.0008f);
-        return n;
-    }();
-    return noise;
+    // Second, independent climate axis. Desert is the hot *and* dry corner of the
+    // (temperature, humidity) plane, so the border no longer follows the contour
+    // of a single field — it's where two unrelated noise fields jointly cross out
+    // of the desert box, which is far less regular than either field alone.
+    s_HumidityNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_HumidityNoise.SetSeed(4242 + seed);
+    s_HumidityNoise.SetFrequency(0.0011f);
+    s_HumidityNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    s_HumidityNoise.SetFractalOctaves(3);
+    s_HumidityNoise.SetFractalGain(0.35f);
+
+    s_ContinentNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_ContinentNoise.SetSeed(2024 + seed);
+    s_ContinentNoise.SetFrequency(0.0008f);
+
+    // Fine-grained terrain detail driving the per-column height variation. Its
+    // default seed is FastNoiseLite's own 1337, kept here so seed 0 is unchanged.
+    s_DetailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_DetailNoise.SetSeed(1337 + seed);
+    s_DetailNoise.SetFrequency(0.02f);
+
+    LoadBiomes();
 }
 
 float Biome::Temperature(float worldX, float worldZ)
 {
-    return TemperatureNoise().GetNoise(worldX, worldZ);
+    return s_TemperatureNoise.GetNoise(worldX, worldZ);
 }
 
 float Biome::Humidity(float worldX, float worldZ)
 {
-    return HumidityNoise().GetNoise(worldX, worldZ);
+    return s_HumidityNoise.GetNoise(worldX, worldZ);
 }
 
 float Biome::Continentalness(float worldX, float worldZ)
 {
-    return ContinentNoise().GetNoise(worldX, worldZ);
-}
-
-// Fine-grained terrain detail driving the per-column height variation.
-static const FastNoiseLite& DetailNoise()
-{
-    static const FastNoiseLite noise = [] {
-        FastNoiseLite n;
-        n.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        n.SetFrequency(0.02f);
-        return n;
-    }();
-    return noise;
+    return s_ContinentNoise.GetNoise(worldX, worldZ);
 }
 
 int32_t Biome::SurfaceHeight(float worldX, float worldZ)
 {
     return SampleHeight(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
-        Continentalness(worldX, worldZ), DetailNoise().GetNoise(worldX, worldZ));
+        Continentalness(worldX, worldZ), s_DetailNoise.GetNoise(worldX, worldZ));
 }
 
 BiomeType Biome::At(float worldX, float worldZ)

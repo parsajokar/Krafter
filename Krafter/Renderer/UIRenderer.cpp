@@ -87,6 +87,23 @@ void UIRenderer::End()
     glEnable(GL_DEPTH_TEST);
 }
 
+void UIRenderer::SetScissor(const glm::vec2& position, const glm::vec2& size)
+{
+    // glScissor is measured from the bottom-left, but UI space is top-left, so
+    // flip the y against the framebuffer height.
+    const glm::ivec2& windowSize = m_Window.GetSize();
+    const int32_t y = windowSize.y - static_cast<int32_t>(position.y + size.y);
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(static_cast<int32_t>(position.x), y,
+        static_cast<int32_t>(size.x), static_cast<int32_t>(size.y));
+}
+
+void UIRenderer::ClearScissor()
+{
+    glDisable(GL_SCISSOR_TEST);
+}
+
 void UIRenderer::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 {
     DrawQuad(position, size, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f), color, nullptr);
