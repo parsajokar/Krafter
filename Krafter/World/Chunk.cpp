@@ -90,8 +90,8 @@ struct Lake {
 };
 
 // Deterministically builds the blob for a grid cell. Returns false if the cell
-// rolls no feature or its centre isn't on plains/desert land. Lakes form on
-// plains, smaller and rarer oases in desert.
+// rolls no feature or its centre isn't on land. Lakes form on the grassy forests,
+// smaller and rarer oases in the savannah and desert.
 bool BuildLake(int32_t cellX, int32_t cellZ, Lake& lake)
 {
     const int32_t centerX = cellX * k_LakeCellSize + static_cast<int32_t>(Hash01(cellX, cellZ, 1u) * k_LakeCellSize);
@@ -102,13 +102,14 @@ bool BuildLake(int32_t cellX, int32_t cellZ, Lake& lake)
     const float roll = Hash01(cellX, cellZ, 3u);
     int32_t count;
     float baseRadius;
-    if (biome == BiomeType::k_Plains) {
+    if (biome == BiomeType::k_OakForest || biome == BiomeType::k_BirchForest) {
         if (roll >= 0.5f) {
             return false;
         }
         count = 4 + static_cast<int32_t>(Hash01(cellX, cellZ, 4u) * 4.0f); // 4..7
         baseRadius = 5.0f + Hash01(cellX, cellZ, 5u) * 3.0f;               // 5..8
-    } else if (biome == BiomeType::k_Desert) {
+    } else if (biome == BiomeType::k_Savannah || biome == BiomeType::k_Desert) {
+        // Arid biomes only hold the odd small waterhole / oasis.
         if (roll >= 0.3f) {
             return false;
         }
@@ -267,19 +268,28 @@ void CarveLake(Chunk& chunk, const glm::ivec2& chunkPosition, const Lake& lake)
     }
 }
 
-// Trees are scattered one per grid cell; the cell is large enough that adjacent
-// trunks keep their canopies mostly apart.
-constexpr int32_t k_TreeCellSize = 10;
-// Chance a plains cell rolls a tree, before the land/water checks reject it.
-constexpr float k_TreeChance = 0.3f;
+// Trees are scattered one per grid cell; the cell is large enough that the tall,
+// broad-crowned trees of adjacent cells stand apart with room to breathe.
+constexpr int32_t k_TreeCellSize = 16;
+// Chance a forest cell rolls a tree, before the land/water checks reject it.
+// Savannah is sparsely dotted with acacia, so its acacias are far rarer.
+constexpr float k_TreeChance = 0.4f;
+constexpr float k_SavannahTreeChance = 0.06f;
 // Farthest a canopy leaf sits from the trunk column, so a chunk knows which
-// neighbouring cells' trees can reach into it.
-constexpr int32_t k_MaxTreeReach = 2;
+// neighbouring cells' trees can reach into it. The giant acacia umbrella is the
+// widest: a branch leans four out before a radius-3 shelf, reaching seven out.
+constexpr int32_t k_MaxTreeReach = 7;
+// How far inside its cell a trunk stays. Smaller than the canopy reach so the
+// trunks keep their spread (canopies may overlap a little between cells); it is
+// the gather reach above, not this, that must cover the full canopy.
+constexpr int32_t k_TreeJitterMargin = 2;
 
 struct Tree {
     int32_t x = 0, baseY = 0, z = 0; // baseY is the grass column; the trunk sits above it
-    int32_t trunkHeight = 0;         // number of log blocks
+    int32_t trunkHeight = 0;         // number of trunk blocks
     uint32_t seed = 0;               // drives the deterministic corner pruning
+    Block wood = Block::k_OakWood;   // species blocks, chosen by the biome below
+    Block leaves = Block::k_OakLeaves;
 };
 
 // True if the column lies within a contained lake's pool or sloped bank, so a
@@ -306,21 +316,41 @@ bool ColumnInLake(int32_t worldX, int32_t worldZ)
     return false;
 }
 
-// Deterministically decides whether a tree grows in this cell and, if so, where
-// and how tall. Returns false unless its trunk lands on dry plains grass.
+// Deterministically decides whether a tree grows in this cell and, if so, where,
+// what species, and how tall. Returns false unless its trunk lands on dry grass
+// of a tree-bearing biome (oak/birch forest or savannah).
 bool BuildTree(int32_t cellX, int32_t cellZ, Tree& tree)
 {
-    if (Hash01(cellX, cellZ, 200u) >= k_TreeChance) {
+    // Jitter the trunk within the cell's interior, keeping a small margin off the
+    // edges so neighbouring trunks stay a little apart.
+    const int32_t span = k_TreeCellSize - 2 * k_TreeJitterMargin;
+    const int32_t x = cellX * k_TreeCellSize + k_TreeJitterMargin + static_cast<int32_t>(Hash(cellX, cellZ, 201u) % span);
+    const int32_t z = cellZ * k_TreeCellSize + k_TreeJitterMargin + static_cast<int32_t>(Hash(cellX, cellZ, 202u) % span);
+
+    // Each forest grows its own species; savannah is the odd one out, sprinkling
+    // acacia far more sparsely than the dense temperate forests.
+    float chance;
+    switch (Biome::At((float)x, (float)z)) {
+    case BiomeType::k_OakForest:
+        chance = k_TreeChance;
+        tree.wood = Block::k_OakWood;
+        tree.leaves = Block::k_OakLeaves;
+        break;
+    case BiomeType::k_BirchForest:
+        chance = k_TreeChance;
+        tree.wood = Block::k_BirchWood;
+        tree.leaves = Block::k_BirchLeaves;
+        break;
+    case BiomeType::k_Savannah:
+        chance = k_SavannahTreeChance;
+        tree.wood = Block::k_AcaciaWood;
+        tree.leaves = Block::k_AcaciaLeaves;
+        break;
+    default:
         return false;
     }
 
-    // Jitter the trunk within the cell's interior, leaving a canopy-width margin
-    // so trees in neighbouring cells don't merge into a wall.
-    const int32_t span = k_TreeCellSize - 2 * k_MaxTreeReach;
-    const int32_t x = cellX * k_TreeCellSize + k_MaxTreeReach + static_cast<int32_t>(Hash(cellX, cellZ, 201u) % span);
-    const int32_t z = cellZ * k_TreeCellSize + k_MaxTreeReach + static_cast<int32_t>(Hash(cellX, cellZ, 202u) % span);
-
-    if (Biome::At((float)x, (float)z) != BiomeType::k_Plains) {
+    if (Hash01(cellX, cellZ, 200u) >= chance) {
         return false;
     }
 
@@ -333,7 +363,7 @@ bool BuildTree(int32_t cellX, int32_t cellZ, Tree& tree)
     tree.x = x;
     tree.z = z;
     tree.baseY = ground;
-    tree.trunkHeight = 4 + static_cast<int32_t>(Hash(x, z, 203u) % 3u); // 4..6 logs
+    tree.trunkHeight = 9 + static_cast<int32_t>(Hash(x, z, 203u) % 4u); // 9..12 logs
     tree.seed = Hash(x, z, 204u);
     return true;
 }
@@ -361,8 +391,8 @@ std::vector<Tree> GatherTrees(const glm::ivec2& chunkPosition)
 }
 
 // Writes one tree block into the chunk, clipping to its bounds (the rest is
-// stamped by the neighbour that owns those columns). Leaves only fill air; a log
-// may also punch through a neighbouring tree's leaves so trunks stay solid.
+// stamped by the neighbour that owns those columns). Leaves only fill air; a
+// trunk block may also punch through a neighbouring tree's leaves so trunks stay solid.
 void PlaceTreeBlock(Chunk& chunk, const glm::ivec2& chunkPosition, int32_t worldX, int32_t y, int32_t worldZ, Block block)
 {
     if (y < 0 || y >= Chunk::k_Height) {
@@ -375,45 +405,169 @@ void PlaceTreeBlock(Chunk& chunk, const glm::ivec2& chunkPosition, int32_t world
     }
 
     const Block current = chunk.GetBlock(glm::ivec3(lx, y, lz));
-    if (current == Block::k_Air || (block == Block::k_OakLog && current == Block::k_OakLeaves)) {
+    if (current == Block::k_Air || ((IsLog(block) || IsWood(block)) && IsLeaves(current))) {
         chunk.SetBlock(glm::ivec3(lx, y, lz), block);
     }
 }
 
-// Stamps a small oak in Minecraft's classic shape: a straight trunk topped by
-// two wide leaf layers (radius 2) and two narrow ones (radius 1), with corners
-// pruned so the canopy reads round and a touch ragged.
-void StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
+// The eight compass directions, used for the spread of acacia branches and oak
+// limbs.
+constexpr int32_t k_Dir8X[] = { 1, 1, 0, -1, -1, -1, 0, 1 };
+constexpr int32_t k_Dir8Z[] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+
+// Stamps the shared base flare: a plus of roots at baseY+1, each independently
+// (a quarter of the time) fanning one block further out and stacking a block
+// higher, so the trunk steps into the ground a little unevenly.
+void StampRootFlare(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
 {
-    // Trunk first, so leaves (which only fill air) never replace a log.
-    for (int32_t h = 1; h <= tree.trunkHeight; h++) {
-        PlaceTreeBlock(chunk, chunkPosition, tree.x, tree.baseY + h, tree.z, Block::k_OakLog);
+    constexpr int32_t flareX[] = { 1, -1, 0, 0 };
+    constexpr int32_t flareZ[] = { 0, 0, 1, -1 };
+    for (int32_t f = 0; f < 4; f++) {
+        PlaceTreeBlock(chunk, chunkPosition, tree.x + flareX[f], tree.baseY + 1, tree.z + flareZ[f], tree.wood);
+        if (Hash01(tree.x, tree.z, tree.seed + 80u + static_cast<uint32_t>(f)) < 0.25f) {
+            PlaceTreeBlock(chunk, chunkPosition, tree.x + 2 * flareX[f], tree.baseY + 1, tree.z + 2 * flareZ[f], tree.wood);
+            PlaceTreeBlock(chunk, chunkPosition, tree.x + flareX[f], tree.baseY + 2, tree.z + flareZ[f], tree.wood);
+        }
     }
+}
 
-    const int32_t topLog = tree.baseY + tree.trunkHeight;
-    for (int32_t y = topLog - 2; y <= topLog + 1; y++) {
-        const int32_t fromTop = y - (topLog + 1); // -3 (widest) .. 0 (cap)
-        const int32_t radius = (fromTop < -1) ? 2 : 1;
-
+// Stamps an acacia in the savannah silhouette: a short trunk that forks low into
+// several branches fanning out and up, each topped by a wide, flat, one-block
+// shelf of leaves. The overlapping shelves form acacia's broad, horizontal
+// umbrella, tiered where branches of different length sit them at different
+// heights.
+void StampAcacia(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
+{
+    // A flat, one-block leaf shelf centred on a tip: a disc with a frayed rim.
+    auto stampShelf = [&](int32_t cx, int32_t cz, int32_t cy, int32_t radius, uint32_t salt) {
+        const int32_t r2 = radius * radius;
         for (int32_t dx = -radius; dx <= radius; dx++) {
             for (int32_t dz = -radius; dz <= radius; dz++) {
-                const bool corner = (dx == -radius || dx == radius) && (dz == -radius || dz == radius);
-                if (corner) {
-                    // The cap layer always loses its corners (a plus shape); lower
-                    // corners drop on a coin flip. Hashing the leaf's own column
-                    // makes the choice identical from whichever chunk stamps it.
-                    if (fromTop == 0 || Hash01(tree.x + dx, tree.z + dz, tree.seed + 1u) < 0.5f) {
-                        continue;
-                    }
+                const int32_t d2 = dx * dx + dz * dz;
+                if (d2 > r2) {
+                    continue; // round the square into a disc
                 }
-                PlaceTreeBlock(chunk, chunkPosition, tree.x + dx, y, tree.z + dz, Block::k_OakLeaves);
+                if (d2 >= (radius - 1) * (radius - 1)
+                    && Hash01(cx + dx, cz + dz, tree.seed + salt) < 0.3f) {
+                    continue; // fray the rim
+                }
+                PlaceTreeBlock(chunk, chunkPosition, cx + dx, cy, cz + dz, tree.leaves);
+            }
+        }
+    };
+
+    // A tall-ish trunk on the shared base flare. Acacia still forks lower than
+    // the oaks, but stands tall enough to carry a giant umbrella.
+    const int32_t trunkH = 4 + static_cast<int32_t>(tree.seed % 3u); // 4..6
+    for (int32_t h = 1; h <= trunkH; h++) {
+        PlaceTreeBlock(chunk, chunkPosition, tree.x, tree.baseY + h, tree.z, tree.wood);
+    }
+    StampRootFlare(chunk, chunkPosition, tree);
+    const int32_t topY = tree.baseY + trunkH;
+
+    // Branches fork from the upper trunk and lean far out and up in spread
+    // directions, each ending in a broad flat shelf. Varied fork height and
+    // length set the shelves at a few heights, tiering the wide umbrella.
+    constexpr int32_t k_AcaciaBranches = 6;
+    for (int32_t b = 0; b < k_AcaciaBranches; b++) {
+        const uint32_t r = Hash(tree.x, tree.z, tree.seed + 40u + static_cast<uint32_t>(b));
+        const int32_t dir = static_cast<int32_t>((r + static_cast<uint32_t>(b) * 3u) % 8u);
+        const int32_t outLen = 3 + static_cast<int32_t>(r % 2u);              // 3..4
+        const int32_t startY = topY - static_cast<int32_t>((r >> 4) % 2u);    // topY-1..topY
+
+        int32_t bx = tree.x;
+        int32_t bz = tree.z;
+        int32_t by = startY;
+        for (int32_t step = 0; step < outLen; step++) {
+            bx += k_Dir8X[dir];
+            bz += k_Dir8Z[dir];
+            by += 1;
+            PlaceTreeBlock(chunk, chunkPosition, bx, by, bz, tree.wood);
+        }
+        stampShelf(bx, bz, by, 3, 5u + static_cast<uint32_t>(b));
+    }
+
+    // A flat central shelf over the trunk top keeps the umbrella's core covered.
+    stampShelf(tree.x, tree.z, topY + 3, 3, 4u);
+}
+
+// A compact leaf blob: vertical radii 1/2/1 centred on (cx, cy, cz), each layer
+// rounded to a disc with its rim frayed on a hashed coin flip so clusters read
+// soft. Salted per call so the separate clusters of one tree fray differently.
+// Hashing each leaf's own column keeps the choice identical from whichever chunk
+// stamps it.
+void StampLeafBlob(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree,
+    int32_t cx, int32_t cz, int32_t cy, uint32_t salt)
+{
+    constexpr int32_t radii[] = { 1, 2, 1 };
+    for (int32_t layer = 0; layer < 3; layer++) {
+        const int32_t y = cy - 1 + layer;
+        const int32_t radius = radii[layer];
+        const int32_t r2 = radius * radius;
+        for (int32_t dx = -radius; dx <= radius; dx++) {
+            for (int32_t dz = -radius; dz <= radius; dz++) {
+                const int32_t d2 = dx * dx + dz * dz;
+                if (d2 > r2) {
+                    continue; // round the square into a disc
+                }
+                if (d2 == r2 && r2 > 1
+                    && Hash01(cx + dx, cz + dz, tree.seed + salt) < 0.4f) {
+                    continue; // fray the rim
+                }
+                PlaceTreeBlock(chunk, chunkPosition, cx + dx, y, cz + dz, tree.leaves);
             }
         }
     }
 }
 
-// Fraction of plains grass columns that sprout grass/ferns, and the (much
-// sparser) fractions of desert sand columns that grow a cactus or a dead bush.
+// Stamps a big, natural tree: a tall one-block trunk that foots out into uneven
+// roots, then throws a whorl of limbs out of its upper length at varied heights
+// and directions, each climbing out and up to its own leaf cluster. The
+// overlapping clusters build a broad, tiered crown with the branches showing
+// through, rather than a solid ball. Acacia takes its own flat-topped form; the
+// species' wood and leaf blocks come from the tree.
+void StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, const Tree& tree)
+{
+    if (tree.wood == Block::k_AcaciaWood) {
+        StampAcacia(chunk, chunkPosition, tree);
+        return;
+    }
+
+    // One-block trunk for the full height, on the shared pyramid base flare.
+    const int32_t topLog = tree.baseY + tree.trunkHeight;
+    for (int32_t h = 1; h <= tree.trunkHeight; h++) {
+        PlaceTreeBlock(chunk, chunkPosition, tree.x, tree.baseY + h, tree.z, tree.wood);
+    }
+    StampRootFlare(chunk, chunkPosition, tree);
+
+    // Limbs fork off the upper trunk at varied heights and head out in varied
+    // directions, climbing a block per step. Lower, shorter limbs fill the wide
+    // mid-canopy; higher ones raise the crown. Each ends in a leaf cluster.
+    constexpr int32_t k_LimbCount = 12;
+    for (int32_t b = 0; b < k_LimbCount; b++) {
+        const uint32_t r = Hash(tree.x, tree.z, tree.seed + 60u + static_cast<uint32_t>(b));
+        const int32_t dir = static_cast<int32_t>(r % 8u);
+        const int32_t startY = topLog - static_cast<int32_t>((r >> 3) % 6u); // topLog-5 .. topLog
+        const int32_t len = 2 + static_cast<int32_t>((r >> 6) % 2u);         // 2..3
+
+        int32_t bx = tree.x;
+        int32_t bz = tree.z;
+        int32_t by = startY;
+        for (int32_t step = 0; step < len; step++) {
+            bx += k_Dir8X[dir];
+            bz += k_Dir8Z[dir];
+            by += 1;
+            PlaceTreeBlock(chunk, chunkPosition, bx, by, bz, tree.wood);
+        }
+        StampLeafBlob(chunk, chunkPosition, tree, bx, bz, by, 20u + static_cast<uint32_t>(b));
+    }
+
+    // A leafy cap over the trunk top closes the crown at its peak.
+    StampLeafBlob(chunk, chunkPosition, tree, tree.x, tree.z, topLog + 1, 7u);
+}
+
+// Fraction of grassy columns that sprout grass/ferns, and the (much sparser)
+// fractions of desert sand columns that grow a cactus or a dead bush.
 constexpr float k_GrassPlantChance = 0.2f;
 constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
@@ -437,7 +591,7 @@ bool ColumnRollsCactus(int32_t worldX, int32_t worldZ)
 }
 
 // Scatters cross-shaped plants over the chunk's own surface: grass tufts and
-// ferns on plains grass, dead bushes on desert sand. Each plant lives in a
+// ferns on grass, dead bushes on desert sand. Each plant lives in a
 // single column, so unlike trees it never spills across a border and can be
 // stamped purely from this chunk's own blocks.
 void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
@@ -547,20 +701,20 @@ Chunk::Chunk(const glm::ivec2& position)
         }
     }
 
-    // Post-process: stamp inland lakes (plains) and oases (desert) as 3D blobs.
+    // Post-process: stamp inland lakes (forests) and oases (savannah/desert) as 3D blobs.
     const std::vector<Lake> lakes = GatherLakes(m_Position);
     for (const Lake& lake : lakes) {
         CarveLake(*this, m_Position, lake);
     }
 
-    // Then scatter oak trees over the dry plains, including the parts of trees
+    // Then scatter trees over the dry land, including the parts of trees
     // rooted in neighbouring chunks whose canopies spill across the border.
     const std::vector<Tree> trees = GatherTrees(m_Position);
     for (const Tree& tree : trees) {
         StampTree(*this, m_Position, tree);
     }
 
-    // Finally, dust the plains grass with low foliage, after trees so it can
+    // Finally, dust the grass with low foliage, after trees so it can
     // avoid the columns their trunks and canopies occupy.
     ScatterPlants(*this, m_Position);
 }

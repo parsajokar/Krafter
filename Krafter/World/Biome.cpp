@@ -107,8 +107,12 @@ const char* Biome::Name(BiomeType type)
     switch (type) {
     case BiomeType::k_Ocean:
         return "Ocean";
-    case BiomeType::k_Plains:
-        return "Plains";
+    case BiomeType::k_OakForest:
+        return "Oak Forest";
+    case BiomeType::k_BirchForest:
+        return "Birch Forest";
+    case BiomeType::k_Savannah:
+        return "Savannah";
     case BiomeType::k_Desert:
         return "Desert";
     }
@@ -128,9 +132,9 @@ void Biome::LoadBiomes()
         .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
     };
 
-    // Floor (base - amplitude) sits above sea level so inland plains stay dry;
+    // Floor (base - amplitude) sits above sea level so inland forest stays dry;
     // coastlines still dip into the sea via the continentalness blend.
-    s_Biomes[BiomeType::k_Plains] = {
+    s_Biomes[BiomeType::k_OakForest] = {
         .surface = Block::k_Grass,
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
@@ -138,6 +142,30 @@ void Biome::LoadBiomes()
         .heightAmplitude = 10,
         .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
         .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
+    };
+
+    // Cooler, drier temperate forest: a paler, slightly yellow-green to match
+    // the brighter birch foliage.
+    s_Biomes[BiomeType::k_BirchForest] = {
+        .surface = Block::k_Grass,
+        .subsurface = Block::k_Dirt,
+        .subsurfaceDepth = 4,
+        .baseHeight = 75,
+        .heightAmplitude = 10,
+        .grassColor = glm::vec3(0.624f, 0.769f, 0.412f),
+        .leafColor = glm::vec3(0.553f, 0.722f, 0.376f)
+    };
+
+    // Warm, arid grassland dotted with acacia: dry olive grass and foliage,
+    // greener than the desert but well short of the lush forests.
+    s_Biomes[BiomeType::k_Savannah] = {
+        .surface = Block::k_Grass,
+        .subsurface = Block::k_Dirt,
+        .subsurfaceDepth = 4,
+        .baseHeight = 73,
+        .heightAmplitude = 8,
+        .grassColor = glm::vec3(0.741f, 0.722f, 0.357f),
+        .leafColor = glm::vec3(0.643f, 0.639f, 0.318f)
     };
 
     s_Biomes[BiomeType::k_Desert] = {
@@ -161,25 +189,35 @@ const Biome& Biome::Get(BiomeType type)
     }
 }
 
-BiomeType Biome::Select(float temperature, float humidity, float continentalness)
-{
-    if (Landness(continentalness) < 0.5f) {
-        return BiomeType::k_Ocean;
-    }
-    // The same weight that blends the terrain height also decides the surface
-    // block, so the grass/sand edge always lines up with the height transition.
-    if (Desertness(temperature, humidity) >= 0.5f) {
-        return BiomeType::k_Desert;
-    }
-    return BiomeType::k_Plains;
-}
-
 // Smoothstep ramp on a single axis, clamped to [0, 1].
 static float SmoothRamp(float value, float start, float end)
 {
     float t = (value - start) / (end - start);
     t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
     return t * t * (3.0f - 2.0f * t);
+}
+
+BiomeType Biome::Select(float temperature, float humidity, float continentalness)
+{
+    if (Landness(continentalness) < 0.5f) {
+        return BiomeType::k_Ocean;
+    }
+
+    // Land is split along two independent climate axes (the same hot/dry axes
+    // that Desertness multiplies, so the desert here still coincides with the
+    // height blend). Temperature separates the cool forests from the hot
+    // grasslands; within each band, humidity picks the drier of the pair:
+    //
+    //          dry            wet
+    //   hot    Desert         Savannah
+    //   cool   Birch Forest   Oak Forest
+    const bool hot = SmoothRamp(temperature, -0.2f, 0.2f) >= 0.5f;
+    const bool dry = SmoothRamp(-humidity, -0.2f, 0.2f) >= 0.5f;
+
+    if (hot) {
+        return dry ? BiomeType::k_Desert : BiomeType::k_Savannah;
+    }
+    return dry ? BiomeType::k_BirchForest : BiomeType::k_OakForest;
 }
 
 float Biome::Desertness(float temperature, float humidity)
@@ -201,14 +239,14 @@ float Biome::Landness(float continentalness)
 int32_t Biome::SampleHeight(float temperature, float humidity, float continentalness, float noiseValue)
 {
     const Biome& ocean = Get(BiomeType::k_Ocean);
-    const Biome& plains = Get(BiomeType::k_Plains);
+    const Biome& oakForest = Get(BiomeType::k_OakForest);
     const Biome& desert = Get(BiomeType::k_Desert);
 
-    // Land terrain blends plains into desert by the same hot/dry weight that
+    // Land terrain blends oak forest into desert by the same hot/dry weight that
     // chooses the surface block.
     float landBlend = Desertness(temperature, humidity);
-    float landBase = plains.baseHeight + (desert.baseHeight - plains.baseHeight) * landBlend;
-    float landAmplitude = plains.heightAmplitude + (desert.heightAmplitude - plains.heightAmplitude) * landBlend;
+    float landBase = oakForest.baseHeight + (desert.baseHeight - oakForest.baseHeight) * landBlend;
+    float landAmplitude = oakForest.heightAmplitude + (desert.heightAmplitude - oakForest.heightAmplitude) * landBlend;
 
     // Then ocean blends into that land as the coast rises out of the water.
     float land = Landness(continentalness);

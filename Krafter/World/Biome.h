@@ -8,7 +8,9 @@ namespace Krafter {
 
 enum class BiomeType {
     k_Ocean,
-    k_Plains,
+    k_OakForest,
+    k_BirchForest,
+    k_Savannah,
     k_Desert
 };
 
@@ -29,7 +31,7 @@ public:
     // together pick the biome (the multi-noise climate model).
     static BiomeType Select(float temperature, float humidity, float continentalness);
 
-    // Blends ocean and land (plains/desert) terrain so coastlines and biome
+    // Blends ocean and land (forest/desert) terrain so coastlines and biome
     // borders meet with a smooth slope instead of a sharp cliff.
     static int32_t SampleHeight(float temperature, float humidity, float continentalness, float noiseValue);
 
@@ -45,7 +47,7 @@ public:
     int32_t heightAmplitude;
 
     // Multiplied into the grayscale grass top/overlay so each biome greens its
-    // grass differently (lush plains vs. dry desert).
+    // grass differently (lush forest vs. dry desert).
     glm::vec3 grassColor;
 
     // Same idea for the grayscale leaf tile: each biome tints its foliage,

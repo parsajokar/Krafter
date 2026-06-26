@@ -243,7 +243,7 @@ ChunkMeshData ChunkMesh::Compute(
                 // leaves tint every face. Everything else stays untinted (white).
                 glm::vec3 grassTint(1.0f);
                 glm::vec3 leafTint(1.0f);
-                if (self == Block::k_Grass || self == Block::k_OakLeaves) {
+                if (self == Block::k_Grass || IsLeaves(self)) {
                     const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
                     const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
                     const Biome& biome = Biome::Get(Biome::At(worldX, worldZ));
@@ -281,7 +281,7 @@ ChunkMeshData ChunkMesh::Compute(
                     glm::vec3 tint(1.0f);
                     if (grassTop) {
                         tint = grassTint;
-                    } else if (self == Block::k_OakLeaves) {
+                    } else if (IsLeaves(self)) {
                         tint = leafTint;
                     }
                     AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, buffer.vertices, buffer.elements);

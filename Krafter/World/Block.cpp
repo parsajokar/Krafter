@@ -48,6 +48,53 @@ void BlockAtlas::LoadAtlases()
         .bottom = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f)
     };
 
+    // Birch and acacia reuse the oak layout one and two rows below it: each tile
+    // shares its column with the oak equivalent, just shifted down. Logs are
+    // full-colour; the grayscale leaves are biome-tinted like the oak's.
+    s_BlockAtlases[Block::k_BirchLog] = {
+        .top = glm::vec2(0.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(1.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(0.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_BirchLeaves] = {
+        .top = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_AcaciaLog] = {
+        .top = glm::vec2(0.0f / 16.0f, 3.0f / 16.0f),
+        .side = glm::vec2(1.0f / 16.0f, 3.0f / 16.0f),
+        .bottom = glm::vec2(0.0f / 16.0f, 3.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_AcaciaLeaves] = {
+        .top = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
+        .bottom = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f)
+    };
+
+    // The "wood" variants wear each species' bark (its log's side tile) on every
+    // face, top and bottom included, so there is no end grain.
+    s_BlockAtlases[Block::k_OakWood] = {
+        .top = glm::vec2(1.0f / 16.0f, 1.0f / 16.0f),
+        .side = glm::vec2(1.0f / 16.0f, 1.0f / 16.0f),
+        .bottom = glm::vec2(1.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_BirchWood] = {
+        .top = glm::vec2(1.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(1.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(1.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_AcaciaWood] = {
+        .top = glm::vec2(1.0f / 16.0f, 3.0f / 16.0f),
+        .side = glm::vec2(1.0f / 16.0f, 3.0f / 16.0f),
+        .bottom = glm::vec2(1.0f / 16.0f, 3.0f / 16.0f)
+    };
+
     // Cross plants store their single tile in `side`. Fern and short grass are
     // grayscale and biome-tinted like grass; the dead bush keeps its own brown.
     s_BlockAtlases[Block::k_Fern] = {

@@ -14,11 +14,42 @@ enum class Block {
     k_Water,
     k_OakLog,
     k_OakLeaves,
+    k_BirchLog,
+    k_BirchLeaves,
+    k_AcaciaLog,
+    k_AcaciaLeaves,
+    k_OakWood,
+    k_BirchWood,
+    k_AcaciaWood,
     k_ShortGrass,
     k_Fern,
     k_DeadBush,
     k_Cactus
 };
+
+// The "log" blocks: a species' bark on the sides with a distinct end-grain tile
+// on the top and bottom. Solid, full-colour cubes (not biome-tinted).
+inline bool IsLog(Block block)
+{
+    return block == Block::k_OakLog || block == Block::k_BirchLog
+        || block == Block::k_AcaciaLog;
+}
+
+// The "wood" blocks: a species' bark on every face (the side tile on top and
+// bottom too, no end grain). What the trees are actually built from.
+inline bool IsWood(Block block)
+{
+    return block == Block::k_OakWood || block == Block::k_BirchWood
+        || block == Block::k_AcaciaWood;
+}
+
+// The canopy blocks of every tree species. Their tiles are grayscale, so the
+// mesher tints them with the biome's leaf colour.
+inline bool IsLeaves(Block block)
+{
+    return block == Block::k_OakLeaves || block == Block::k_BirchLeaves
+        || block == Block::k_AcaciaLeaves;
+}
 
 // Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
 // billboards instead of a cube. It has no collision, lets light through, and
@@ -51,7 +82,7 @@ inline bool IsTargetable(Block block)
 // leaf block, or the sand a cactus stands on) instead of culling them.
 inline bool IsCutout(Block block)
 {
-    return block == Block::k_OakLeaves || block == Block::k_Cactus;
+    return IsLeaves(block) || block == Block::k_Cactus;
 }
 
 enum class BlockFace {
