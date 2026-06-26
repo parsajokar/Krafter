@@ -2,13 +2,10 @@
 
 Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++20** and **OpenGL 4.5**.
 
-[demo.webm](https://github.com/user-attachments/assets/5043914a-37fb-4729-80fd-e39bc23e5b1c)
+[demo1.webm](https://github.com/user-attachments/assets/baaa82f7-d113-42d4-9c09-26da6cfa86e8)
 
-## ✨ Features
+[demo2.webm](https://github.com/user-attachments/assets/060aa9d1-d969-4858-b85e-783ee43684b3)
 
-- **Modern OpenGL 4.5 renderer**  
-  Direct State Access (DSA), Debugging Callback, etc.
-  
 ## 🛠️ Tech Stack
 
 - **Language:** C++20
@@ -46,4 +43,5 @@ cmake --build build/ --config RelWithDebInfo
 ### Controls
  - `Space` — Toggling `Viewport Mode` and `Configuration Mode`
  - `F11` — Toggling `Windowed Mode` and `Fullscreen Mode`
+ - `1–9 + 0` — Selecting hotbar slots
  - `WASD + Mouse` — Moving the camera in `Viewport Mode`
