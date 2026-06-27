@@ -8,12 +8,12 @@ namespace Krafter {
 
 constexpr float k_UIOpacity = 0.6f;
 
-UILayer::UILayer(Window& window, Hotbar& hotbar)
+UILayer::UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Hotbar& hotbar)
     : Layer("UI")
     , m_Window(window)
     , m_Hotbar(hotbar)
-    , m_Renderer(window)
-    , m_UITexture("assets/textures/ui.png")
+    , m_Renderer(renderer)
+    , m_UITexture(uiTexture)
     , m_BlockTexture("assets/textures/blocks.png")
 {
 }
@@ -57,7 +57,7 @@ void UILayer::DrawCrosshair()
     const glm::vec2 position = glm::floor(glm::vec2(m_Window.GetSize()) * 0.5f - size * 0.5f);
 
     // Inverts the colours behind it so it stays visible on any background.
-    DrawSprite(spritePos, k_SpriteSize, position, size, 1.0f, true);
+    m_Renderer.DrawSpriteInverted(m_UITexture, spritePos, k_SpriteSize, position, size);
 }
 
 void UILayer::DrawHotbar()
@@ -93,7 +93,8 @@ void UILayer::DrawHotbar()
 
     for (int i = 0; i < k_SlotCount; ++i) {
         const glm::vec2 position = glm::vec2(startX + i * stride, y);
-        DrawSprite(spritePos, k_SpriteSize, position, slotSize, k_UIOpacity);
+        m_Renderer.DrawSprite(m_UITexture, spritePos, k_SpriteSize, position, slotSize,
+            glm::vec4(1.0f, 1.0f, 1.0f, k_UIOpacity));
 
         const Block block = m_Hotbar.GetBlock(i);
         if (block != Block::k_Air) {
@@ -101,7 +102,7 @@ void UILayer::DrawHotbar()
         }
 
         if (i == m_Hotbar.GetSelected()) {
-            DrawSprite(outlineSpritePos, k_SpriteSize, position, slotSize);
+            m_Renderer.DrawSprite(m_UITexture, outlineSpritePos, k_SpriteSize, position, slotSize);
         }
     }
 }
@@ -151,24 +152,6 @@ void UILayer::DrawBlockIcon(Block block, const glm::vec2& position, const glm::v
     // so draw that fringe on top to read green like the in-world block.
     if (block == Block::k_Grass) {
         m_Renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), m_BlockTexture, k_GrassColor);
-    }
-}
-
-void UILayer::DrawSprite(
-    const glm::vec2& spritePos, const glm::vec2& spriteSize,
-    const glm::vec2& position, const glm::vec2& size, float opacity, bool invert)
-{
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 uvMin = spritePos / texSize;
-    const glm::vec2 uvMax = (spritePos + spriteSize) / texSize;
-    // Textures are flipped vertically on load, so flip V to keep the sprite upright.
-    const glm::vec4 uvRect = glm::vec4(
-        uvMin.x, 1.0f - uvMin.y, uvMax.x - uvMin.x, uvMin.y - uvMax.y);
-
-    if (invert) {
-        m_Renderer.DrawQuadInverted(position, size, m_UITexture, uvRect);
-    } else {
-        m_Renderer.DrawQuad(position, size, m_UITexture, uvRect, glm::vec4(1.0f, 1.0f, 1.0f, opacity));
     }
 }
 

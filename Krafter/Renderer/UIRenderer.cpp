@@ -160,6 +160,55 @@ void UIRenderer::DrawQuadInverted(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
+glm::vec4 UIRenderer::SpriteUVRect(
+    const glm::vec2& spritePos, const glm::vec2& spriteSize, const glm::vec2& texSize)
+{
+    const glm::vec2 uvMin = spritePos / texSize;
+    const glm::vec2 uvMax = (spritePos + spriteSize) / texSize;
+    // Textures are flipped vertically on load, so flip V to keep the sprite upright.
+    return glm::vec4(uvMin.x, 1.0f - uvMin.y, uvMax.x - uvMin.x, uvMin.y - uvMax.y);
+}
+
+void UIRenderer::DrawSprite(
+    const Texture2D& texture, const glm::vec2& spritePos, const glm::vec2& spriteSize,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    const glm::vec4 uvRect = SpriteUVRect(spritePos, spriteSize, glm::vec2(texture.GetSize()));
+    DrawQuad(position, size, texture, uvRect, tint);
+}
+
+void UIRenderer::DrawSpriteInverted(
+    const Texture2D& texture, const glm::vec2& spritePos, const glm::vec2& spriteSize,
+    const glm::vec2& position, const glm::vec2& size)
+{
+    const glm::vec4 uvRect = SpriteUVRect(spritePos, spriteSize, glm::vec2(texture.GetSize()));
+    DrawQuadInverted(position, size, texture, uvRect);
+}
+
+void UIRenderer::DrawSlicedSprite(
+    const Texture2D& texture, const glm::vec2& spritePos, const glm::vec2& spriteSize,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    const float srcThird = spriteSize.x / 3.0f;
+    // The caps keep the sprite's aspect at the destination height; floor so the
+    // three pieces meet on integer pixels and don't leave a seam.
+    const float capWidth = glm::floor(srcThird * size.y / spriteSize.y);
+    const float midWidth = size.x - 2.0f * capWidth;
+
+    // Left cap.
+    DrawSprite(texture, spritePos, glm::vec2(srcThird, spriteSize.y),
+        position, glm::vec2(capWidth, size.y), tint);
+
+    // Middle third, stretched across the gap between the caps.
+    DrawSprite(texture, spritePos + glm::vec2(srcThird, 0.0f), glm::vec2(srcThird, spriteSize.y),
+        position + glm::vec2(capWidth, 0.0f), glm::vec2(midWidth, size.y), tint);
+
+    // Right cap: the remaining source width covers any rounding in the thirds.
+    DrawSprite(texture, spritePos + glm::vec2(2.0f * srcThird, 0.0f),
+        glm::vec2(spriteSize.x - 2.0f * srcThird, spriteSize.y),
+        position + glm::vec2(size.x - capWidth, 0.0f), glm::vec2(capWidth, size.y), tint);
+}
+
 void UIRenderer::DrawQuad(
     const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
     const Texture2D& texture, const glm::vec4& tint)

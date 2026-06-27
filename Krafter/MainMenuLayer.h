@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <functional>
 #include <string>
-#include <string_view>
 
 #include "glm/glm.hpp"
 
@@ -23,7 +22,11 @@ class Window;
 // window.
 class MainMenuLayer : public Layer {
 public:
-    MainMenuLayer(Window& window, std::function<void(int32_t, GameMode)> onPlay);
+    // The UI renderer, sprite sheet (ui.png), and font are owned by the
+    // application and shared across the UI layers, so the menu only borrows them.
+    MainMenuLayer(
+        Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
+        std::function<void(int32_t, GameMode)> onPlay);
 
 private:
     void OnAttach() override;
@@ -37,7 +40,6 @@ private:
     glm::vec4 SurviveRect() const;
     glm::vec4 SpectateRect() const;
     glm::vec4 ExitRect() const;
-    static bool Contains(const glm::vec4& rect, const glm::vec2& point);
 
     // Turns the typed seed text into a generation seed: an integer is used as
     // typed, any other text is hashed, and an empty field gets a time-based seed.
@@ -46,30 +48,15 @@ private:
     // Dismisses the menu and starts the world with the current seed in `mode`.
     void Play(GameMode mode);
 
-    // Draws a button: the slot sprite stretched to the rect, a hover highlight,
-    // and the label centred inside.
-    void DrawButton(const glm::vec4& rect, std::string_view label);
-
-    // Draws a sprite from the UI texture, addressed from its bottom-left like the
-    // HUD does, stretched to fill the destination rectangle.
-    void DrawSprite(
-        const glm::vec2& spritePos, const glm::vec2& spriteSize,
-        const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
-
-    // Draws a sprite as a horizontal 3-slice: the outer thirds (the rounded
-    // caps) keep their aspect ratio while only the middle third stretches, so a
-    // small slot sprite makes a clean wide button or field.
-    void DrawSlicedSprite(
-        const glm::vec2& spritePos, const glm::vec2& spriteSize,
-        const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
-
     Window& m_Window;
     std::function<void(int32_t, GameMode)> m_OnPlay;
 
-    UIRenderer m_Renderer;
-    Texture2D m_UITexture;
+    UIRenderer& m_Renderer;
+    Texture2D& m_UITexture;
+    Font& m_Font;
+
+    // The backdrop image is the menu's own, not shared.
     Texture2D m_Background;
-    Font m_Font;
 
     // Cleared once Play runs; the menu then renders nothing and lets all input
     // fall through to the world beneath it.

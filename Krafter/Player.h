@@ -74,6 +74,11 @@ private:
     // block placement that would seal the survival player inside it.
     bool OccupiesCell(const glm::ivec3& cell) const;
 
+    // Casts from the eye along the look direction to the first targetable block
+    // within reach. Returns whether one was hit; `hit` is that block and `before`
+    // the empty cell just in front of it (where a placement goes).
+    bool RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const;
+
     // Places the held hotbar block against the block under the crosshair, applying
     // the plant and self-trap rules. A no-op when nothing is targeted or the slot
     // is empty. Driven by the right mouse button, including while it is held.

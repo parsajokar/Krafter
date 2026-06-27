@@ -4,6 +4,9 @@
 
 #include "Krafter/Core/Application.h"
 #include "Krafter/GameMode.h"
+#include "Krafter/Renderer/Font.h"
+#include "Krafter/Renderer/Texture.h"
+#include "Krafter/Renderer/UIRenderer.h"
 
 namespace Krafter {
 
@@ -17,6 +20,10 @@ class PauseMenuLayer;
 class GameApplication : public Application {
 public:
     GameApplication(const ApplicationSpecification& specification);
+
+    // Tears down the live layers before the shared UI resources they reference are
+    // destroyed (the base destructor would otherwise delete them too late).
+    ~GameApplication() override;
 
 private:
     // Builds the world scene for `seed` in the chosen `mode` and enters it.
@@ -33,6 +40,14 @@ private:
     // Tears the world scene down and returns to a fresh main menu. Invoked from the
     // pause menu's "Exit to main menu" button; the swap is deferred to be safe.
     void ReturnToMenu();
+
+    // UI resources shared by every UI layer (menu, pause menu, HUD), owned here so
+    // the renderer, sprite sheet, and font are each created once rather than per
+    // layer. Declared before the layer pointers so they outlive the layers, which
+    // hold references to them.
+    UIRenderer m_UIRenderer;
+    Texture2D m_UITexture;
+    Font m_Font;
 
     // The active scene layers, each kept so it can be removed on a transition.
     // Exactly the main menu, or the world plus HUD (optionally with the pause menu

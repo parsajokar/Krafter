@@ -8,11 +8,35 @@ namespace Krafter {
 
 GameApplication::GameApplication(const ApplicationSpecification& specification)
     : Application(specification)
+    , m_UIRenderer(GetWindow())
+    , m_UITexture("assets/textures/ui.png")
+    , m_Font("assets/textures/font.png")
 {
     // Start on the main menu alone; the world is not built until a play mode is
     // chosen ("Survive" or "Spectate").
-    m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
+    m_MainMenu = new MainMenuLayer(
+        GetWindow(), m_UIRenderer, m_UITexture, m_Font,
+        [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
     PushOverlay(m_MainMenu);
+}
+
+GameApplication::~GameApplication()
+{
+    // Remove every live layer now, while the shared UI resources are still alive;
+    // the base destructor only runs after our members (those resources) are gone.
+    // Order mirrors the scene transitions: pause menu, HUD, world, then menu.
+    if (m_PauseMenu != nullptr) {
+        RemoveLayer(m_PauseMenu);
+    }
+    if (m_UI != nullptr) {
+        RemoveLayer(m_UI);
+    }
+    if (m_World != nullptr) {
+        RemoveLayer(m_World);
+    }
+    if (m_MainMenu != nullptr) {
+        RemoveLayer(m_MainMenu);
+    }
 }
 
 void GameApplication::StartGame(int32_t seed, GameMode mode)
@@ -32,7 +56,7 @@ void GameApplication::StartGame(int32_t seed, GameMode mode)
         // The HUD shares the world's player hotbar. The overlay is pushed after
         // the world layer and so is destroyed before it, keeping the reference
         // valid.
-        m_UI = new UILayer(GetWindow(), m_World->GetHotbar());
+        m_UI = new UILayer(GetWindow(), m_UIRenderer, m_UITexture, m_World->GetHotbar());
         PushOverlay(m_UI);
 
         m_World->BeginPlay();
@@ -56,7 +80,7 @@ void GameApplication::PauseGame()
 
         m_World->Pause();
         m_PauseMenu = new PauseMenuLayer(
-            GetWindow(),
+            GetWindow(), m_UIRenderer, m_UITexture, m_Font,
             [this]() { ResumeGame(); },
             [this]() { ReturnToMenu(); });
         PushOverlay(m_PauseMenu);
@@ -105,7 +129,9 @@ void GameApplication::ReturnToMenu()
         RemoveLayer(m_World);
         m_World = nullptr;
 
-        m_MainMenu = new MainMenuLayer(GetWindow(), [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
+        m_MainMenu = new MainMenuLayer(
+            GetWindow(), m_UIRenderer, m_UITexture, m_Font,
+            [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
         PushOverlay(m_MainMenu);
     });
 }

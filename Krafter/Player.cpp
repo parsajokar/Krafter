@@ -32,7 +32,7 @@ void Player::Update()
 
     glm::ivec3 hit;
     glm::ivec3 before;
-    m_HasTarget = m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
+    m_HasTarget = RaycastTarget(hit, before);
     if (m_HasTarget) {
         m_TargetBlock = hit;
     }
@@ -162,11 +162,16 @@ bool Player::OccupiesCell(const glm::ivec3& cell) const
         && cell.z >= lo.z && cell.z <= hi.z;
 }
 
+bool Player::RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const
+{
+    return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
+}
+
 void Player::PlaceTargetBlock()
 {
     glm::ivec3 hit;
     glm::ivec3 before;
-    if (!m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before)) {
+    if (!RaycastTarget(hit, before)) {
         return;
     }
 
@@ -193,7 +198,7 @@ void Player::OnEvent(Event& event)
     if (event.type == EventType::k_MouseButtonPressed && event.button == MouseButton::k_Left) {
         glm::ivec3 hit;
         glm::ivec3 before;
-        if (m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before)) {
+        if (RaycastTarget(hit, before)) {
             m_World.SetBlock(hit, Block::k_Air);
         }
         event.handled = true;

@@ -9,6 +9,7 @@
 #include "Krafter/Core/Event.h"
 #include "Krafter/Core/Window.h"
 #include "Krafter/MainMenuLayer.h"
+#include "Krafter/Renderer/Widgets.h"
 
 namespace Krafter {
 
@@ -16,7 +17,6 @@ constexpr glm::vec2 k_FieldSize = glm::vec2(280.0f, 50.0f);
 constexpr glm::vec2 k_ButtonSize = glm::vec2(280.0f, 50.0f);
 constexpr float k_Gap = 16.0f; // vertical space between stacked elements
 
-constexpr float k_ButtonTextScale = 1.0f;
 constexpr float k_FieldTextScale = 1.0f;
 constexpr float k_FieldPadding = 14.0f;
 constexpr int k_MaxSeedLength = 32;
@@ -33,14 +33,16 @@ constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
 constexpr float k_SlotSpriteX = 15.0f;
 constexpr float k_OutlineSpriteX = 37.0f;
 
-MainMenuLayer::MainMenuLayer(Window& window, std::function<void(int32_t, GameMode)> onPlay)
+MainMenuLayer::MainMenuLayer(
+    Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
+    std::function<void(int32_t, GameMode)> onPlay)
     : Layer("MainMenu")
     , m_Window(window)
     , m_OnPlay(std::move(onPlay))
-    , m_Renderer(window)
-    , m_UITexture("assets/textures/ui.png")
+    , m_Renderer(renderer)
+    , m_UITexture(uiTexture)
+    , m_Font(font)
     , m_Background("assets/textures/main_menu.png")
-    , m_Font("assets/textures/font.png")
 {
 }
 
@@ -96,12 +98,6 @@ glm::vec4 MainMenuLayer::ExitRect() const
     return glm::vec4(survive.x, survive.y + k_ButtonSize.y + k_Gap, k_ButtonSize);
 }
 
-bool MainMenuLayer::Contains(const glm::vec4& rect, const glm::vec2& point)
-{
-    return point.x >= rect.x && point.x <= rect.x + rect.z
-        && point.y >= rect.y && point.y <= rect.y + rect.w;
-}
-
 void MainMenuLayer::OnRender()
 {
     if (!m_Active) {
@@ -132,9 +128,10 @@ void MainMenuLayer::OnRender()
                                               (m_Window.GetSize().x - titleWidth) * 0.5f, seedPos.y - k_Gap - titleHeight)
         + k_TitleOffset);
     m_Font.Draw(m_Renderer, k_Title, titlePos, k_TitleScale, glm::vec4(1.0f));
-    DrawSlicedSprite(slotPos, k_SlotSprite, seedPos, k_FieldSize, m_SeedFocused ? 0.85f : 0.6f);
+    m_Renderer.DrawSlicedSprite(m_UITexture, slotPos, k_SlotSprite, seedPos, k_FieldSize,
+        glm::vec4(1.0f, 1.0f, 1.0f, m_SeedFocused ? 0.85f : 0.6f));
     if (m_SeedFocused) {
-        DrawSlicedSprite(outlinePos, k_SlotSprite, seedPos, k_FieldSize);
+        m_Renderer.DrawSlicedSprite(m_UITexture, outlinePos, k_SlotSprite, seedPos, k_FieldSize);
     }
 
     const float fieldTextHeight = m_Font.LineHeight(k_FieldTextScale);
@@ -168,9 +165,12 @@ void MainMenuLayer::OnRender()
         m_Renderer.ClearScissor();
     }
 
-    DrawButton(SurviveRect(), "Survive");
-    DrawButton(SpectateRect(), "Spectate");
-    DrawButton(ExitRect(), "Exit");
+    const glm::vec4 surviveRect = SurviveRect();
+    const glm::vec4 spectateRect = SpectateRect();
+    const glm::vec4 exitRect = ExitRect();
+    DrawMenuButton(m_Renderer, m_Font, m_UITexture, surviveRect, "Survive", RectContains(surviveRect, m_Cursor));
+    DrawMenuButton(m_Renderer, m_Font, m_UITexture, spectateRect, "Spectate", RectContains(spectateRect, m_Cursor));
+    DrawMenuButton(m_Renderer, m_Font, m_UITexture, exitRect, "Exit", RectContains(exitRect, m_Cursor));
 
     m_Renderer.End();
 }
@@ -189,13 +189,13 @@ void MainMenuLayer::OnEvent(Event& event)
     case EventType::k_MouseButtonPressed:
         if (event.button == MouseButton::k_Left) {
             // A click focuses the field, fires a button, or clears focus.
-            if (Contains(SeedRect(), m_Cursor)) {
+            if (RectContains(SeedRect(), m_Cursor)) {
                 m_SeedFocused = true;
-            } else if (Contains(SurviveRect(), m_Cursor)) {
+            } else if (RectContains(SurviveRect(), m_Cursor)) {
                 Play(GameMode::k_Survival);
-            } else if (Contains(SpectateRect(), m_Cursor)) {
+            } else if (RectContains(SpectateRect(), m_Cursor)) {
                 Play(GameMode::k_Spectator);
-            } else if (Contains(ExitRect(), m_Cursor)) {
+            } else if (RectContains(ExitRect(), m_Cursor)) {
                 m_Window.Close();
             } else {
                 m_SeedFocused = false;
@@ -256,66 +256,6 @@ void MainMenuLayer::Play(GameMode mode)
 {
     m_Active = false;
     m_OnPlay(SeedFromText(), mode);
-}
-
-void MainMenuLayer::DrawButton(const glm::vec4& rect, std::string_view label)
-{
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 slotPos = glm::vec2(k_SlotSpriteX, texSize.y - k_SlotSprite.y);
-    const glm::vec2 outlinePos = glm::vec2(k_OutlineSpriteX, texSize.y - k_SlotSprite.y);
-
-    const glm::vec2 position = glm::vec2(rect);
-    const glm::vec2 size = glm::vec2(rect.z, rect.w);
-    const bool hovered = Contains(rect, m_Cursor);
-
-    DrawSlicedSprite(slotPos, k_SlotSprite, position, size, hovered ? 0.85f : 0.6f);
-    if (hovered) {
-        DrawSlicedSprite(outlinePos, k_SlotSprite, position, size);
-    }
-
-    const glm::vec2 labelSize = glm::vec2(
-        m_Font.Measure(label, k_ButtonTextScale), m_Font.LineHeight(k_ButtonTextScale));
-    const glm::vec2 labelPos = glm::floor(position + (size - labelSize) * 0.5f);
-    m_Font.Draw(m_Renderer, label, labelPos, k_ButtonTextScale, glm::vec4(1.0f));
-}
-
-void MainMenuLayer::DrawSprite(
-    const glm::vec2& spritePos, const glm::vec2& spriteSize,
-    const glm::vec2& position, const glm::vec2& size, float opacity)
-{
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 uvMin = spritePos / texSize;
-    const glm::vec2 uvMax = (spritePos + spriteSize) / texSize;
-    // Textures are flipped vertically on load, so flip V to keep the sprite upright.
-    const glm::vec4 uvRect = glm::vec4(
-        uvMin.x, 1.0f - uvMin.y, uvMax.x - uvMin.x, uvMin.y - uvMax.y);
-    m_Renderer.DrawQuad(position, size, m_UITexture, uvRect, glm::vec4(1.0f, 1.0f, 1.0f, opacity));
-}
-
-void MainMenuLayer::DrawSlicedSprite(
-    const glm::vec2& spritePos, const glm::vec2& spriteSize,
-    const glm::vec2& position, const glm::vec2& size, float opacity)
-{
-    const float srcThird = spriteSize.x / 3.0f;
-    // The caps keep the sprite's aspect at the destination height; floor so the
-    // three pieces meet on integer pixels and don't leave a seam.
-    const float capWidth = glm::floor(srcThird * size.y / spriteSize.y);
-    const float midWidth = size.x - 2.0f * capWidth;
-
-    // Left cap.
-    DrawSprite(
-        spritePos, glm::vec2(srcThird, spriteSize.y),
-        position, glm::vec2(capWidth, size.y), opacity);
-
-    // Middle third, stretched across the gap between the caps.
-    DrawSprite(
-        spritePos + glm::vec2(srcThird, 0.0f), glm::vec2(srcThird, spriteSize.y),
-        position + glm::vec2(capWidth, 0.0f), glm::vec2(midWidth, size.y), opacity);
-
-    // Right cap: the remaining source width covers any rounding in the thirds.
-    DrawSprite(
-        spritePos + glm::vec2(2.0f * srcThird, 0.0f), glm::vec2(spriteSize.x - 2.0f * srcThird, spriteSize.y),
-        position + glm::vec2(size.x - capWidth, 0.0f), glm::vec2(capWidth, size.y), opacity);
 }
 
 } // namespace Krafter

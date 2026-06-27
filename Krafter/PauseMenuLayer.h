@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#include <string_view>
 
 #include "glm/glm.hpp"
 
@@ -20,7 +19,11 @@ class Window;
 // teardown-to-menu, leaving the actual layer-stack changes to the owner.
 class PauseMenuLayer : public Layer {
 public:
-    PauseMenuLayer(Window& window, std::function<void()> onResume, std::function<void()> onExitToMenu);
+    // The UI renderer, sprite sheet (ui.png), and font are owned by the
+    // application and shared across the UI layers, so the menu only borrows them.
+    PauseMenuLayer(
+        Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
+        std::function<void()> onResume, std::function<void()> onExitToMenu);
 
 private:
     void OnRender() override;
@@ -35,31 +38,13 @@ private:
     // The shared width of both buttons: wide enough for the longer label.
     float ButtonWidth() const;
 
-    static bool Contains(const glm::vec4& rect, const glm::vec2& point);
-
-    // Draws a button: the slot sprite stretched to the rect, a hover highlight,
-    // and the label centred inside.
-    void DrawButton(const glm::vec4& rect, std::string_view label);
-
-    // Draws a sprite from the UI texture, addressed from its bottom-left like the
-    // HUD does, stretched to fill the destination rectangle.
-    void DrawSprite(
-        const glm::vec2& spritePos, const glm::vec2& spriteSize,
-        const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
-
-    // Draws a sprite as a horizontal 3-slice so a small slot sprite makes a clean
-    // wide button: the rounded caps keep their aspect, only the middle stretches.
-    void DrawSlicedSprite(
-        const glm::vec2& spritePos, const glm::vec2& spriteSize,
-        const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
-
     Window& m_Window;
     std::function<void()> m_OnResume;
     std::function<void()> m_OnExitToMenu;
 
-    UIRenderer m_Renderer;
-    Texture2D m_UITexture;
-    Font m_Font;
+    UIRenderer& m_Renderer;
+    Texture2D& m_UITexture;
+    Font& m_Font;
 
     glm::vec2 m_Cursor = glm::vec2(0.0f);
 };

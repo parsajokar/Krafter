@@ -64,6 +64,8 @@ target_sources(
     Krafter/Renderer/WorldRenderer.cpp
     Krafter/Renderer/UIRenderer.h
     Krafter/Renderer/UIRenderer.cpp
+    Krafter/Renderer/Widgets.h
+    Krafter/Renderer/Widgets.cpp
     Krafter/Renderer/Font.h
     Krafter/Renderer/Font.cpp
     Krafter/WorldLayer.h
