@@ -1,4 +1,5 @@
 #include "Krafter/Game.h"
+#include "Krafter/InventoryLayer.h"
 #include "Krafter/MainMenuLayer.h"
 #include "Krafter/PauseMenuLayer.h"
 #include "Krafter/UILayer.h"
@@ -24,9 +25,13 @@ GameApplication::~GameApplication()
 {
     // Remove every live layer now, while the shared UI resources are still alive;
     // the base destructor only runs after our members (those resources) are gone.
-    // Order mirrors the scene transitions: pause menu, HUD, world, then menu.
+    // Order mirrors the scene transitions: pause menu, inventory, HUD, world, then
+    // menu (the inventory and HUD reference the world's player, so they go first).
     if (m_PauseMenu != nullptr) {
         RemoveLayer(m_PauseMenu);
+    }
+    if (m_Inventory != nullptr) {
+        RemoveLayer(m_Inventory);
     }
     if (m_UI != nullptr) {
         RemoveLayer(m_UI);
@@ -50,7 +55,10 @@ void GameApplication::StartGame(int32_t seed, GameMode mode)
             return;
         }
 
-        m_World = new WorldLayer(GetWindow(), GetRenderer(), seed, mode, [this]() { PauseGame(); });
+        m_World = new WorldLayer(
+            GetWindow(), GetRenderer(), seed, mode,
+            [this]() { PauseGame(); },
+            [this]() { OpenInventory(); });
         PushLayer(m_World);
 
         // The HUD shares the world's player hotbar. The overlay is pushed after
@@ -105,6 +113,53 @@ void GameApplication::ResumeGame()
     });
 }
 
+void GameApplication::OpenInventory()
+{
+    // Defer the layer push: this runs from the world layer's event handler while
+    // the stack is mid-iteration.
+    QueueAfterFrame([this]() {
+        // Ignore if there's no world, or the screen is already up (a repeat 'E').
+        if (m_World == nullptr || m_Inventory != nullptr) {
+            return;
+        }
+
+        // Release player control and free the cursor for the screen, but leave
+        // physics running so momentum (e.g. a fall) carries on, and hide the HUD
+        // so its bottom hotbar doesn't show beneath the screen's own hotbar row.
+        m_World->SuspendForInventory();
+        if (m_UI != nullptr) {
+            m_UI->SetVisible(false);
+        }
+        m_Inventory = new InventoryLayer(
+            GetWindow(), m_UIRenderer, m_UITexture, m_Font,
+            m_World->GetInventory(), m_World->GetHotbar(),
+            [this]() { CloseInventory(); });
+        PushOverlay(m_Inventory);
+    });
+}
+
+void GameApplication::CloseInventory()
+{
+    // Defer the layer removal: this runs from the inventory layer's event handler
+    // while the stack is mid-iteration.
+    QueueAfterFrame([this]() {
+        if (m_Inventory == nullptr) {
+            return;
+        }
+
+        RemoveLayer(m_Inventory);
+        m_Inventory = nullptr;
+
+        // Restore the HUD and hand control back to the player.
+        if (m_UI != nullptr) {
+            m_UI->SetVisible(true);
+        }
+        if (m_World != nullptr) {
+            m_World->Resume();
+        }
+    });
+}
+
 void GameApplication::ReturnToMenu()
 {
     // Defer the swap for the same reason as StartGame: this runs from the pause
@@ -120,6 +175,13 @@ void GameApplication::ReturnToMenu()
         if (m_PauseMenu != nullptr) {
             RemoveLayer(m_PauseMenu);
             m_PauseMenu = nullptr;
+        }
+
+        // The inventory screen also references the world's player, so drop it
+        // before the world too if it happens to be open.
+        if (m_Inventory != nullptr) {
+            RemoveLayer(m_Inventory);
+            m_Inventory = nullptr;
         }
 
         // Remove the HUD before the world: the HUD holds a reference into the

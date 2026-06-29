@@ -1,5 +1,7 @@
 #include "Krafter/Renderer/Widgets.h"
 
+#include <array>
+
 #include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
@@ -46,6 +48,56 @@ void DrawMenuButton(
         font.Measure(label, k_ButtonTextScale), font.LineHeight(k_ButtonTextScale));
     const glm::vec2 labelPos = glm::floor(position + (size - labelSize) * 0.5f);
     font.Draw(renderer, label, labelPos, k_ButtonTextScale, glm::vec4(1.0f));
+}
+
+void DrawBlockIcon(
+    UIRenderer& renderer, const Texture2D& blockTexture, Block block,
+    const glm::vec2& position, const glm::vec2& size)
+{
+    const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
+
+    // Atlas UVs are GPU coordinates (V from the bottom), so the tile's visual top
+    // is at vMax. Corners are wound: top-left, top-right, bottom-right, bottom-left.
+    auto tileUVs = [](const glm::vec2& tile) -> std::array<glm::vec2, 4> {
+        const float uMin = tile.x;
+        const float uMax = tile.x + BlockAtlas::k_Step;
+        const float vMin = tile.y;
+        const float vMax = tile.y + BlockAtlas::k_Step;
+        return {
+            glm::vec2(uMin, vMax), glm::vec2(uMax, vMax),
+            glm::vec2(uMax, vMin), glm::vec2(uMin, vMin)
+        };
+    };
+
+    // Every block draws as a flat sprite of its side tile filling the icon box.
+    // The side reads best across the set (grass keeps its fringe, the log shows
+    // bark rather than end-rings), and it matches how the foliage already looks.
+    const std::array<glm::vec2, 4> corners = {
+        glm::vec2(position.x, position.y),
+        glm::vec2(position.x + size.x, position.y),
+        glm::vec2(position.x + size.x, position.y + size.y),
+        glm::vec2(position.x, position.y + size.y)
+    };
+
+    // Representative oak-forest tints for the grayscale grass and leaf tiles.
+    constexpr glm::vec4 k_GrassColor = glm::vec4(0.569f, 0.741f, 0.349f, 1.0f);
+    constexpr glm::vec4 k_LeafColor = glm::vec4(0.471f, 0.671f, 0.302f, 1.0f);
+
+    // Leaves, grass tufts, and ferns are grayscale and get tinted; the grass
+    // block's side base is plain dirt (untinted) with its fringe added below.
+    glm::vec4 tint = glm::vec4(1.0f);
+    if (IsLeaves(block)) {
+        tint = k_LeafColor;
+    } else if (block == Block::k_ShortGrass || block == Block::k_Fern) {
+        tint = k_GrassColor;
+    }
+    renderer.DrawQuad(corners, tileUVs(atlas.side), blockTexture, tint);
+
+    // The grass block's side is dirt with a biome-tinted fringe layered over it,
+    // so draw that fringe on top to read green like the in-world block.
+    if (block == Block::k_Grass) {
+        renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), blockTexture, k_GrassColor);
+    }
 }
 
 } // namespace Krafter

@@ -23,6 +23,7 @@ enum class Key : int {
     k_S = 83,
     k_D = 68,
     k_A = 65,
+    k_E = 69,
     k_0 = 48,
     k_1 = 49,
     k_2 = 50,

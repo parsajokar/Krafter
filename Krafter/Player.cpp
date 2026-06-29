@@ -22,12 +22,18 @@ Player::Player(Window& window, World& world, const glm::vec3& position, float fo
 
 void Player::Update()
 {
-    if (m_IsControlled) {
-        if (m_Mode == GameMode::k_Survival) {
+    if (m_Mode == GameMode::k_Survival) {
+        // Survival physics run whenever enabled, even when the player isn't in
+        // control (the inventory screen): movement input is zero while
+        // uncontrolled, so only gravity and existing velocity move the body, and
+        // a fall already underway keeps its momentum.
+        if (m_PhysicsEnabled) {
             UpdateSurvival();
-        } else {
-            UpdateSpectator();
         }
+    } else if (m_IsControlled) {
+        // Spectator flight is pure input with no momentum, so it only moves while
+        // the player is in control.
+        UpdateSpectator();
     }
 
     glm::ivec3 hit;
@@ -316,11 +322,28 @@ void Player::RenderImGui()
 void Player::SetControlled(bool controlled)
 {
     m_IsControlled = controlled;
+    // Taking control resumes physics; releasing it for a menu freezes the player
+    // in place. (The inventory uses SuspendForInventory, which keeps physics on.)
+    m_PhysicsEnabled = controlled;
     ApplyControlMode();
 
     // Reset movement and rebaseline the look so toggling doesn't drift or snap.
     m_MoveInput = glm::vec2(0.0f);
     m_VerticalVelocity = 0.0f;
+    m_JumpHeld = false;
+    m_PlaceHeld = false;
+    m_FirstMouse = true;
+}
+
+void Player::SuspendForInventory()
+{
+    // Release look and input and free the cursor for the inventory screen, but
+    // leave m_PhysicsEnabled and m_VerticalVelocity untouched so the survival
+    // simulation keeps integrating and a fall in progress carries its momentum.
+    m_IsControlled = false;
+    ApplyControlMode();
+
+    m_MoveInput = glm::vec2(0.0f);
     m_JumpHeld = false;
     m_PlaceHeld = false;
     m_FirstMouse = true;

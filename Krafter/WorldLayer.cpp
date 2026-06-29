@@ -11,11 +11,14 @@
 
 namespace Krafter {
 
-WorldLayer::WorldLayer(Window& window, Renderer& renderer, int32_t seed, GameMode mode, std::function<void()> onPause)
+WorldLayer::WorldLayer(
+    Window& window, Renderer& renderer, int32_t seed, GameMode mode,
+    std::function<void()> onPause, std::function<void()> onToggleInventory)
     : Layer("World")
     , m_Window(window)
     , m_Renderer(renderer)
     , m_OnPause(std::move(onPause))
+    , m_OnToggleInventory(std::move(onToggleInventory))
     , m_World(seed)
     , m_Player(window, m_World, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f), mode)
 {
@@ -52,6 +55,13 @@ void WorldLayer::OnEvent(Event& event)
     if (event.type == EventType::k_KeyPressed && event.key == Key::k_Escape && !event.isRepeat) {
         // Open the pause menu rather than quitting straight to the main menu.
         m_OnPause();
+        event.handled = true;
+        return;
+    }
+
+    if (event.type == EventType::k_KeyPressed && event.key == Key::k_E && !event.isRepeat) {
+        // Open the inventory screen over the world.
+        m_OnToggleInventory();
         event.handled = true;
         return;
     }

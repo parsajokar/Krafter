@@ -5,6 +5,7 @@
 #include "Krafter/Camera.h"
 #include "Krafter/GameMode.h"
 #include "Krafter/Hotbar.h"
+#include "Krafter/Inventory.h"
 
 namespace Krafter {
 
@@ -23,10 +24,16 @@ public:
     void OnEvent(Event& event);
     void RenderImGui();
 
-    // Grabs or releases the player: capturing the cursor for mouse-look, or
-    // freeing it for menus. Used by the main menu to drop the player into the
-    // game once "Play!" is pressed.
+    // Grabs or releases the player: capturing the cursor for mouse-look and
+    // enabling input and physics, or freeing the cursor and freezing all three
+    // for a menu. Used by the main menu to drop the player into the game once
+    // "Play!" is pressed, and by the pause menu to freeze it.
     void SetControlled(bool controlled);
+
+    // Releases look and movement input and frees the cursor for the inventory
+    // screen, but leaves the physics running so momentum (such as a fall already
+    // in progress) carries on. SetControlled(true) hands control back.
+    void SuspendForInventory();
 
     const glm::vec3& GetPosition() const
     {
@@ -42,6 +49,13 @@ public:
     Hotbar& GetHotbar()
     {
         return m_Hotbar;
+    }
+
+    // The player's main inventory (the grid above the hotbar). The inventory
+    // screen reads it through a reference, the same way the HUD reads the hotbar.
+    Inventory& GetInventory()
+    {
+        return m_Inventory;
     }
 
     // The block the camera is currently looking at within reach, for the
@@ -107,6 +121,7 @@ private:
     Window& m_Window;
     World& m_World;
     Hotbar m_Hotbar;
+    Inventory m_Inventory;
     Camera m_Camera;
 
     GameMode m_Mode;
@@ -119,6 +134,12 @@ private:
     // Tracks whether the player is currently driving the camera. Starts false so
     // the world opens behind the main menu with the cursor free.
     bool m_IsControlled = false;
+
+    // Whether the survival physics simulation integrates. Independent of control
+    // so the inventory screen can release input yet keep gravity and momentum
+    // going. Starts false (frozen at spawn behind the menu) and is enabled when
+    // the player first takes control; a true menu pause turns it off again.
+    bool m_PhysicsEnabled = false;
 
     // Survival vertical velocity and whether the body is resting on a block; only
     // used in survival mode (spectator flies and ignores both).

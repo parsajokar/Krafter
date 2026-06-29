@@ -14,6 +14,7 @@ class MainMenuLayer;
 class WorldLayer;
 class UILayer;
 class PauseMenuLayer;
+class InventoryLayer;
 
 // The application composition root: assembles the scene layers it runs and
 // wires up the references they share.
@@ -37,6 +38,12 @@ private:
     void PauseGame();
     void ResumeGame();
 
+    // Opens / closes the inventory screen over the running world. OpenInventory is
+    // invoked when the player presses 'E' in the world; CloseInventory when the
+    // screen is dismissed ('E' or Escape again). Both defer the layer-stack change.
+    void OpenInventory();
+    void CloseInventory();
+
     // Tears the world scene down and returns to a fresh main menu. Invoked from the
     // pause menu's "Exit to main menu" button; the swap is deferred to be safe.
     void ReturnToMenu();
@@ -56,6 +63,7 @@ private:
     WorldLayer* m_World = nullptr;
     UILayer* m_UI = nullptr;
     PauseMenuLayer* m_PauseMenu = nullptr;
+    InventoryLayer* m_Inventory = nullptr;
 };
 
 } // namespace Krafter

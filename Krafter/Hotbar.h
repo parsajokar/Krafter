@@ -28,6 +28,11 @@ public:
         return m_Slots[slot];
     }
 
+    void SetBlock(int slot, Block block)
+    {
+        m_Slots[slot] = block;
+    }
+
     Block GetSelectedBlock() const
     {
         return m_Slots[m_Selected];

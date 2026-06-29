@@ -76,7 +76,10 @@ target_sources(
     Krafter/MainMenuLayer.cpp
     Krafter/PauseMenuLayer.h
     Krafter/PauseMenuLayer.cpp
+    Krafter/InventoryLayer.h
+    Krafter/InventoryLayer.cpp
     Krafter/Hotbar.h
+    Krafter/Inventory.h
     Krafter/GameMode.h
     Krafter/Game.h
     Krafter/Game.cpp
