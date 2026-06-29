@@ -22,6 +22,13 @@ Player::Player(Window& window, World& world, const glm::vec3& position, float fo
 
 void Player::Update()
 {
+    // Stow whatever the world dropped as blocks fell away (a chopped tree's
+    // stranded logs, a toppled cactus); the directly mined block is stowed in
+    // UpdateBreaking when its break completes.
+    for (const Block drop : m_World.TakeDrops()) {
+        CollectDrop(drop);
+    }
+
     if (m_Mode == GameMode::k_Survival) {
         // Survival physics run whenever enabled, even when the player isn't in
         // control (the inventory screen): movement input is zero while
@@ -199,9 +206,55 @@ void Player::UpdateBreaking()
     // next held frame starts fresh on whatever the player is now aimed at,
     // letting a held swing chew through a row of blocks one after another.
     if (m_BreakProgress >= BreakSeconds(m_World.GetBlock(m_BreakBlock))) {
+        const Block broken = m_World.GetBlock(m_BreakBlock);
         m_World.SetBlock(m_BreakBlock, Block::k_Air);
+        // Drop the block into the world to be walked over, rather than stowing it
+        // straight away; the cascade of a felled tree drops its logs the same way.
+        m_World.SpawnDrop(glm::vec3(m_BreakBlock) + 0.5f, DropFor(broken));
         m_IsBreaking = false;
         m_BreakProgress = 0.0f;
+    }
+}
+
+void Player::CollectDrop(Block drop)
+{
+    if (drop == Block::k_Air) {
+        return;
+    }
+
+    // First top up an existing stack of the same block that still has room, so a
+    // run of logs piles into one slot instead of scattering across many. Scan the
+    // hotbar before the grid so quick-select stacks fill first.
+    for (int slot = 0; slot < Hotbar::k_SlotCount; ++slot) {
+        Item item = m_Hotbar.GetItem(slot);
+        if (item.IsBlock() && item.block == drop && item.count < Item::k_MaxStack) {
+            item.count++;
+            m_Hotbar.SetItem(slot, item);
+            return;
+        }
+    }
+    for (int slot = 0; slot < Inventory::k_SlotCount; ++slot) {
+        Item item = m_Inventory.GetItem(slot);
+        if (item.IsBlock() && item.block == drop && item.count < Item::k_MaxStack) {
+            item.count++;
+            m_Inventory.SetItem(slot, item);
+            return;
+        }
+    }
+
+    // No partial stack to join; start a fresh one in the first empty slot (hotbar
+    // first, so a felled log is ready to place), then the inventory grid.
+    for (int slot = 0; slot < Hotbar::k_SlotCount; ++slot) {
+        if (m_Hotbar.GetItem(slot).IsEmpty()) {
+            m_Hotbar.SetItem(slot, drop);
+            return;
+        }
+    }
+    for (int slot = 0; slot < Inventory::k_SlotCount; ++slot) {
+        if (m_Inventory.GetItem(slot).IsEmpty()) {
+            m_Inventory.SetItem(slot, drop);
+            return;
+        }
     }
 }
 

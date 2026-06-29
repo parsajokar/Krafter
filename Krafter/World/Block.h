@@ -59,6 +59,16 @@ inline bool IsTreePart(Block block)
     return IsLog(block) || IsWood(block) || IsLeaves(block);
 }
 
+// The blocks a generated tree is actually built from: trunk wood and canopy
+// leaves. These crumble away when a cut strands them off the ground. Logs are
+// excluded on purpose: they only ever enter the world by the player placing
+// them, so an unsupported log stays put like any other building block rather
+// than auto-destructing the way a chopped tree's remains do.
+inline bool IsNaturalTreePart(Block block)
+{
+    return IsWood(block) || IsLeaves(block);
+}
+
 // Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
 // billboards instead of a cube. It has no collision, lets light through, and
 // never hides a neighbour's face.
@@ -114,6 +124,28 @@ inline float BreakSeconds(Block block)
     return 0.75f;
 }
 
+// What a broken block yields as a collectible drop, or k_Air for nothing. Leaves
+// and cross plants just give way, leaving nothing to pick up. A tree trunk is
+// built from wood (bark on every face), but felling it yields logs (with end
+// grain) the way a tree does in Minecraft, so each wood maps to its species' log.
+// Everything else, logs and cactus included, drops itself.
+inline Block DropFor(Block block)
+{
+    if (IsLeaves(block) || IsPlant(block)) {
+        return Block::k_Air;
+    }
+    switch (block) {
+    case Block::k_OakWood:
+        return Block::k_OakLog;
+    case Block::k_BirchWood:
+        return Block::k_BirchLog;
+    case Block::k_AcaciaWood:
+        return Block::k_AcaciaLog;
+    default:
+        return block;
+    }
+}
+
 enum class BlockFace {
     k_Front,
     k_Back,
@@ -140,5 +172,14 @@ public:
 private:
     inline static std::unordered_map<Block, BlockAtlas> s_BlockAtlases;
 };
+
+// The atlas tile a block shows when drawn as a flat icon (HUD slots and world
+// drops). Most blocks read best as their side, but a log's bark is ambiguous
+// flattened, so logs show their end-grain top tile instead.
+inline glm::vec2 BlockIconTile(Block block)
+{
+    const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
+    return IsLog(block) ? atlas.top : atlas.side;
+}
 
 } // namespace Krafter

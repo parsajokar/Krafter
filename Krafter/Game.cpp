@@ -64,7 +64,7 @@ void GameApplication::StartGame(int32_t seed, GameMode mode)
         // The HUD shares the world's player hotbar. The overlay is pushed after
         // the world layer and so is destroyed before it, keeping the reference
         // valid.
-        m_UI = new UILayer(GetWindow(), m_UIRenderer, m_UITexture, m_World->GetHotbar());
+        m_UI = new UILayer(GetWindow(), m_UIRenderer, m_UITexture, m_Font, m_World->GetHotbar());
         PushOverlay(m_UI);
 
         m_World->BeginPlay();

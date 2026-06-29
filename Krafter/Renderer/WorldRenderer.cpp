@@ -151,6 +151,26 @@ void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float prog
     glDisable(GL_BLEND);
 }
 
+void WorldRenderer::RenderItemDrop(
+    const glm::vec3& center, const glm::vec3& right, const glm::vec3& up,
+    const glm::vec2& tileOrigin, const glm::mat4& viewProjection)
+{
+    m_Texture->Bind(0);
+    m_ItemProgram->Bind();
+    m_ItemProgram->SetUniformMat4(0, viewProjection);
+    m_ItemProgram->SetUniformVec3(1, center);
+    m_ItemProgram->SetUniformVec3(2, right);
+    m_ItemProgram->SetUniformVec3(3, up);
+    m_ItemProgram->SetUniformVec3(4, glm::vec3(tileOrigin, BlockAtlas::k_Step));
+    m_ItemProgram->SetUniformInt(5, 0);
+
+    // Opaque, depth-writing, single quad; cutout texels are dropped in the shader.
+    // Drawn double-sided so the billboard shows whichever way its corners wind.
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(m_ItemVertexArray);
+    glDrawElements(GL_TRIANGLES, m_ItemElementCount, GL_UNSIGNED_INT, nullptr);
+}
+
 void WorldRenderer::AnimateWater()
 {
     if (m_WaterFrameCount <= 0) {
@@ -302,6 +322,37 @@ WorldRenderer::WorldRenderer()
     m_BreakProgram = std::make_unique<ShaderProgram>("assets/shaders/break.vert.glsl", "assets/shaders/break.frag.glsl");
     m_BreakTexture = std::make_unique<Texture2D>("assets/textures/destroy.png");
 
+    // Item-drop billboard: one quad with corner offsets (-0.5..0.5) and 0..1 UVs,
+    // expanded along the camera axes and textured from the block atlas per draw.
+    const float itemVertices[] = {
+        -0.5f, -0.5f, 0.0f, 0.0f,
+        0.5f, -0.5f, 1.0f, 0.0f,
+        0.5f, 0.5f, 1.0f, 1.0f,
+        -0.5f, 0.5f, 0.0f, 1.0f,
+    };
+    const uint32_t itemIndices[] = { 0, 1, 2, 0, 2, 3 };
+    m_ItemElementCount = sizeof(itemIndices) / sizeof(itemIndices[0]);
+
+    glCreateVertexArrays(1, &m_ItemVertexArray);
+    glCreateBuffers(1, &m_ItemVertexBuffer);
+    glCreateBuffers(1, &m_ItemElementBuffer);
+
+    glNamedBufferData(m_ItemVertexBuffer, sizeof(itemVertices), itemVertices, GL_STATIC_DRAW);
+    glNamedBufferData(m_ItemElementBuffer, sizeof(itemIndices), itemIndices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(m_ItemVertexArray, 0, m_ItemVertexBuffer, 0, 4 * sizeof(float));
+    glVertexArrayElementBuffer(m_ItemVertexArray, m_ItemElementBuffer);
+
+    glEnableVertexArrayAttrib(m_ItemVertexArray, 0);
+    glVertexArrayAttribBinding(m_ItemVertexArray, 0, 0);
+    glVertexArrayAttribFormat(m_ItemVertexArray, 0, 2, GL_FLOAT, GL_FALSE, 0);
+
+    glEnableVertexArrayAttrib(m_ItemVertexArray, 1);
+    glVertexArrayAttribBinding(m_ItemVertexArray, 1, 0);
+    glVertexArrayAttribFormat(m_ItemVertexArray, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
+
+    m_ItemProgram = std::make_unique<ShaderProgram>("assets/shaders/item.vert.glsl", "assets/shaders/item.frag.glsl");
+
     // The strip stacks square frames, so the count is its height over its width.
     const glm::ivec2& breakSize = m_BreakTexture->GetSize();
     if (breakSize.x > 0) {
@@ -318,6 +369,10 @@ WorldRenderer::~WorldRenderer()
     glDeleteBuffers(1, &m_BreakElementBuffer);
     glDeleteBuffers(1, &m_BreakVertexBuffer);
     glDeleteVertexArrays(1, &m_BreakVertexArray);
+
+    glDeleteBuffers(1, &m_ItemElementBuffer);
+    glDeleteBuffers(1, &m_ItemVertexBuffer);
+    glDeleteVertexArrays(1, &m_ItemVertexArray);
 }
 
 } // namespace Krafter

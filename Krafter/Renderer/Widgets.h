@@ -32,6 +32,13 @@ void DrawItemIcon(
     UIRenderer& renderer, const Texture2D& blockTexture, const Texture2D& itemTexture,
     const Item& item, const glm::vec2& position, const glm::vec2& size);
 
+// Draws a stack count in the bottom-right of the slot box at `position` with
+// `size`, the way Minecraft labels a stack. Drawn only when `count` is above one,
+// so a lone block or a tool shows no number. `font` is the shared HUD font.
+void DrawItemCount(
+    UIRenderer& renderer, const Font& font, int count,
+    const glm::vec2& position, const glm::vec2& size);
+
 // Draws a menu button: the UI slot sprite 9-sliced to `rect`, with a brighter
 // face and a selection outline when `hovered`, and `label` centred inside.
 // `uiTexture` is the shared UI sprite sheet (ui.png).

@@ -111,6 +111,12 @@ private:
     // block the selected tool can break.
     void UpdateBreaking();
 
+    // Stows one dropped block, topping up an existing stack of the same block
+    // that has room (up to Item::k_MaxStack) before starting a fresh stack in the
+    // first empty slot, scanning the hotbar then the inventory grid each time. A
+    // no-op for k_Air (nothing dropped) or when there is nowhere left to put it.
+    void CollectDrop(Block drop);
+
     // Places the held hotbar block against the block under the crosshair, applying
     // the plant and self-trap rules. A no-op when nothing is targeted or the slot
     // is empty. Driven by the right mouse button, including while it is held.

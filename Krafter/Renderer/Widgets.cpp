@@ -1,6 +1,7 @@
 #include "Krafter/Renderer/Widgets.h"
 
 #include <array>
+#include <string>
 
 #include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
@@ -45,6 +46,26 @@ bool RectContains(const glm::vec4& rect, const glm::vec2& point)
         && point.y >= rect.y && point.y <= rect.y + rect.w;
 }
 
+void DrawItemCount(
+    UIRenderer& renderer, const Font& font, int count,
+    const glm::vec2& position, const glm::vec2& size)
+{
+    // A single block or a tool needs no label; only real stacks are numbered.
+    if (count <= 1) {
+        return;
+    }
+
+    constexpr float k_CountScale = 1.0f;
+    const std::string text = std::to_string(count);
+    const glm::vec2 textSize = glm::vec2(
+        font.Measure(text, k_CountScale), font.LineHeight(k_CountScale));
+
+    // Tuck the number into the slot's bottom-right corner, a hair off the edge.
+    constexpr float k_Pad = 1.0f;
+    const glm::vec2 textPos = glm::floor(position + size - textSize - glm::vec2(k_Pad));
+    font.Draw(renderer, text, textPos, k_CountScale, glm::vec4(1.0f));
+}
+
 void DrawMenuButton(
     UIRenderer& renderer, const Font& font, const Texture2D& uiTexture,
     const glm::vec4& rect, std::string_view label, bool hovered)
@@ -87,9 +108,9 @@ void DrawBlockIcon(
         };
     };
 
-    // Every block draws as a flat sprite of its side tile filling the icon box.
-    // The side reads best across the set (grass keeps its fringe, the log shows
-    // bark rather than end-rings), and it matches how the foliage already looks.
+    // Every block draws as a flat sprite of its icon tile filling the box: the
+    // side for most (grass keeps its fringe, foliage reads as in-world), but logs
+    // show their end grain so they aren't mistaken for plain bark.
     const std::array<glm::vec2, 4> corners = {
         glm::vec2(position.x, position.y),
         glm::vec2(position.x + size.x, position.y),
@@ -109,7 +130,7 @@ void DrawBlockIcon(
     } else if (block == Block::k_ShortGrass || block == Block::k_Fern) {
         tint = k_GrassColor;
     }
-    renderer.DrawQuad(corners, tileUVs(atlas.side), blockTexture, tint);
+    renderer.DrawQuad(corners, tileUVs(BlockIconTile(block)), blockTexture, tint);
 
     // The grass block's side is dirt with a biome-tinted fringe layered over it,
     // so draw that fringe on top to read green like the in-world block.

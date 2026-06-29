@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <vector>
 
@@ -28,6 +29,10 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 {
     DrainResults();
     UpdateFallingBlocks(deltaTime);
+
+    m_Time += deltaTime;
+    m_LastCameraPosition = cameraPosition;
+    UpdateDrops(deltaTime, cameraPosition);
 
     glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
 
@@ -116,6 +121,26 @@ void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, con
         }
     }
     renderer.SetCullFace(false);
+
+    // Floating item drops: opaque, depth-writing billboards that always face the
+    // camera, so each reads as its HUD icon hanging in the world. A gentle bob
+    // animates them; the basis is rebuilt per drop from the eye recorded in Update.
+    constexpr glm::vec3 k_WorldUp(0.0f, 1.0f, 0.0f);
+    for (const ItemDrop& drop : m_Drops) {
+        glm::vec3 center = drop.position;
+        center.y += std::sin((m_Time + drop.phase) * k_DropBobSpeed) * k_DropBobAmplitude;
+
+        const glm::vec3 toEye = m_LastCameraPosition - center;
+        if (glm::dot(toEye, toEye) < 1e-6f) {
+            continue; // degenerate: the eye is right on the drop
+        }
+        const glm::vec3 forward = glm::normalize(toEye);
+        const glm::vec3 right = glm::normalize(glm::cross(k_WorldUp, forward));
+        const glm::vec3 up = glm::cross(forward, right);
+
+        renderer.RenderItemDrop(
+            center, right * k_DropSize, up * k_DropSize, BlockIconTile(drop.block), viewProjection);
+    }
 
     // Cross plants next: cutout (the shader discards clear texels) and still
     // depth-writing like opaque geometry, but drawn double-sided so both faces of
@@ -228,8 +253,9 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
 
     // Breaking part of a tree can leave the rest of it floating. Like chopping a
     // tree in Terraria, clear away every wood/leaf block that the break stranded
-    // with no path back down to the ground.
-    if (IsTreePart(previous) && !IsTreePart(block)) {
+    // with no path back down to the ground. Only the natural wood and leaves
+    // cascade; a player-placed log is a building block and stays where it is put.
+    if (IsNaturalTreePart(previous) && !IsNaturalTreePart(block)) {
         ChopFloatingTree(worldPosition);
     }
 
@@ -281,8 +307,9 @@ void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
 
     // A tree block already counting down to removal is treated as gone, so the
     // chop sees through doomed wood instead of resting the rest of the tree on it.
+    // Only natural wood and leaves take part; a placed log is solid ground here.
     auto isStanding = [this](const glm::ivec3& cell) {
-        return IsTreePart(GetBlock(cell)) && !m_Falling.count(cell);
+        return IsNaturalTreePart(GetBlock(cell)) && !m_Falling.count(cell);
     };
 
     std::unordered_set<glm::ivec3> visited;
@@ -309,12 +336,12 @@ void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
             component.push_back(cell);
 
             // A tree part resting on a solid, non-tree block (dirt, grass,
-            // stone...) directly or diagonally below is footed: it and everything
-            // joined to it stay.
+            // stone, a placed log...) directly or diagonally below is footed: it
+            // and everything joined to it stay.
             for (int32_t dz = -1; dz <= 1 && !grounded; dz++) {
                 for (int32_t dx = -1; dx <= 1 && !grounded; dx++) {
                     const Block under = GetBlock(cell + glm::ivec3(dx, -1, dz));
-                    if (IsOpaque(under) && !IsTreePart(under)) {
+                    if (IsOpaque(under) && !IsNaturalTreePart(under)) {
                         grounded = true;
                     }
                 }
@@ -385,9 +412,14 @@ void World::UpdateFallingBlocks(float deltaTime)
             // The player may have mined or built over it in the meantime; only
             // clear it if our doomed block is still there.
             const Block here = it->second.chunk->GetBlock(ToLocalPosition(cell));
-            if (IsTreePart(here) || here == Block::k_Cactus) {
+            if (IsNaturalTreePart(here) || here == Block::k_Cactus) {
                 it->second.chunk->SetBlock(ToLocalPosition(cell), Block::k_Air);
                 touchedChunks.insert(cellChunk);
+
+                // A felled trunk sheds its logs the same as one mined by hand:
+                // spawn a floating drop at the cell centre to fall and be walked
+                // over. Leaves (and anything else without a drop) leave nothing.
+                SpawnDrop(glm::vec3(cell) + 0.5f, DropFor(here));
             }
         }
 
@@ -404,6 +436,83 @@ void World::UpdateFallingBlocks(float deltaTime)
                 InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
             }
         }
+    }
+}
+
+void World::SpawnDrop(const glm::vec3& position, Block block)
+{
+    if (block == Block::k_Air) {
+        return;
+    }
+
+    // Pop the drop up and out along a turning angle (the golden angle keeps a run
+    // of drops from a felled tree fanning out instead of overlapping), reusing the
+    // same angle as the bob phase so each drop bobs out of step with the others.
+    const float angle = static_cast<float>(m_Drops.size()) * 2.39996323f;
+    const glm::vec3 velocity(
+        std::cos(angle) * k_DropPopOut, k_DropPopUp, std::sin(angle) * k_DropPopOut);
+    m_Drops.push_back({ position, velocity, block, 0.0f, angle });
+}
+
+void World::UpdateDrops(float deltaTime, const glm::vec3& cameraPosition)
+{
+    for (size_t i = 0; i < m_Drops.size();) {
+        ItemDrop& drop = m_Drops[i];
+        drop.age += deltaTime;
+
+        // Home to the player's feet, not the eye the camera rides at, so drops
+        // converge at ground level instead of flying up to the face.
+        const glm::vec3 target = cameraPosition - glm::vec3(0.0f, k_PlayerEyeHeight, 0.0f);
+        const glm::vec3 toTarget = target - drop.position;
+        const float distSq = glm::dot(toTarget, toTarget);
+
+        // Within the magnet radius (and past the pop-out delay) the drop is pulled
+        // to the player: collected once it reaches the feet, otherwise gravitating
+        // in and accelerating as it closes. Gravity is ignored while it homes, so
+        // it can rise off the ground and streak to the feet.
+        if (drop.age >= k_PickupDelay && distSq <= k_AttractRadius * k_AttractRadius) {
+            if (distSq <= k_PickupRadius * k_PickupRadius) {
+                m_PendingDrops.push_back(drop.block);
+                m_Drops[i] = m_Drops.back();
+                m_Drops.pop_back();
+                continue;
+            }
+
+            const float dist = std::sqrt(distSq);
+            const float closeness = 1.0f - dist / k_AttractRadius; // 0 at edge, ->1 near
+            const float speed = glm::mix(k_AttractMinSpeed, k_AttractMaxSpeed, closeness);
+            const float step = std::min(speed * deltaTime, dist); // never overshoot the feet
+            drop.position += (toTarget / dist) * step;
+            drop.velocity = glm::vec3(0.0f);
+            i++;
+            continue;
+        }
+
+        // Out of magnet range: fall under gravity, then rest on the first solid
+        // block below, clamped to sit k_DropHalfHeight above its top face. Plants
+        // and water aren't solid, so a drop falls through them to real ground. The
+        // probe dips just under the feet, since at rest the feet sit exactly on a
+        // cell boundary (which would otherwise floor to the empty cell above).
+        drop.velocity.y -= k_DropGravity * deltaTime;
+        drop.position += drop.velocity * deltaTime;
+
+        const float feetY = drop.position.y - k_DropHalfHeight;
+        const glm::ivec3 ground = glm::ivec3(glm::floor(
+            glm::vec3(drop.position.x, feetY - 0.05f, drop.position.z)));
+        if (drop.velocity.y <= 0.0f && IsOpaque(GetBlock(ground))) {
+            drop.position.y = static_cast<float>(ground.y) + 1.0f + k_DropHalfHeight;
+            drop.velocity = glm::vec3(0.0f);
+        }
+
+        // Give up on a drop that has aged out or sunk into the void (e.g. fell off
+        // the bottom of the world or through unloaded chunks) so they can't pile up.
+        if (drop.age >= k_DropLifetime || drop.position.y < k_DropVoidY) {
+            m_Drops[i] = m_Drops.back();
+            m_Drops.pop_back();
+            continue;
+        }
+
+        i++;
     }
 }
 

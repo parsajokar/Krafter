@@ -7,12 +7,13 @@ namespace Krafter {
 
 constexpr float k_UIOpacity = 0.6f;
 
-UILayer::UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Hotbar& hotbar)
+UILayer::UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font, Hotbar& hotbar)
     : Layer("UI")
     , m_Window(window)
     , m_Hotbar(hotbar)
     , m_Renderer(renderer)
     , m_UITexture(uiTexture)
+    , m_Font(font)
     , m_BlockTexture("assets/textures/blocks.png")
     , m_ItemTexture("assets/textures/items.png")
 {
@@ -104,6 +105,7 @@ void UILayer::DrawHotbar()
         if (!item.IsEmpty()) {
             DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, item,
                 position + iconOffset, iconSize);
+            DrawItemCount(m_Renderer, m_Font, item.count, position, slotSize);
         }
 
         if (i == m_Hotbar.GetSelected()) {

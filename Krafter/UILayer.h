@@ -2,6 +2,7 @@
 
 #include "Krafter/Hotbar.h"
 #include "Krafter/Core/Layer.h"
+#include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
 
@@ -13,7 +14,7 @@ class UILayer : public Layer {
 public:
     // The UI renderer and sprite sheet (ui.png) are owned by the application and
     // shared across the UI layers; the HUD only borrows them.
-    UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Hotbar& hotbar);
+    UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font, Hotbar& hotbar);
 
     // Shows or hides the whole HUD. Hidden while the inventory screen is up, which
     // draws its own hotbar row, so the bottom hotbar doesn't show through.
@@ -33,6 +34,7 @@ private:
     Hotbar& m_Hotbar;
     UIRenderer& m_Renderer;
     Texture2D& m_UITexture;
+    Font& m_Font;
 
     // The block and item atlases are the HUD's own, used only for hotbar icons.
     Texture2D m_BlockTexture;

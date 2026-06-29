@@ -15,13 +15,20 @@ enum class ItemKind {
 // (k_Air means empty); an item slot sets isItem and stores the kind. A Block
 // converts to an Item implicitly, so the block-only call sites read unchanged.
 struct Item {
+    // The most of one block a single slot stacks before spilling into the next.
+    static constexpr int k_MaxStack = 999;
+
     Block block = Block::k_Air;
     ItemKind kind = ItemKind::k_WoodenAxe;
     bool isItem = false;
+    // How many are in this slot. Zero for an empty slot; a filled block or tool
+    // slot holds at least one, blocks stacking up to k_MaxStack.
+    int count = 0;
 
     constexpr Item() = default;
     constexpr Item(Block block)
         : block(block)
+        , count(block == Block::k_Air ? 0 : 1)
     {
     }
 
@@ -30,6 +37,7 @@ struct Item {
         Item item;
         item.isItem = true;
         item.kind = kind;
+        item.count = 1;
         return item;
     }
 

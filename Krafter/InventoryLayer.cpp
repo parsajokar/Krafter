@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string_view>
 #include <utility>
 
@@ -128,9 +129,25 @@ void InventoryLayer::SetSlot(int index, Item item)
 
 void InventoryLayer::ClickSlot(int index)
 {
-    // Swap the clicked slot with what the cursor is holding: pick up an item from
-    // a filled slot, drop into an empty one, or swap the two when both are filled.
     const Item slotItem = GetSlot(index);
+
+    // Same block in hand and in the slot: pour the held stack in, up to the
+    // slot's k_MaxStack, and keep any overflow on the cursor.
+    if (m_Held.IsBlock() && slotItem.IsBlock() && m_Held.block == slotItem.block
+        && slotItem.count < Item::k_MaxStack) {
+        const int moved = std::min(Item::k_MaxStack - slotItem.count, m_Held.count);
+        Item merged = slotItem;
+        merged.count += moved;
+        SetSlot(index, merged);
+        m_Held.count -= moved;
+        if (m_Held.count <= 0) {
+            m_Held = Item();
+        }
+        return;
+    }
+
+    // Otherwise swap the clicked slot with what the cursor is holding: pick up an
+    // item from a filled slot, drop into an empty one, or swap two different ones.
     SetSlot(index, m_Held);
     m_Held = slotItem;
 }
@@ -187,6 +204,7 @@ void InventoryLayer::OnRender()
         if (!item.IsEmpty()) {
             DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, item,
                 position + glm::vec2(k_IconOffset), glm::vec2(k_IconSize));
+            DrawItemCount(m_Renderer, m_Font, item.count, position, glm::vec2(k_SlotSize));
         }
 
         if (i == hovered) {
@@ -197,8 +215,10 @@ void InventoryLayer::OnRender()
 
     // The held item trails the cursor, drawn last so it sits above the slots.
     if (!m_Held.IsEmpty()) {
+        const glm::vec2 heldPos = m_Cursor - glm::vec2(k_IconSize * 0.5f);
         DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, m_Held,
-            m_Cursor - glm::vec2(k_IconSize * 0.5f), glm::vec2(k_IconSize));
+            heldPos, glm::vec2(k_IconSize));
+        DrawItemCount(m_Renderer, m_Font, m_Held.count, heldPos, glm::vec2(k_IconSize));
     }
 
     m_Renderer.End();
