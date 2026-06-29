@@ -51,6 +51,14 @@ inline bool IsLeaves(Block block)
         || block == Block::k_AcaciaLeaves;
 }
 
+// The pieces a tree is built from: the trunk's wood and logs plus the canopy
+// leaves. Breaking one of these can leave the rest of the tree hanging in the
+// air, with nothing connecting it back down to the ground.
+inline bool IsTreePart(Block block)
+{
+    return IsLog(block) || IsWood(block) || IsLeaves(block);
+}
+
 // Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
 // billboards instead of a cube. It has no collision, lets light through, and
 // never hides a neighbour's face.

@@ -38,7 +38,7 @@ void WorldLayer::OnUpdate()
     m_WorldRenderer.AnimateWater();
 
     m_Player.Update();
-    m_World.Update(m_Player.GetPosition());
+    m_World.Update(m_Player.GetPosition(), m_Window.GetDelta());
 }
 
 void WorldLayer::OnRender()

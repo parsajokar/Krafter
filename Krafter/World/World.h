@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "glm/glm.hpp"
 #include "glm/gtx/hash.hpp"
@@ -31,7 +32,7 @@ public:
     World(const World&) = delete;
     World& operator=(const World&) = delete;
 
-    void Update(const glm::vec3& cameraPosition);
+    void Update(const glm::vec3& cameraPosition, float deltaTime);
     void Render(WorldRenderer& renderer, const glm::mat4& viewProjection, const Sky& sky);
     void RenderImGui();
 
@@ -86,6 +87,18 @@ private:
     // job only needs to report which chunk became lit.
     using LightResult = glm::ivec2;
 
+    // A block waiting to vanish as part of a gradual break (a chopped tree's
+    // floating remains, a toppling cactus). It stays in the world until `delay`
+    // counts down to zero, then it is cleared once its chunk is safe to edit.
+    struct FallingBlock {
+        glm::ivec3 cell;
+        float delay;
+    };
+
+    // Seconds added per block of distance from the break: the break ripples
+    // outward at a constant speed, so a bigger tree takes longer to fully fall.
+    static constexpr float k_FallStep = 0.05f;
+
     static constexpr bool IsInRadius(const glm::ivec2& entity, const glm::ivec2& origin, int32_t radius);
 
     // The 3x3 chunk neighbourhood around `center`, indexed (dz + 1) * 3 + (dx + 1)
@@ -95,9 +108,28 @@ private:
 
     void DrainResults();
 
+    // Whether the chunk and its full 3x3 are meshed with no light/mesh job in
+    // flight, so editing a block in it (which can touch its neighbours) won't
+    // race a worker reading those chunks.
+    bool CanEdit(const glm::ivec2& chunkPosition) const;
+
     // Breaks the cactus at a cell and every cactus stacked above it. Used when a
     // newly placed block ends up beside a cactus, which snaps it off.
     void BreakCactusColumn(const glm::ivec3& worldPosition);
+
+    // After a tree block is broken at this cell, schedules every wood/leaf block
+    // the break left stranded with no path of tree blocks back down to the
+    // ground, the way chopping a tree in Terraria drops the part above the cut.
+    void ChopFloatingTree(const glm::ivec3& brokenPosition);
+
+    // Spreads the removal of `cells` across k_FallDuration so they don't all
+    // vanish at once: each clears on a timer that grows with its distance from
+    // `origin`, so the break ripples outward. Cells already falling are skipped.
+    void ScheduleFall(const std::vector<glm::ivec3>& cells, const glm::ivec3& origin);
+
+    // Clears the scheduled falling blocks whose timer has run out, once their
+    // chunk is safe to edit, then re-meshes whatever chunks they leave behind.
+    void UpdateFallingBlocks(float deltaTime);
 
     // Resets a chunk back to the terrain stage so the lighting and meshing
     // passes recompute it on the next update.
@@ -115,6 +147,12 @@ private:
     std::unordered_set<glm::ivec2> m_PendingTerrain;
     std::unordered_set<glm::ivec2> m_PendingLight;
     std::unordered_set<glm::ivec2> m_PendingMesh;
+
+    // Blocks counting down to removal, with a membership set so a later break
+    // treats an already-doomed block as gone instead of scheduling it twice or
+    // mistaking it for solid support.
+    std::vector<FallingBlock> m_FallingBlocks;
+    std::unordered_set<glm::ivec3> m_Falling;
 
     ResultQueue<TerrainResult> m_TerrainResults;
     ResultQueue<LightResult> m_LightResults;

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <limits>
+#include <vector>
 
 #include "imgui.h"
 
@@ -23,9 +24,10 @@ World::World(int32_t seed)
 // join before the result queues they push into are torn down.
 World::~World() = default;
 
-void World::Update(const glm::vec3& cameraPosition)
+void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 {
     DrainResults();
+    UpdateFallingBlocks(deltaTime);
 
     glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
 
@@ -173,45 +175,43 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
 
     glm::ivec2 chunkPosition = ToChunkPosition(worldPosition);
     auto it = m_Chunks.find(chunkPosition);
-    if (it == m_Chunks.end() || !it->second.chunk) {
+    if (it == m_Chunks.end() || !it->second.chunk || !CanEdit(chunkPosition)) {
         return;
     }
 
-    // Only edit settled terrain. A block on a chunk border changes its
-    // neighbours' light and faces too, so the whole 3x3 must be meshed and have
-    // no light/mesh job in flight; otherwise a worker could be reading a chunk
-    // we are about to mutate or invalidate.
-    for (int32_t dz = -1; dz <= 1; dz++) {
-        for (int32_t dx = -1; dx <= 1; dx++) {
-            glm::ivec2 neighbour = chunkPosition + glm::ivec2(dx, dz);
-            auto nit = m_Chunks.find(neighbour);
-            if (nit == m_Chunks.end() || nit->second.state != ChunkState::k_MeshReady) {
-                return;
-            }
-            if (m_PendingLight.count(neighbour) || m_PendingMesh.count(neighbour)) {
-                return;
-            }
-        }
-    }
-
     Chunk& chunk = *it->second.chunk;
+    const Block previous = chunk.GetBlock(ToLocalPosition(worldPosition));
     chunk.SetBlock(ToLocalPosition(worldPosition), block);
 
     // Plants and cactus need solid ground under them. When the block we changed
     // stops being that ground, break the fragile column above it: each block
     // that falls in turn removes the support of the one above. The whole column
-    // is the same (x, z), so it never leaves this chunk.
+    // is the same (x, z), so it never leaves this chunk. Cactus segments topple
+    // gradually, so they are scheduled; grass and ferns just wink out.
+    std::vector<glm::ivec3> topplingCactus;
     for (int32_t y = worldPosition.y + 1; y < Chunk::k_Height; y++) {
-        const glm::ivec3 local = ToLocalPosition(glm::ivec3(worldPosition.x, y, worldPosition.z));
+        const glm::ivec3 cell(worldPosition.x, y, worldPosition.z);
+        const glm::ivec3 local = ToLocalPosition(cell);
         const Block fragile = chunk.GetBlock(local);
         if (!IsPlant(fragile) && fragile != Block::k_Cactus) {
             break;
         }
-        if (IsOpaque(chunk.GetBlock(local - glm::ivec3(0, 1, 0)))) {
+        // The block below holds this one up unless it is air, already falling,
+        // or part of the column we are toppling right now (it sits one cell down,
+        // so it is the last cactus we pushed).
+        const glm::ivec3 below = cell - glm::ivec3(0, 1, 0);
+        const bool belowToppling = m_Falling.count(below)
+            || (!topplingCactus.empty() && topplingCactus.back() == below);
+        if (IsOpaque(chunk.GetBlock(ToLocalPosition(below))) && !belowToppling) {
             break; // still supported, and so is anything stacked on it
         }
-        chunk.SetBlock(local, Block::k_Air);
+        if (fragile == Block::k_Cactus) {
+            topplingCactus.push_back(cell);
+        } else {
+            chunk.SetBlock(local, Block::k_Air);
+        }
     }
+    ScheduleFall(topplingCactus, worldPosition);
 
     // Putting a solid block beside a cactus snaps it off: the touched segment and
     // everything stacked above it break, so a cactus never ends up flush against
@@ -226,6 +226,13 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
         }
     }
 
+    // Breaking part of a tree can leave the rest of it floating. Like chopping a
+    // tree in Terraria, clear away every wood/leaf block that the break stranded
+    // with no path back down to the ground.
+    if (IsTreePart(previous) && !IsTreePart(block)) {
+        ChopFloatingTree(worldPosition);
+    }
+
     for (int32_t dz = -1; dz <= 1; dz++) {
         for (int32_t dx = -1; dx <= 1; dx++) {
             InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
@@ -233,23 +240,187 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     }
 }
 
+bool World::CanEdit(const glm::ivec2& chunkPosition) const
+{
+    // Only edit settled terrain. A block on a chunk border changes its
+    // neighbours' light and faces too, so the whole 3x3 must be meshed and have
+    // no light/mesh job in flight; otherwise a worker could be reading a chunk
+    // we are about to mutate or invalidate.
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            const glm::ivec2 neighbour = chunkPosition + glm::ivec2(dx, dz);
+            auto it = m_Chunks.find(neighbour);
+            if (it == m_Chunks.end() || it->second.state != ChunkState::k_MeshReady) {
+                return false;
+            }
+            if (m_PendingLight.count(neighbour) || m_PendingMesh.count(neighbour)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
+{
+    // Tree blocks count as joined when they touch on any face, edge, or corner
+    // (leaves hang off the trunk diagonally), so connectivity uses the full 26
+    // neighbours and ground support uses the 9 cells in the layer below.
+    auto forEachNeighbour = [](const glm::ivec3& cell, auto&& visit) {
+        for (int32_t dy = -1; dy <= 1; dy++) {
+            for (int32_t dz = -1; dz <= 1; dz++) {
+                for (int32_t dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    visit(cell + glm::ivec3(dx, dy, dz));
+                }
+            }
+        }
+    };
+
+    // A tree block already counting down to removal is treated as gone, so the
+    // chop sees through doomed wood instead of resting the rest of the tree on it.
+    auto isStanding = [this](const glm::ivec3& cell) {
+        return IsTreePart(GetBlock(cell)) && !m_Falling.count(cell);
+    };
+
+    std::unordered_set<glm::ivec3> visited;
+    std::vector<glm::ivec3> floating;
+
+    // Each tree block neighbouring the break may belong to a clump the break just
+    // stranded. Flood every connected run of wood/leaves out from those seeds.
+    std::vector<glm::ivec3> seeds;
+    forEachNeighbour(brokenPosition, [&](const glm::ivec3& neighbour) { seeds.push_back(neighbour); });
+
+    for (const glm::ivec3& seed : seeds) {
+        if (visited.count(seed) || !isStanding(seed)) {
+            continue;
+        }
+
+        std::vector<glm::ivec3> component;
+        std::vector<glm::ivec3> stack { seed };
+        visited.insert(seed);
+        bool grounded = false;
+
+        while (!stack.empty()) {
+            const glm::ivec3 cell = stack.back();
+            stack.pop_back();
+            component.push_back(cell);
+
+            // A tree part resting on a solid, non-tree block (dirt, grass,
+            // stone...) directly or diagonally below is footed: it and everything
+            // joined to it stay.
+            for (int32_t dz = -1; dz <= 1 && !grounded; dz++) {
+                for (int32_t dx = -1; dx <= 1 && !grounded; dx++) {
+                    const Block under = GetBlock(cell + glm::ivec3(dx, -1, dz));
+                    if (IsOpaque(under) && !IsTreePart(under)) {
+                        grounded = true;
+                    }
+                }
+            }
+
+            forEachNeighbour(cell, [&](const glm::ivec3& next) {
+                if (visited.count(next) || !isStanding(next)) {
+                    return;
+                }
+                visited.insert(next);
+                stack.push_back(next);
+            });
+        }
+
+        if (grounded) {
+            continue;
+        }
+        floating.insert(floating.end(), component.begin(), component.end());
+    }
+
+    ScheduleFall(floating, brokenPosition);
+}
+
+void World::ScheduleFall(const std::vector<glm::ivec3>& cells, const glm::ivec3& origin)
+{
+    // Time each block by its Chebyshev distance from the break and a fixed step,
+    // so the break spreads at a constant speed: the cells next to the cut go
+    // almost at once, and a taller tree simply takes more steps to finish.
+    for (const glm::ivec3& cell : cells) {
+        if (!m_Falling.insert(cell).second) {
+            continue; // already counting down from an earlier break
+        }
+        const glm::ivec3 d = glm::abs(cell - origin);
+        const int32_t dist = std::max({ d.x, d.y, d.z });
+        m_FallingBlocks.push_back({ cell, static_cast<float>(dist) * k_FallStep });
+    }
+}
+
+void World::UpdateFallingBlocks(float deltaTime)
+{
+    if (m_FallingBlocks.empty()) {
+        return;
+    }
+
+    std::unordered_set<glm::ivec2> touchedChunks;
+
+    for (size_t i = 0; i < m_FallingBlocks.size();) {
+        FallingBlock& falling = m_FallingBlocks[i];
+        falling.delay -= deltaTime;
+        if (falling.delay > 0.0f) {
+            i++;
+            continue;
+        }
+
+        const glm::ivec3 cell = falling.cell;
+        const glm::ivec2 cellChunk = ToChunkPosition(cell);
+        auto it = m_Chunks.find(cellChunk);
+
+        // Its timer is up, but the chunk may have unloaded, or a worker may be
+        // mid-flight on it. If it merely isn't safe to edit yet, leave the entry
+        // and retry next frame; if the chunk is gone, just forget it.
+        const bool unloaded = it == m_Chunks.end() || !it->second.chunk;
+        if (!unloaded && !CanEdit(cellChunk)) {
+            i++;
+            continue;
+        }
+        if (!unloaded) {
+            // The player may have mined or built over it in the meantime; only
+            // clear it if our doomed block is still there.
+            const Block here = it->second.chunk->GetBlock(ToLocalPosition(cell));
+            if (IsTreePart(here) || here == Block::k_Cactus) {
+                it->second.chunk->SetBlock(ToLocalPosition(cell), Block::k_Air);
+                touchedChunks.insert(cellChunk);
+            }
+        }
+
+        m_Falling.erase(cell);
+        m_FallingBlocks[i] = m_FallingBlocks.back();
+        m_FallingBlocks.pop_back();
+    }
+
+    // Clearing blocks changes light and faces across their chunks, so re-light
+    // and re-mesh each touched chunk together with its 3x3.
+    for (const glm::ivec2& chunkPosition : touchedChunks) {
+        for (int32_t dz = -1; dz <= 1; dz++) {
+            for (int32_t dx = -1; dx <= 1; dx++) {
+                InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
+            }
+        }
+    }
+}
+
 void World::BreakCactusColumn(const glm::ivec3& worldPosition)
 {
     // Break the cactus at this cell and every cactus stacked directly above it;
-    // segments below the contact keep their footing and stay.
+    // segments below the contact keep their footing and stay. They topple
+    // gradually, so the column is scheduled rather than cleared outright.
+    std::vector<glm::ivec3> column;
     for (int32_t y = worldPosition.y; y < Chunk::k_Height; y++) {
         const glm::ivec3 cell(worldPosition.x, y, worldPosition.z);
-        auto it = m_Chunks.find(ToChunkPosition(cell));
-        if (it == m_Chunks.end() || !it->second.chunk) {
-            return;
+        if (GetBlock(cell) != Block::k_Cactus) {
+            break;
         }
-        Chunk& chunk = *it->second.chunk;
-        const glm::ivec3 local = ToLocalPosition(cell);
-        if (chunk.GetBlock(local) != Block::k_Cactus) {
-            return;
-        }
-        chunk.SetBlock(local, Block::k_Air);
+        column.push_back(cell);
     }
+    ScheduleFall(column, worldPosition);
 }
 
 void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
