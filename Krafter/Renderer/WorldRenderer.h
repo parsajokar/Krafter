@@ -36,6 +36,10 @@ public:
     // atlas's water tile.
     void AnimateWater();
     void RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection);
+
+    // Draws the crack overlay on a block being mined. `progress` is 0..1 through
+    // the break and selects which crack stage of the strip to show.
+    void RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection);
     void RenderImGui();
 
 private:
@@ -53,6 +57,16 @@ private:
     uint32_t m_OutlineVertexBuffer;
     uint32_t m_OutlineElementBuffer;
     uint32_t m_OutlineElementCount;
+
+    // Crack overlay: a textured unit cube sampled from the destroy strip (a
+    // vertical stack of k_BreakFrameCount progressively-cracked frames).
+    std::unique_ptr<ShaderProgram> m_BreakProgram;
+    std::unique_ptr<Texture2D> m_BreakTexture;
+    int32_t m_BreakFrameCount = 0;
+    uint32_t m_BreakVertexArray;
+    uint32_t m_BreakVertexBuffer;
+    uint32_t m_BreakElementBuffer;
+    uint32_t m_BreakElementCount;
 
     // Animated water: every 16x16 frame of the strip, stored RGBA back-to-back,
     // cycled into the atlas's water tile over time.

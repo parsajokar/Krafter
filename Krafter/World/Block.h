@@ -93,6 +93,27 @@ inline bool IsCutout(Block block)
     return IsLeaves(block) || block == Block::k_Cactus;
 }
 
+// How long the proper tool takes to mine this block, in seconds. Drives the
+// gradual break: the crack overlay advances through its stages as this much
+// time accumulates under a held swing. Plants pop instantly, leaves give way
+// quickly, and the solid trunk wood takes the longest.
+inline float BreakSeconds(Block block)
+{
+    if (IsPlant(block)) {
+        return 0.0f;
+    }
+    if (IsLeaves(block)) {
+        return 0.3f;
+    }
+    if (block == Block::k_Cactus) {
+        return 0.5f;
+    }
+    if (IsLog(block) || IsWood(block)) {
+        return 1.2f;
+    }
+    return 0.75f;
+}
+
 enum class BlockFace {
     k_Front,
     k_Back,

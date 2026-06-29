@@ -109,6 +109,48 @@ void WorldRenderer::RenderBlockOutline(const glm::ivec3& blockPosition, const gl
     glDrawElements(GL_LINES, m_OutlineElementCount, GL_UNSIGNED_INT, nullptr);
 }
 
+void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection)
+{
+    if (m_BreakFrameCount <= 0) {
+        return;
+    }
+
+    // Pick the crack stage from progress and find its band in the strip. The
+    // texture is loaded flipped (v = 1 at the top of the file, where the faint
+    // first stage sits), so stage s climbs down from the top.
+    int32_t stage = static_cast<int32_t>(progress * static_cast<float>(m_BreakFrameCount));
+    stage = glm::clamp(stage, 0, m_BreakFrameCount - 1);
+    const float span = 1.0f / static_cast<float>(m_BreakFrameCount);
+    const float base = 1.0f - static_cast<float>(stage + 1) * span;
+
+    m_BreakTexture->Bind(0);
+    m_BreakProgram->Bind();
+    m_BreakProgram->SetUniformMat4(0, viewProjection);
+    m_BreakProgram->SetUniformVec3(1, glm::vec3(blockPosition));
+    m_BreakProgram->SetUniformFloat(2, base);
+    m_BreakProgram->SetUniformFloat(3, span);
+    m_BreakProgram->SetUniformInt(4, 0);
+
+    // Blend the cracks over the block's own face, pulled a hair toward the camera
+    // so they sit on the surface without z-fighting, and without writing depth.
+    // Culling is off so the front faces show whichever way the cube is wound; the
+    // back faces fail the depth test against the already-drawn block anyway.
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(-1.0f, -1.0f);
+    glDisable(GL_CULL_FACE);
+
+    glBindVertexArray(m_BreakVertexArray);
+    glDrawElements(GL_TRIANGLES, m_BreakElementCount, GL_UNSIGNED_INT, nullptr);
+
+    glPolygonOffset(0.0f, 0.0f);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
 void WorldRenderer::AnimateWater()
 {
     if (m_WaterFrameCount <= 0) {
@@ -191,6 +233,80 @@ WorldRenderer::WorldRenderer()
     glVertexArrayAttribFormat(m_OutlineVertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
 
     m_OutlineProgram = std::make_unique<ShaderProgram>("assets/shaders/outline.vert.glsl", "assets/shaders/outline.frag.glsl");
+
+    // Crack overlay: a unit cube whose six faces each carry a full 0..1 UV, so
+    // every face shows the whole crack tile. Five floats per vertex (xyz + uv).
+    const float breakVertices[] = {
+        // Front (z = 1)
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 1.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+        // Back (z = 0)
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        // Left (x = 0)
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        // Right (x = 1)
+        1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+        // Bottom (y = 0)
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+        // Top (y = 1)
+        0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+    };
+    uint32_t breakIndices[36];
+    for (uint32_t face = 0; face < 6; face++) {
+        const uint32_t v = face * 4;
+        const uint32_t i = face * 6;
+        breakIndices[i + 0] = v + 0;
+        breakIndices[i + 1] = v + 1;
+        breakIndices[i + 2] = v + 2;
+        breakIndices[i + 3] = v + 0;
+        breakIndices[i + 4] = v + 2;
+        breakIndices[i + 5] = v + 3;
+    }
+    m_BreakElementCount = sizeof(breakIndices) / sizeof(breakIndices[0]);
+
+    glCreateVertexArrays(1, &m_BreakVertexArray);
+    glCreateBuffers(1, &m_BreakVertexBuffer);
+    glCreateBuffers(1, &m_BreakElementBuffer);
+
+    glNamedBufferData(m_BreakVertexBuffer, sizeof(breakVertices), breakVertices, GL_STATIC_DRAW);
+    glNamedBufferData(m_BreakElementBuffer, sizeof(breakIndices), breakIndices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(m_BreakVertexArray, 0, m_BreakVertexBuffer, 0, 5 * sizeof(float));
+    glVertexArrayElementBuffer(m_BreakVertexArray, m_BreakElementBuffer);
+
+    glEnableVertexArrayAttrib(m_BreakVertexArray, 0);
+    glVertexArrayAttribBinding(m_BreakVertexArray, 0, 0);
+    glVertexArrayAttribFormat(m_BreakVertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
+
+    glEnableVertexArrayAttrib(m_BreakVertexArray, 1);
+    glVertexArrayAttribBinding(m_BreakVertexArray, 1, 0);
+    glVertexArrayAttribFormat(m_BreakVertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+
+    m_BreakProgram = std::make_unique<ShaderProgram>("assets/shaders/break.vert.glsl", "assets/shaders/break.frag.glsl");
+    m_BreakTexture = std::make_unique<Texture2D>("assets/textures/destroy.png");
+
+    // The strip stacks square frames, so the count is its height over its width.
+    const glm::ivec2& breakSize = m_BreakTexture->GetSize();
+    if (breakSize.x > 0) {
+        m_BreakFrameCount = breakSize.y / breakSize.x;
+    }
 }
 
 WorldRenderer::~WorldRenderer()
@@ -198,6 +314,10 @@ WorldRenderer::~WorldRenderer()
     glDeleteBuffers(1, &m_OutlineElementBuffer);
     glDeleteBuffers(1, &m_OutlineVertexBuffer);
     glDeleteVertexArrays(1, &m_OutlineVertexArray);
+
+    glDeleteBuffers(1, &m_BreakElementBuffer);
+    glDeleteBuffers(1, &m_BreakVertexBuffer);
+    glDeleteVertexArrays(1, &m_BreakVertexArray);
 }
 
 } // namespace Krafter

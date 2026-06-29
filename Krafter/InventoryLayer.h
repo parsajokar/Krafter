@@ -5,10 +5,10 @@
 #include "glm/glm.hpp"
 
 #include "Krafter/Core/Layer.h"
+#include "Krafter/Item.h"
 #include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
 #include "Krafter/Renderer/UIRenderer.h"
-#include "Krafter/World/Block.h"
 
 namespace Krafter {
 
@@ -44,16 +44,16 @@ private:
     // grid and the hotbar row.
     int SlotAt(const glm::vec2& point) const;
 
-    // The block in / written to slot `index`, mapping the unified index onto the
+    // The item in / written to slot `index`, mapping the unified index onto the
     // inventory grid or the hotbar row behind it.
-    Block GetSlot(int index) const;
-    void SetSlot(int index, Block block);
+    Item GetSlot(int index) const;
+    void SetSlot(int index, Item item);
 
-    // Picks up, drops, or swaps the held block against the clicked slot, the way
+    // Picks up, drops, or swaps the held item against the clicked slot, the way
     // a left-click does in Minecraft's inventory.
     void ClickSlot(int index);
 
-    // Closes the screen, first returning any held block to a free slot so it is
+    // Closes the screen, first returning any held item to a free slot so it is
     // not lost when this layer (and its held state) is destroyed.
     void Close();
 
@@ -67,13 +67,14 @@ private:
     Inventory& m_Inventory;
     Hotbar& m_Hotbar;
 
-    // The block atlas, the screen's own, used only for the slot icons (mirrors
-    // the HUD, which keeps its own copy for the same reason).
+    // The block and item atlases, the screen's own, used only for the slot icons
+    // (mirrors the HUD, which keeps its own copies for the same reason).
     Texture2D m_BlockTexture;
+    Texture2D m_ItemTexture;
 
-    // The block currently picked up onto the cursor (k_Air when empty), and the
+    // The item currently picked up onto the cursor (empty when none), and the
     // last known cursor position so it can be drawn following the pointer.
-    Block m_Held = Block::k_Air;
+    Item m_Held;
     glm::vec2 m_Cursor = glm::vec2(0.0f);
 };
 

@@ -14,6 +14,7 @@ UILayer::UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Hot
     , m_Renderer(renderer)
     , m_UITexture(uiTexture)
     , m_BlockTexture("assets/textures/blocks.png")
+    , m_ItemTexture("assets/textures/items.png")
 {
 }
 
@@ -99,9 +100,10 @@ void UILayer::DrawHotbar()
         m_Renderer.DrawSprite(m_UITexture, spritePos, k_SpriteSize, position, slotSize,
             glm::vec4(1.0f, 1.0f, 1.0f, k_UIOpacity));
 
-        const Block block = m_Hotbar.GetBlock(i);
-        if (block != Block::k_Air) {
-            DrawBlockIcon(m_Renderer, m_BlockTexture, block, position + iconOffset, iconSize);
+        const Item item = m_Hotbar.GetItem(i);
+        if (!item.IsEmpty()) {
+            DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, item,
+                position + iconOffset, iconSize);
         }
 
         if (i == m_Hotbar.GetSelected()) {

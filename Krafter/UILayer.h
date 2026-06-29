@@ -34,8 +34,9 @@ private:
     UIRenderer& m_Renderer;
     Texture2D& m_UITexture;
 
-    // The block atlas is the HUD's own, used only for the hotbar icons.
+    // The block and item atlases are the HUD's own, used only for hotbar icons.
     Texture2D m_BlockTexture;
+    Texture2D m_ItemTexture;
 
     bool m_Visible = true;
 };

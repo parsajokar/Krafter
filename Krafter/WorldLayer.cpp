@@ -48,6 +48,12 @@ void WorldLayer::OnRender()
     if (m_Player.HasTarget()) {
         m_WorldRenderer.RenderBlockOutline(m_Player.GetTargetBlock(), m_Player.GetViewProjection());
     }
+
+    // The crack overlay sits on the block currently being mined.
+    if (m_Player.IsBreaking()) {
+        m_WorldRenderer.RenderBlockBreak(
+            m_Player.GetBreakBlock(), m_Player.GetBreakProgress(), m_Player.GetViewProjection());
+    }
 }
 
 void WorldLayer::OnEvent(Event& event)

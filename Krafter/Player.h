@@ -69,6 +69,18 @@ public:
         return m_TargetBlock;
     }
 
+    // The block currently being mined and how far the break has progressed
+    // (0..1), for the crack overlay. Only valid while IsBreaking() is true.
+    bool IsBreaking() const
+    {
+        return m_IsBreaking;
+    }
+    const glm::ivec3& GetBreakBlock() const
+    {
+        return m_BreakBlock;
+    }
+    float GetBreakProgress() const;
+
 private:
     void ApplyControlMode();
 
@@ -92,6 +104,12 @@ private:
     // within reach. Returns whether one was hit; `hit` is that block and `before`
     // the empty cell just in front of it (where a placement goes).
     bool RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const;
+
+    // Advances a held break: accumulates time against the aimed-at block's break
+    // duration and removes it once that is reached, restarting whenever the aim
+    // moves to a different block. A no-op unless the left button is held over a
+    // block the selected tool can break.
+    void UpdateBreaking();
 
     // Places the held hotbar block against the block under the crosshair, applying
     // the plant and self-trap rules. A no-op when nothing is targeted or the slot
@@ -164,6 +182,14 @@ private:
 
     bool m_HasTarget = false;
     glm::ivec3 m_TargetBlock = glm::ivec3(0);
+
+    // Gradual mining state. While the left button is held over a breakable block,
+    // m_BreakProgress accumulates toward that block's break time; aiming away or
+    // releasing resets it. m_IsBreaking gates the crack overlay.
+    bool m_BreakHeld = false;
+    bool m_IsBreaking = false;
+    glm::ivec3 m_BreakBlock = glm::ivec3(0);
+    float m_BreakProgress = 0.0f;
 };
 
 } // namespace Krafter

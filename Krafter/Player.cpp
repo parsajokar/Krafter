@@ -43,6 +43,8 @@ void Player::Update()
         m_TargetBlock = hit;
     }
 
+    UpdateBreaking();
+
     // Holding right click keeps placing on a fixed cadence; the first placement
     // fired on the press, so this only handles the repeats.
     if (m_IsControlled && m_PlaceHeld) {
@@ -173,6 +175,45 @@ bool Player::RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const
     return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
 }
 
+void Player::UpdateBreaking()
+{
+    // The break only runs while the button is held, in control, aimed at a block
+    // the tool can break. Otherwise it lapses and the crack clears.
+    if (!m_IsControlled || !m_BreakHeld || !m_HasTarget
+        || !CanBreakWith(m_Hotbar.GetSelectedItem(), m_World.GetBlock(m_TargetBlock))) {
+        m_IsBreaking = false;
+        m_BreakProgress = 0.0f;
+        return;
+    }
+
+    // Re-aiming at a different block restarts the break from the first crack.
+    if (!m_IsBreaking || m_TargetBlock != m_BreakBlock) {
+        m_BreakBlock = m_TargetBlock;
+        m_BreakProgress = 0.0f;
+        m_IsBreaking = true;
+    }
+
+    m_BreakProgress += m_Window.GetDelta();
+
+    // Reaching the block's break time removes it. The break then lapses so the
+    // next held frame starts fresh on whatever the player is now aimed at,
+    // letting a held swing chew through a row of blocks one after another.
+    if (m_BreakProgress >= BreakSeconds(m_World.GetBlock(m_BreakBlock))) {
+        m_World.SetBlock(m_BreakBlock, Block::k_Air);
+        m_IsBreaking = false;
+        m_BreakProgress = 0.0f;
+    }
+}
+
+float Player::GetBreakProgress() const
+{
+    const float breakTime = BreakSeconds(m_World.GetBlock(m_BreakBlock));
+    if (breakTime <= 0.0f) {
+        return 1.0f;
+    }
+    return glm::clamp(m_BreakProgress / breakTime, 0.0f, 1.0f);
+}
+
 void Player::PlaceTargetBlock()
 {
     glm::ivec3 hit;
@@ -181,10 +222,11 @@ void Player::PlaceTargetBlock()
         return;
     }
 
-    const Block block = m_Hotbar.GetSelectedBlock();
-    if (block == Block::k_Air) {
-        return;
+    const Item selected = m_Hotbar.GetSelectedItem();
+    if (!selected.IsBlock()) {
+        return; // an empty slot or a tool (such as the axe): nothing to place
     }
+    const Block block = selected.block;
 
     // Replaceable foliage is overwritten in place; everything else is placed
     // against the targeted face.
@@ -201,14 +243,20 @@ void Player::PlaceTargetBlock()
 
 void Player::OnEvent(Event& event)
 {
-    if (event.type == EventType::k_MouseButtonPressed && event.button == MouseButton::k_Left) {
-        glm::ivec3 hit;
-        glm::ivec3 before;
-        if (RaycastTarget(hit, before)) {
-            m_World.SetBlock(hit, Block::k_Air);
+    if (event.button == MouseButton::k_Left) {
+        // Breaking is gradual now: holding the button mines the aimed-at block
+        // over its break time (Update drives the progress and the actual
+        // removal), so the press and release only track whether it is held.
+        if (event.type == EventType::k_MouseButtonPressed) {
+            m_BreakHeld = true;
+            event.handled = true;
+            return;
         }
-        event.handled = true;
-        return;
+        if (event.type == EventType::k_MouseButtonReleased) {
+            m_BreakHeld = false;
+            event.handled = true;
+            return;
+        }
     }
 
     if (event.button == MouseButton::k_Right) {
@@ -332,6 +380,9 @@ void Player::SetControlled(bool controlled)
     m_VerticalVelocity = 0.0f;
     m_JumpHeld = false;
     m_PlaceHeld = false;
+    m_BreakHeld = false;
+    m_IsBreaking = false;
+    m_BreakProgress = 0.0f;
     m_FirstMouse = true;
 }
 
@@ -346,6 +397,9 @@ void Player::SuspendForInventory()
     m_MoveInput = glm::vec2(0.0f);
     m_JumpHeld = false;
     m_PlaceHeld = false;
+    m_BreakHeld = false;
+    m_IsBreaking = false;
+    m_BreakProgress = 0.0f;
     m_FirstMouse = true;
 }
 

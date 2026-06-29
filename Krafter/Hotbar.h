@@ -2,13 +2,13 @@
 
 #include <array>
 
-#include "Krafter/World/Block.h"
+#include "Krafter/Item.h"
 
 namespace Krafter {
 
-// The player's hotbar: the blocks held in each slot and which slot is active.
-// Owned by the Player (it is the quick-select slice of what will grow into a
-// full inventory) and shared by reference with the HUD that draws it.
+// The player's hotbar: the items held in each slot and which slot is active.
+// Owned by the Player (it is the quick-select slice of the inventory) and shared
+// by reference with the HUD that draws it. A slot may hold a block or a tool.
 class Hotbar {
 public:
     static constexpr int k_SlotCount = 10;
@@ -23,17 +23,17 @@ public:
         m_Selected = slot;
     }
 
-    Block GetBlock(int slot) const
+    Item GetItem(int slot) const
     {
         return m_Slots[slot];
     }
 
-    void SetBlock(int slot, Block block)
+    void SetItem(int slot, Item item)
     {
-        m_Slots[slot] = block;
+        m_Slots[slot] = item;
     }
 
-    Block GetSelectedBlock() const
+    Item GetSelectedItem() const
     {
         return m_Slots[m_Selected];
     }
@@ -41,10 +41,8 @@ public:
 private:
     int m_Selected = 0;
 
-    // Unspecified slots default to k_Air (empty).
-    std::array<Block, k_SlotCount> m_Slots = { Block::k_Grass, Block::k_Sand,
-        Block::k_OakLog, Block::k_OakLeaves, Block::k_ShortGrass, Block::k_Fern,
-        Block::k_DeadBush, Block::k_Cactus };
+    // The first slot holds the wooden axe; every other slot starts empty (k_Air).
+    std::array<Item, k_SlotCount> m_Slots = { Item::Tool(ItemKind::k_WoodenAxe) };
 };
 
 } // namespace Krafter

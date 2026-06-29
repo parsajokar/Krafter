@@ -10,14 +10,32 @@ namespace Krafter {
 
 namespace {
 
-// The hotbar slot art reused as the button face, with the selection outline as
-// the hover highlight: a 22x22 box at (15, 0) from the texture's bottom-left, the
-// outline at (37, 0).
-constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
-constexpr float k_SlotSpriteX = 15.0f;
-constexpr float k_OutlineSpriteX = 37.0f;
+    // The hotbar slot art reused as the button face, with the selection outline as
+    // the hover highlight: a 22x22 box at (15, 0) from the texture's bottom-left, the
+    // outline at (37, 0).
+    constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
+    constexpr float k_SlotSpriteX = 15.0f;
+    constexpr float k_OutlineSpriteX = 37.0f;
 
-constexpr float k_ButtonTextScale = 1.0f;
+    constexpr float k_ButtonTextScale = 1.0f;
+
+    // Items are laid out on a 16x16 grid in items.png, addressed by cell from the
+    // sheet's bottom-left corner.
+    constexpr float k_ItemTile = 16.0f;
+
+    // Tool sprites carry transparent padding inside their tile, so drawn in the box
+    // tuned for full-bleed block faces they look too small. Scale them up (centred on
+    // the same spot) so the axe fills its slot like a block icon does.
+    constexpr float k_ToolScale = 1.5f;
+
+    glm::vec2 ItemCell(ItemKind kind)
+    {
+        switch (kind) {
+        case ItemKind::k_WoodenAxe:
+            return glm::vec2(0.0f, 0.0f);
+        }
+        return glm::vec2(0.0f, 0.0f);
+    }
 
 } // namespace
 
@@ -98,6 +116,29 @@ void DrawBlockIcon(
     if (block == Block::k_Grass) {
         renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), blockTexture, k_GrassColor);
     }
+}
+
+void DrawItemIcon(
+    UIRenderer& renderer, const Texture2D& blockTexture, const Texture2D& itemTexture,
+    const Item& item, const glm::vec2& position, const glm::vec2& size)
+{
+    if (!item.isItem) {
+        DrawBlockIcon(renderer, blockTexture, item.block, position, size);
+        return;
+    }
+
+    // Tools are flat sprites in items.png, addressed from the sheet's bottom-left
+    // like the rest of the HUD; the cell is measured from the bottom, so flip it.
+    const glm::vec2 cell = ItemCell(item.kind);
+    const glm::vec2 texSize = glm::vec2(itemTexture.GetSize());
+    const glm::vec2 spritePos = glm::vec2(
+        cell.x * k_ItemTile, texSize.y - (cell.y + 1.0f) * k_ItemTile);
+
+    // Enlarge the sprite about the icon box's centre so the tool reads at a size
+    // closer to a block icon despite its in-tile padding.
+    const glm::vec2 toolSize = size * k_ToolScale;
+    const glm::vec2 toolPos = position + (size - toolSize) * 0.5f;
+    renderer.DrawSprite(itemTexture, spritePos, glm::vec2(k_ItemTile), toolPos, toolSize);
 }
 
 } // namespace Krafter
