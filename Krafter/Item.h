@@ -10,6 +10,17 @@ enum class ItemKind {
     k_WoodenAxe,
 };
 
+// The tool category an item acts as, matched against a block's harvest tags. A
+// non-tool item (or one with no harvesting role) is k_None and breaks nothing.
+inline constexpr ToolType ToolTypeOf(ItemKind kind)
+{
+    switch (kind) {
+    case ItemKind::k_WoodenAxe:
+        return ToolType::k_Axe;
+    }
+    return ToolType::k_None;
+}
+
 // The contents of one hotbar or inventory slot: either a placeable block or a
 // standalone item (a tool), or nothing at all. A block slot stores its Block
 // (k_Air means empty); an item slot sets isItem and stores the kind. A Block
@@ -63,22 +74,16 @@ struct Item {
     }
 };
 
-// Whether `item` is the right tool to break `target`. Tools are picky: a bare
-// hand (or a held block) breaks nothing, and each tool only works on the blocks
-// it is meant for. The wooden axe fells trees (logs, wood, leaves), chops the
-// planks crafted from them, and clears plants (grass tufts, ferns, dead bushes,
-// and cacti); everything else has no tool to break it yet.
+// Whether `item` is the right tool to break `target`: a tool whose category is
+// among the block's harvest tags. A bare hand or a held block isn't a tool, so it
+// breaks nothing; what each tool clears is decided by the blocks' tags (see
+// HarvestTools), not listed here.
 inline bool CanBreakWith(const Item& item, Block target)
 {
     if (!item.isItem) {
         return false;
     }
-    switch (item.kind) {
-    case ItemKind::k_WoodenAxe:
-        return IsTreePart(target) || IsPlanks(target) || IsPlant(target)
-            || target == Block::k_Cactus;
-    }
-    return false;
+    return CanHarvestWith(target, ToolTypeOf(item.kind));
 }
 
 } // namespace Krafter

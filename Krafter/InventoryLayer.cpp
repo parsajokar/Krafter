@@ -10,18 +10,18 @@
 #include "Krafter/Hotbar.h"
 #include "Krafter/Inventory.h"
 #include "Krafter/InventoryLayer.h"
+#include "Krafter/Renderer/Font.h"
+#include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/Renderer/Widgets.h"
 
 namespace Krafter {
 
 namespace {
 
-    // The slot art reused from the hotbar: a 22x22 box at (15, 0) from the texture's
-    // bottom-left, drawn at 2x like the rest of the HUD. The selection outline that
-    // marks the hovered slot is the same 22x22 box at (37, 0).
+    // The slot sprite is a 22x22 box drawn at 2x like the rest of the HUD; the
+    // sprites themselves come from Widgets (DrawSlot/DrawSlotOutline), so only the
+    // source size is needed here, to size the slots and their icons.
     constexpr glm::vec2 k_SpriteSize = glm::vec2(22.0f, 22.0f);
-    constexpr float k_SlotSpriteX = 15.0f;
-    constexpr float k_OutlineSpriteX = 37.0f;
     constexpr float k_Scale = 2.0f;
     constexpr float k_Spacing = 2.0f;
 
@@ -136,12 +136,8 @@ namespace {
 InventoryLayer::InventoryLayer(
     Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
     Inventory& inventory, Hotbar& hotbar, std::function<void()> onClose)
-    : Layer("Inventory")
-    , m_Window(window)
+    : UIScreen("Inventory", window, renderer, uiTexture, font)
     , m_OnClose(std::move(onClose))
-    , m_Renderer(renderer)
-    , m_UITexture(uiTexture)
-    , m_Font(font)
     , m_Inventory(inventory)
     , m_Hotbar(hotbar)
     , m_BlockTexture("assets/textures/blocks.png")
@@ -411,10 +407,6 @@ void InventoryLayer::OnRender()
         origin.y - k_TitleGap - m_Font.LineHeight(k_TitleScale)));
     m_Font.Draw(m_Renderer, k_Title, titlePos, k_TitleScale, glm::vec4(1.0f));
 
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 slotSprite = glm::vec2(k_SlotSpriteX, texSize.y - k_SpriteSize.y);
-    const glm::vec2 outlineSprite = glm::vec2(k_OutlineSpriteX, texSize.y - k_SpriteSize.y);
-
     // The slot under the cursor, highlighted with the selection outline.
     const int hovered = SlotAt(m_Cursor);
 
@@ -422,8 +414,8 @@ void InventoryLayer::OnRender()
     // and the outline on top when the cursor is over it.
     for (int i = 0; i < k_TotalSlots; ++i) {
         const glm::vec2 position = glm::vec2(SlotRect(i));
-        m_Renderer.DrawSprite(m_UITexture, slotSprite, k_SpriteSize, position,
-            glm::vec2(k_SlotSize), glm::vec4(1.0f, 1.0f, 1.0f, k_SlotOpacity));
+        DrawSlot(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize),
+            glm::vec4(1.0f, 1.0f, 1.0f, k_SlotOpacity));
 
         const Item item = GetSlot(i);
         if (!item.IsEmpty()) {
@@ -433,8 +425,7 @@ void InventoryLayer::OnRender()
         }
 
         if (i == hovered) {
-            m_Renderer.DrawSprite(m_UITexture, outlineSprite, k_SpriteSize, position,
-                glm::vec2(k_SlotSize), glm::vec4(1.0f));
+            DrawSlotOutline(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize));
         }
     }
 
@@ -486,8 +477,8 @@ void InventoryLayer::OnRender()
         const float slotDim = craftable ? 1.0f : k_RecipeLockedSlotDim;
         const float iconFade = craftable ? fade : fade * k_RecipeLockedIconDim;
 
-        m_Renderer.DrawSprite(m_UITexture, slotSprite, k_SpriteSize, position,
-            glm::vec2(k_SlotSize), glm::vec4(glm::vec3(slotDim), k_SlotOpacity * fade));
+        DrawSlot(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize),
+            glm::vec4(glm::vec3(slotDim), k_SlotOpacity * fade));
 
         DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, recipe.output,
             position + glm::vec2(k_IconOffset), glm::vec2(k_IconSize), iconFade);
@@ -500,8 +491,7 @@ void InventoryLayer::OnRender()
     if (!recipes.empty()) {
         const Recipe& selected = *recipes[m_SelectedRecipe];
         const glm::vec4 frame = SelectionSlotRect();
-        m_Renderer.DrawSprite(m_UITexture, outlineSprite, k_SpriteSize, glm::vec2(frame),
-            glm::vec2(k_SlotSize), glm::vec4(1.0f));
+        DrawSlotOutline(m_Renderer, m_UITexture, glm::vec2(frame), glm::vec2(k_SlotSize));
 
         const float frameCenterX = frame.x + k_SlotSize * 0.5f;
         const glm::vec2 arrowTip = glm::vec2(
@@ -522,8 +512,8 @@ void InventoryLayer::OnRender()
             const float slotDim = haveEnough ? 1.0f : k_RecipeLockedSlotDim;
             const float iconDim = haveEnough ? 1.0f : k_RecipeLockedIconDim;
 
-            m_Renderer.DrawSprite(m_UITexture, slotSprite, k_SpriteSize, pos,
-                glm::vec2(k_SlotSize), glm::vec4(glm::vec3(slotDim), k_SlotOpacity));
+            DrawSlot(m_Renderer, m_UITexture, pos, glm::vec2(k_SlotSize),
+                glm::vec4(glm::vec3(slotDim), k_SlotOpacity));
             DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, ingredient.item,
                 pos + glm::vec2(k_IconOffset), glm::vec2(k_IconSize), iconDim);
             DrawItemCount(m_Renderer, m_Font, ingredient.count, pos,

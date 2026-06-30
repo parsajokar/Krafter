@@ -5,6 +5,8 @@
 #include "Krafter/Core/Event.h"
 #include "Krafter/Core/Window.h"
 #include "Krafter/PauseMenuLayer.h"
+#include "Krafter/Renderer/Font.h"
+#include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/Renderer/Widgets.h"
 
 namespace Krafter {
@@ -29,13 +31,9 @@ constexpr glm::vec4 k_DimColor = glm::vec4(0.0f, 0.0f, 0.0f, 0.6f);
 PauseMenuLayer::PauseMenuLayer(
     Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
     std::function<void()> onResume, std::function<void()> onExitToMenu)
-    : Layer("PauseMenu")
-    , m_Window(window)
+    : UIScreen("PauseMenu", window, renderer, uiTexture, font)
     , m_OnResume(std::move(onResume))
     , m_OnExitToMenu(std::move(onExitToMenu))
-    , m_Renderer(renderer)
-    , m_UITexture(uiTexture)
-    , m_Font(font)
 {
 }
 

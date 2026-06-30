@@ -42,6 +42,24 @@ void DrawItemCount(
     UIRenderer& renderer, const Font& font, int count,
     const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
 
+// The slot box and its selection outline are the same 22x22 sprites, shared by
+// the HUD, menus, and inventory. These draw them into a pixel rectangle so call
+// sites don't repeat the sheet coordinates: the plain pair stretches the sprite
+// (fixed-size slots), the "Sliced" pair 9-slices it (wide fields and buttons).
+// `uiTexture` is the shared UI sprite sheet (ui.png).
+void DrawSlot(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint = glm::vec4(1.0f));
+void DrawSlotOutline(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint = glm::vec4(1.0f));
+void DrawSlotSliced(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint = glm::vec4(1.0f));
+void DrawSlotOutlineSliced(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint = glm::vec4(1.0f));
+
 // Draws a menu button: the UI slot sprite 9-sliced to `rect`, with a brighter
 // face and a selection outline when `hovered`, and `label` centred inside.
 // `uiTexture` is the shared UI sprite sheet (ui.png).

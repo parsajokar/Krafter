@@ -5,6 +5,7 @@
 
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/World/Biome.h"
+#include "Krafter/World/Coords.h"
 
 namespace Krafter {
 
@@ -34,24 +35,6 @@ static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
     default: // k_Top
         return { position + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0) };
     }
-}
-
-static int32_t FloorDiv(int32_t a, int32_t b)
-{
-    int32_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) {
-        q--;
-    }
-    return q;
-}
-
-static int32_t FloorMod(int32_t a, int32_t b)
-{
-    int32_t r = a % b;
-    if (r != 0 && (r < 0) != (b < 0)) {
-        r += b;
-    }
-    return r;
 }
 
 // Ambient-occlusion brightness for the four corner levels (0 = most occluded).

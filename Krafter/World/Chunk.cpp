@@ -8,6 +8,7 @@
 
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Chunk.h"
+#include "Krafter/World/Coords.h"
 
 namespace Krafter {
 
@@ -648,14 +649,13 @@ void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
                     // A cactus needs air on all four sides: no neighbouring cactus
                     // and no terrain rising to its base, so it never touches
                     // another block (matching the placement rule).
-                    constexpr int32_t sideX[] = { 1, -1, 0, 0 };
-                    constexpr int32_t sideZ[] = { 0, 0, 1, -1 };
                     bool clear = true;
-                    for (int32_t i = 0; i < 4 && clear; i++) {
-                        const int32_t ax = worldX + sideX[i];
-                        const int32_t az = worldZ + sideZ[i];
+                    for (const glm::ivec3& side : k_HorizontalNeighbors) {
+                        const int32_t ax = worldX + side.x;
+                        const int32_t az = worldZ + side.z;
                         if (ColumnRollsCactus(ax, az) || Biome::SurfaceHeight((float)ax, (float)az) >= py) {
                             clear = false;
+                            break;
                         }
                     }
                     if (clear) {

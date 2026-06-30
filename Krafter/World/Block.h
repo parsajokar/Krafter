@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <unordered_map>
 
 #include "glm/glm.hpp"
@@ -27,133 +30,169 @@ enum class Block {
     k_Cactus,
     k_OakPlanks,
     k_BirchPlanks,
-    k_AcaciaPlanks
+    k_AcaciaPlanks,
+
+    // Number of block kinds; must stay last. Sizes the per-block data table.
+    k_Count
 };
 
-// The "log" blocks: a species' bark on the sides with a distinct end-grain tile
-// on the top and bottom. Solid, full-colour cubes (not biome-tinted).
-inline bool IsLog(Block block)
+// The kinds of tool that can harvest a block, as bit flags so a block can be
+// tagged with several (e.g. an axe-or-pickaxe block) and a tool's kind matched
+// against them. k_None means no tool harvests it yet (or, for a tool, that it
+// harvests nothing). Combine with `|`; test with `HasTool`.
+enum class ToolType : uint32_t {
+    k_None = 0,
+    k_Axe = 1 << 0,
+    k_Pickaxe = 1 << 1,
+    k_Shovel = 1 << 2,
+};
+
+inline constexpr ToolType operator|(ToolType a, ToolType b)
 {
-    return block == Block::k_OakLog || block == Block::k_BirchLog
-        || block == Block::k_AcaciaLog;
+    return static_cast<ToolType>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
 
-// The "wood" blocks: a species' bark on every face (the side tile on top and
-// bottom too, no end grain). What the trees are actually built from.
-inline bool IsWood(Block block)
+inline constexpr ToolType operator&(ToolType a, ToolType b)
 {
-    return block == Block::k_OakWood || block == Block::k_BirchWood
-        || block == Block::k_AcaciaWood;
+    return static_cast<ToolType>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
 }
 
-// The planks crafted from each species' logs: solid, full-colour building cubes.
-inline bool IsPlanks(Block block)
+// Whether `set` contains `tool` (any overlapping bit). k_None never matches, so a
+// toolless block or a capability-less tool harvests nothing.
+inline constexpr bool HasTool(ToolType set, ToolType tool)
 {
-    return block == Block::k_OakPlanks || block == Block::k_BirchPlanks
-        || block == Block::k_AcaciaPlanks;
+    return tool != ToolType::k_None && (set & tool) != ToolType::k_None;
 }
 
-// The canopy blocks of every tree species. Their tiles are grayscale, so the
-// mesher tints them with the biome's leaf colour.
-inline bool IsLeaves(Block block)
-{
-    return block == Block::k_OakLeaves || block == Block::k_BirchLeaves
-        || block == Block::k_AcaciaLeaves;
-}
+// One block's full profile: how it renders and occludes, its tree/material
+// groupings, and its gameplay data (mining time, drop, harvesting tools). This is
+// the single place a block's properties live; every predicate below is a thin
+// read of it, so adding a block is one row in k_BlockInfo, not edits scattered
+// across a dozen functions.
+struct BlockInfo {
+    Block id = Block::k_Air;
 
-// The pieces a tree is built from: the trunk's wood and logs plus the canopy
-// leaves. Breaking one of these can leave the rest of the tree hanging in the
-// air, with nothing connecting it back down to the ground.
-inline bool IsTreePart(Block block)
-{
-    return IsLog(block) || IsWood(block) || IsLeaves(block);
-}
+    bool opaque = false; // hides neighbouring faces and fully blocks light
+    bool cutout = false; // see-through texels (still opaque for targeting/light)
+    bool plant = false;  // cross-shaped billboard: no collision, lets light pass
 
-// The blocks a generated tree is actually built from: trunk wood and canopy
-// leaves. These crumble away when a cut strands them off the ground. Logs are
-// excluded on purpose: they only ever enter the world by the player placing
-// them, so an unsupported log stays put like any other building block rather
-// than auto-destructing the way a chopped tree's remains do.
-inline bool IsNaturalTreePart(Block block)
-{
-    return IsWood(block) || IsLeaves(block);
-}
+    // Material groupings, used by tree physics, drops, and flat icons.
+    bool log = false;
+    bool wood = false;
+    bool planks = false;
+    bool leaves = false;
 
-// Cross-shaped foliage (grass tufts, ferns, dead bushes): drawn as two crossed
-// billboards instead of a cube. It has no collision, lets light through, and
-// never hides a neighbour's face.
-inline bool IsPlant(Block block)
-{
-    return block == Block::k_ShortGrass || block == Block::k_Fern
-        || block == Block::k_DeadBush;
-}
+    float breakSeconds = 0.75f;          // time to mine with the proper tool
+    Block drop = Block::k_Air;           // what it yields when broken (k_Air: none)
+    ToolType harvest = ToolType::k_None; // tools that can break it (mix with `|`)
+};
 
-// Air, water, and cross plants do not hide the faces of blocks behind them, so
-// neighbouring solids still mesh their touching faces (you can see the seabed
-// through water, and the dirt beneath a grass tuft still draws its top).
-inline bool IsOpaque(Block block)
-{
-    return block != Block::k_Air && block != Block::k_Water && !IsPlant(block);
-}
+// Every block's profile, indexed by the Block enum's value, so the rows must stay
+// in enum order (checked just below). Omitted fields take the struct's defaults.
+inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_BlockInfo = { {
+    { .id = Block::k_Air },
+    { .id = Block::k_Dirt, .opaque = true, .drop = Block::k_Dirt, .harvest = ToolType::k_Shovel },
+    { .id = Block::k_Grass, .opaque = true, .drop = Block::k_Grass, .harvest = ToolType::k_Shovel },
+    { .id = Block::k_Sand, .opaque = true, .drop = Block::k_Sand, .harvest = ToolType::k_Shovel },
+    { .id = Block::k_Water },
+    { .id = Block::k_OakLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_ShortGrass, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_Fern, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_DeadBush, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_Cactus, .opaque = true, .cutout = true, .breakSeconds = 0.5f, .drop = Block::k_Cactus, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
+} };
 
-// Blocks a raycast can target for breaking/placing: solid blocks plus the
-// pass-through plants (so a grass tuft can be clicked away even though it
-// neither collides nor occludes).
-inline bool IsTargetable(Block block)
+// Each row must line up with its enum value so a block indexes its own profile.
+constexpr bool BlockInfoTableInOrder()
 {
-    return IsOpaque(block) || IsPlant(block);
-}
-
-// Foliage with see-through texels (leaves, cactus). It still counts as opaque
-// for targeting and lighting, but its holes mean it never fully hides a
-// neighbour's face, so the mesher keeps those faces (e.g. the dirt beneath a
-// leaf block, or the sand a cactus stands on) instead of culling them.
-inline bool IsCutout(Block block)
-{
-    return IsLeaves(block) || block == Block::k_Cactus;
-}
-
-// How long the proper tool takes to mine this block, in seconds. Drives the
-// gradual break: the crack overlay advances through its stages as this much
-// time accumulates under a held swing. Plants pop instantly, leaves give way
-// quickly, and the solid trunk wood takes the longest.
-inline float BreakSeconds(Block block)
-{
-    if (IsPlant(block)) {
-        return 0.0f;
+    for (size_t i = 0; i < k_BlockInfo.size(); ++i) {
+        if (static_cast<size_t>(k_BlockInfo[i].id) != i) {
+            return false;
+        }
     }
-    if (IsLeaves(block)) {
-        return 0.3f;
-    }
-    if (block == Block::k_Cactus) {
-        return 0.5f;
-    }
-    if (IsLog(block) || IsWood(block) || IsPlanks(block)) {
-        return 1.2f;
-    }
-    return 0.75f;
+    return true;
+}
+static_assert(BlockInfoTableInOrder(), "k_BlockInfo rows must follow the Block enum order");
+
+// A block's profile; every query below reads its fields.
+inline constexpr const BlockInfo& BlockInfoOf(Block block)
+{
+    return k_BlockInfo[static_cast<size_t>(block)];
 }
 
-// What a broken block yields as a collectible drop, or k_Air for nothing. Leaves
-// and cross plants just give way, leaving nothing to pick up. A tree trunk is
-// built from wood (bark on every face), but felling it yields logs (with end
-// grain) the way a tree does in Minecraft, so each wood maps to its species' log.
-// Everything else, logs and cactus included, drops itself.
-inline Block DropFor(Block block)
+// A species' bark log (distinct end-grain top/bottom); "wood" wears bark on every
+// face; "planks" are the crafted building cubes; "leaves" are biome-tinted canopy.
+inline constexpr bool IsLog(Block block) { return BlockInfoOf(block).log; }
+inline constexpr bool IsWood(Block block) { return BlockInfoOf(block).wood; }
+inline constexpr bool IsPlanks(Block block) { return BlockInfoOf(block).planks; }
+inline constexpr bool IsLeaves(Block block) { return BlockInfoOf(block).leaves; }
+
+// Cross-shaped foliage (grass tufts, ferns, dead bushes): no collision, lets
+// light through, never hides a neighbour's face.
+inline constexpr bool IsPlant(Block block) { return BlockInfoOf(block).plant; }
+
+// The pieces a tree is built from (trunk logs/wood plus canopy leaves); breaking
+// one can leave the rest of the tree stranded in the air.
+inline constexpr bool IsTreePart(Block block)
 {
-    if (IsLeaves(block) || IsPlant(block)) {
-        return Block::k_Air;
-    }
-    switch (block) {
-    case Block::k_OakWood:
-        return Block::k_OakLog;
-    case Block::k_BirchWood:
-        return Block::k_BirchLog;
-    case Block::k_AcaciaWood:
-        return Block::k_AcaciaLog;
-    default:
-        return block;
-    }
+    const BlockInfo& info = BlockInfoOf(block);
+    return info.log || info.wood || info.leaves;
+}
+
+// The blocks a generated tree is actually made of (wood and leaves): these
+// crumble when a cut strands them off the ground. Logs are excluded on purpose -
+// a player-placed log stays put like any other building block.
+inline constexpr bool IsNaturalTreePart(Block block)
+{
+    const BlockInfo& info = BlockInfoOf(block);
+    return info.wood || info.leaves;
+}
+
+// Whether the block hides the faces of blocks behind it (air, water and plants do
+// not, so the seabed shows through water and dirt still draws under a grass tuft).
+inline constexpr bool IsOpaque(Block block) { return BlockInfoOf(block).opaque; }
+
+// Foliage with see-through texels (leaves, cactus): opaque for targeting and
+// lighting, but its holes mean it never fully hides a neighbour's face, so the
+// mesher keeps those faces (e.g. the dirt beneath a leaf, the sand under a cactus).
+inline constexpr bool IsCutout(Block block) { return BlockInfoOf(block).cutout; }
+
+// Blocks a raycast can target for breaking/placing: solids plus the pass-through
+// plants (so a grass tuft can be clicked away though it neither collides nor
+// occludes).
+inline constexpr bool IsTargetable(Block block)
+{
+    const BlockInfo& info = BlockInfoOf(block);
+    return info.opaque || info.plant;
+}
+
+// How long the proper tool takes to mine the block, in seconds, driving the
+// gradual crack overlay. Plants pop instantly; trunk wood takes the longest.
+inline constexpr float BreakSeconds(Block block) { return BlockInfoOf(block).breakSeconds; }
+
+// What a broken block yields, or k_Air for nothing. Leaves and plants give way
+// with no drop; a wood block yields its species' log (felling a trunk drops logs
+// the way a tree does); everything else drops itself.
+inline constexpr Block DropFor(Block block) { return BlockInfoOf(block).drop; }
+
+// Which tools harvest the block (a mix is possible); k_None means nothing yet.
+inline constexpr ToolType HarvestTools(Block block) { return BlockInfoOf(block).harvest; }
+
+// Whether `tool` is one of the tools that harvests `block`.
+inline constexpr bool CanHarvestWith(Block block, ToolType tool)
+{
+    return HasTool(HarvestTools(block), tool);
 }
 
 enum class BlockFace {

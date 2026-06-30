@@ -243,10 +243,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     // another block. A neighbour cactus can sit in an adjacent chunk, but always
     // within this edit's 3x3, so it is reachable and will be re-meshed below.
     if (IsOpaque(block)) {
-        constexpr glm::ivec3 sides[] = {
-            { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
-        };
-        for (const glm::ivec3& side : sides) {
+        for (const glm::ivec3& side : k_HorizontalNeighbors) {
             BreakCactusColumn(worldPosition + side);
         }
     }
@@ -549,10 +546,7 @@ void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
     if (block == Block::k_Cactus) {
         // Cactus can't touch a solid block on any of its four sides, so cacti
         // can't be placed next to each other (or flush against terrain).
-        constexpr glm::ivec3 sides[] = {
-            { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
-        };
-        for (const glm::ivec3& side : sides) {
+        for (const glm::ivec3& side : k_HorizontalNeighbors) {
             if (IsOpaque(GetBlock(worldPosition + side))) {
                 return;
             }

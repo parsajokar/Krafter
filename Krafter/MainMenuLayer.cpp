@@ -9,6 +9,8 @@
 #include "Krafter/Core/Event.h"
 #include "Krafter/Core/Window.h"
 #include "Krafter/MainMenuLayer.h"
+#include "Krafter/Renderer/Font.h"
+#include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/Renderer/Widgets.h"
 
 namespace Krafter {
@@ -26,22 +28,11 @@ constexpr float k_TitleScale = 3.0f;
 // Nudges the title off its centred spot: right and up, to taste.
 constexpr glm::vec2 k_TitleOffset = glm::vec2(8.0f, -40.0f);
 
-// The hotbar slot art: a 22x22 box at (15, 0) from the texture's bottom-left,
-// with the selection outline at (37, 0). Reused here as the field/button and a
-// hover/focus highlight.
-constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
-constexpr float k_SlotSpriteX = 15.0f;
-constexpr float k_OutlineSpriteX = 37.0f;
-
 MainMenuLayer::MainMenuLayer(
     Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
     std::function<void(int32_t, GameMode)> onPlay)
-    : Layer("MainMenu")
-    , m_Window(window)
+    : UIScreen("MainMenu", window, renderer, uiTexture, font)
     , m_OnPlay(std::move(onPlay))
-    , m_Renderer(renderer)
-    , m_UITexture(uiTexture)
-    , m_Font(font)
     , m_Background("assets/textures/main_menu.png")
 {
 }
@@ -112,10 +103,6 @@ void MainMenuLayer::OnRender()
         glm::vec2(0.0f), glm::vec2(m_Window.GetSize()), m_Background,
         glm::vec4(0.0f, 1.0f, 1.0f, -1.0f));
 
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 slotPos = glm::vec2(k_SlotSpriteX, texSize.y - k_SlotSprite.y);
-    const glm::vec2 outlinePos = glm::vec2(k_OutlineSpriteX, texSize.y - k_SlotSprite.y);
-
     // Seed field.
     const glm::vec4 seedRect = SeedRect();
     const glm::vec2 seedPos = glm::vec2(seedRect);
@@ -128,10 +115,10 @@ void MainMenuLayer::OnRender()
                                               (m_Window.GetSize().x - titleWidth) * 0.5f, seedPos.y - k_Gap - titleHeight)
         + k_TitleOffset);
     m_Font.Draw(m_Renderer, k_Title, titlePos, k_TitleScale, glm::vec4(1.0f));
-    m_Renderer.DrawSlicedSprite(m_UITexture, slotPos, k_SlotSprite, seedPos, k_FieldSize,
+    DrawSlotSliced(m_Renderer, m_UITexture, seedPos, k_FieldSize,
         glm::vec4(1.0f, 1.0f, 1.0f, m_SeedFocused ? 0.85f : 0.6f));
     if (m_SeedFocused) {
-        m_Renderer.DrawSlicedSprite(m_UITexture, outlinePos, k_SlotSprite, seedPos, k_FieldSize);
+        DrawSlotOutlineSliced(m_Renderer, m_UITexture, seedPos, k_FieldSize);
     }
 
     const float fieldTextHeight = m_Font.LineHeight(k_FieldTextScale);

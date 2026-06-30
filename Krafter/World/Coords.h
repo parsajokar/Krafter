@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "glm/glm.hpp"
@@ -7,6 +8,12 @@
 #include "Krafter/World/Chunk.h"
 
 namespace Krafter {
+
+// A cell's four horizontal neighbours (+x, -x, +z, -z). Shared by the checks that
+// look at every side of a block, such as cactus placement and toppling.
+inline constexpr std::array<glm::ivec3, 4> k_HorizontalNeighbors = {
+    glm::ivec3(1, 0, 0), glm::ivec3(-1, 0, 0), glm::ivec3(0, 0, 1), glm::ivec3(0, 0, -1)
+};
 
 // Floored division and modulo: they round toward negative infinity instead of
 // truncating toward zero like C++'s built-in / and %. That keeps world-to-chunk

@@ -5,15 +5,15 @@
 
 #include "glm/glm.hpp"
 
-#include "Krafter/Core/Layer.h"
 #include "Krafter/Item.h"
-#include "Krafter/Renderer/Font.h"
 #include "Krafter/Renderer/Texture.h"
-#include "Krafter/Renderer/UIRenderer.h"
+#include "Krafter/UIScreen.h"
 
 namespace Krafter {
 
 class Window;
+class UIRenderer;
+class Font;
 class Inventory;
 class Hotbar;
 struct Recipe;
@@ -23,7 +23,7 @@ struct Recipe;
 // with the 10-slot hotbar row beneath it, and a horizontally scrolling crafting
 // bar (Terraria-style) of recipes below that. 'E' or Escape closes it. The
 // callback runs the close (resuming play), leaving the layer change to the owner.
-class InventoryLayer : public Layer {
+class InventoryLayer : public UIScreen {
 public:
     // The UI renderer, sprite sheet (ui.png), and font are owned by the
     // application and shared across the UI layers, so the screen only borrows
@@ -97,12 +97,7 @@ private:
     // not lost when this layer (and its held state) is destroyed.
     void Close();
 
-    Window& m_Window;
     std::function<void()> m_OnClose;
-
-    UIRenderer& m_Renderer;
-    Texture2D& m_UITexture;
-    Font& m_Font;
 
     Inventory& m_Inventory;
     Hotbar& m_Hotbar;
@@ -112,10 +107,9 @@ private:
     Texture2D m_BlockTexture;
     Texture2D m_ItemTexture;
 
-    // The item currently picked up onto the cursor (empty when none), and the
-    // last known cursor position so it can be drawn following the pointer.
+    // The item currently picked up onto the cursor (empty when none); it follows
+    // the pointer (m_Cursor, in UIScreen) and is returned to a slot on close.
     Item m_Held;
-    glm::vec2 m_Cursor = glm::vec2(0.0f);
 
     // The recipe resting under the crafting bar's selection frame (an index into
     // the shown recipes), and the bar's current scroll in pixels, eased toward the

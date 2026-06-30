@@ -33,10 +33,26 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
   jumping, and *Spectate* free-flight noclip.
 - **Block interaction** — a voxel DDA raycast targets blocks for breaking and
   placing (with placement rules for plants and self-trap prevention), including
-  hold-to-place.
+  hold-to-break and hold-to-place. Breaking is **gradual**, advancing a crack
+  overlay over each block's mining time, and a chopped tree's stranded wood and
+  leaves crumble away.
+- **Mining, tools & drops** — breaking a block requires the right tool, decided by
+  per-block **harvest tags** (axe / pickaxe / shovel, combinable), with a wooden
+  axe for wood and foliage. Broken blocks spawn collectible item drops that fall,
+  settle, and are picked up into the inventory.
+- **Inventory & crafting** — a full-screen inventory (a 3×10 storage grid over the
+  hotbar row) with Minecraft-style click-to-pick-up/drop/stack item handling, and a
+  **Terraria-style crafting bar**: a horizontally scrolling, edge-fading strip of
+  recipes that glides the clicked recipe into a fixed selection frame, previews its
+  ingredients beneath with an arrow, supports hold-to-craft, and lists only the
+  recipes you have materials for.
+- **Data-driven blocks** — every block's render, occlusion, mining, drop, and
+  harvest-tool data lives in one per-block table, so adding or retuning a block is a
+  single entry rather than edits scattered across the codebase.
 - **From-scratch rendering & UI** — an OpenGL 4.5 renderer, a custom bitmap-font
   text renderer, a 9-slice sprite UI (main menu with seed input, pause menu, hotbar
-  HUD, inverted-blend crosshair), and an ImGui debug overlay.
+  HUD, inventory & crafting screen, inverted-blend crosshair), and an ImGui debug
+  overlay.
 - **Layered engine architecture** — an application/layer-stack design with an event
   system and deferred layer operations for safe scene transitions.
 
@@ -87,12 +103,19 @@ random world) and choose one of two modes:
 Shared:
  - `WASD` — Move
  - `Mouse` — Look around
- - `Left Click` — Break the targeted block
+ - `Left Click` — Break the targeted block (hold to keep mining; needs the right tool)
  - `Right Click` — Place the selected block (hold to keep placing)
  - `1–9 + 0` — Select hotbar slot
+ - `E` — Open / close the inventory and crafting screen
  - `Esc` — Open the pause menu (Resume / Exit to main menu)
  - `F3` — Toggle the debug overlay (movement speed, mouse sensitivity, field of view, and more)
  - `F11` — Toggle `Windowed Mode` and `Fullscreen Mode`
 
 Survive only:
  - `Space` — Jump (hold to keep jumping)
+
+In the inventory screen:
+ - `Left Click` a slot — Pick up, drop, or stack items on the cursor
+ - `Left Click` a recipe — Scroll it into the selection frame; click the selected
+   recipe to craft it (hold to keep crafting). The result lands on the cursor.
+ - `Mouse Wheel` — Move the crafting selection between recipes

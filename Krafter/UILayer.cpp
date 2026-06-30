@@ -1,6 +1,7 @@
 #include "Krafter/Core/Event.h"
 #include "Krafter/UILayer.h"
 #include "Krafter/Core/Window.h"
+#include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/Renderer/Widgets.h"
 
 namespace Krafter {
@@ -8,12 +9,8 @@ namespace Krafter {
 constexpr float k_UIOpacity = 0.6f;
 
 UILayer::UILayer(Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font, Hotbar& hotbar)
-    : Layer("UI")
-    , m_Window(window)
+    : UIScreen("UI", window, renderer, uiTexture, font)
     , m_Hotbar(hotbar)
-    , m_Renderer(renderer)
-    , m_UITexture(uiTexture)
-    , m_Font(font)
     , m_BlockTexture("assets/textures/blocks.png")
     , m_ItemTexture("assets/textures/items.png")
 {
@@ -67,17 +64,13 @@ void UILayer::DrawCrosshair()
 
 void UILayer::DrawHotbar()
 {
-    // The slot art is a 22x22 box at (15, 0) from the bottom-left of the texture.
+    // The slot box is a 22x22 sprite drawn at 2x; the sprites come from Widgets
+    // (DrawSlot/DrawSlotOutline), so only the source size is needed for layout.
     constexpr glm::vec2 k_SpriteSize = glm::vec2(22.0f, 22.0f);
     constexpr int k_SlotCount = Hotbar::k_SlotCount;
     constexpr float k_Spacing = 2.0f;
     constexpr float k_Scale = 2.0f;
     constexpr float k_Margin = 10.0f;
-
-    const glm::vec2 texSize = glm::vec2(m_UITexture.GetSize());
-    const glm::vec2 spritePos = glm::vec2(15.0f, texSize.y - k_SpriteSize.y);
-    // Selection outline: a 22x22 box at (37, 0) from the bottom-left.
-    const glm::vec2 outlineSpritePos = glm::vec2(37.0f, texSize.y - k_SpriteSize.y);
 
     const glm::vec2 slotSize = k_SpriteSize * k_Scale;
     const float stride = slotSize.x + k_Spacing * k_Scale;
@@ -98,7 +91,7 @@ void UILayer::DrawHotbar()
 
     for (int i = 0; i < k_SlotCount; ++i) {
         const glm::vec2 position = glm::vec2(startX + i * stride, y);
-        m_Renderer.DrawSprite(m_UITexture, spritePos, k_SpriteSize, position, slotSize,
+        DrawSlot(m_Renderer, m_UITexture, position, slotSize,
             glm::vec4(1.0f, 1.0f, 1.0f, k_UIOpacity));
 
         const Item item = m_Hotbar.GetItem(i);
@@ -109,7 +102,7 @@ void UILayer::DrawHotbar()
         }
 
         if (i == m_Hotbar.GetSelected()) {
-            m_Renderer.DrawSprite(m_UITexture, outlineSpritePos, k_SpriteSize, position, slotSize);
+            DrawSlotOutline(m_Renderer, m_UITexture, position, slotSize);
         }
     }
 }

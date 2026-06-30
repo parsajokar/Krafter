@@ -11,12 +11,23 @@ namespace Krafter {
 
 namespace {
 
-    // The hotbar slot art reused as the button face, with the selection outline as
-    // the hover highlight: a 22x22 box at (15, 0) from the texture's bottom-left, the
-    // outline at (37, 0).
+    // The hotbar slot art reused as the button/field face, with the selection
+    // outline as the hover/focus highlight: a 22x22 box at (15, 0) from the
+    // texture's bottom-left, the outline at (37, 0). This is the single definition
+    // of those sprites; DrawSlot* below are the only readers.
     constexpr glm::vec2 k_SlotSprite = glm::vec2(22.0f, 22.0f);
     constexpr float k_SlotSpriteX = 15.0f;
     constexpr float k_OutlineSpriteX = 37.0f;
+
+    // The sprites address from the sheet's bottom-left, so flip their row in.
+    glm::vec2 SlotSpritePos(const Texture2D& uiTexture)
+    {
+        return glm::vec2(k_SlotSpriteX, uiTexture.GetSize().y - k_SlotSprite.y);
+    }
+    glm::vec2 OutlineSpritePos(const Texture2D& uiTexture)
+    {
+        return glm::vec2(k_OutlineSpriteX, uiTexture.GetSize().y - k_SlotSprite.y);
+    }
 
     constexpr float k_ButtonTextScale = 1.0f;
 
@@ -66,21 +77,45 @@ void DrawItemCount(
     font.Draw(renderer, text, textPos, k_CountScale, glm::vec4(1.0f, 1.0f, 1.0f, opacity));
 }
 
+void DrawSlot(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    renderer.DrawSprite(uiTexture, SlotSpritePos(uiTexture), k_SlotSprite, position, size, tint);
+}
+
+void DrawSlotOutline(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    renderer.DrawSprite(uiTexture, OutlineSpritePos(uiTexture), k_SlotSprite, position, size, tint);
+}
+
+void DrawSlotSliced(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    renderer.DrawSlicedSprite(uiTexture, SlotSpritePos(uiTexture), k_SlotSprite, position, size, tint);
+}
+
+void DrawSlotOutlineSliced(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
+{
+    renderer.DrawSlicedSprite(uiTexture, OutlineSpritePos(uiTexture), k_SlotSprite, position, size, tint);
+}
+
 void DrawMenuButton(
     UIRenderer& renderer, const Font& font, const Texture2D& uiTexture,
     const glm::vec4& rect, std::string_view label, bool hovered)
 {
-    const glm::vec2 texSize = glm::vec2(uiTexture.GetSize());
-    const glm::vec2 slotPos = glm::vec2(k_SlotSpriteX, texSize.y - k_SlotSprite.y);
-    const glm::vec2 outlinePos = glm::vec2(k_OutlineSpriteX, texSize.y - k_SlotSprite.y);
-
     const glm::vec2 position = glm::vec2(rect);
     const glm::vec2 size = glm::vec2(rect.z, rect.w);
 
-    renderer.DrawSlicedSprite(uiTexture, slotPos, k_SlotSprite, position, size,
+    DrawSlotSliced(renderer, uiTexture, position, size,
         glm::vec4(1.0f, 1.0f, 1.0f, hovered ? 0.85f : 0.6f));
     if (hovered) {
-        renderer.DrawSlicedSprite(uiTexture, outlinePos, k_SlotSprite, position, size);
+        DrawSlotOutlineSliced(renderer, uiTexture, position, size);
     }
 
     const glm::vec2 labelSize = glm::vec2(
