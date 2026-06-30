@@ -94,15 +94,17 @@ void UILayer::DrawHotbar()
         DrawSlot(m_Renderer, m_UITexture, position, slotSize,
             glm::vec4(1.0f, 1.0f, 1.0f, k_UIOpacity));
 
+        // The selection outline sits behind the icon and count so the highlight
+        // frames the slot without painting over the stack number in its corner.
+        if (i == m_Hotbar.GetSelected()) {
+            DrawSlotOutline(m_Renderer, m_UITexture, position, slotSize);
+        }
+
         const Item item = m_Hotbar.GetItem(i);
         if (!item.IsEmpty()) {
             DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, item,
                 position + iconOffset, iconSize);
             DrawItemCount(m_Renderer, m_Font, item.count, position, slotSize);
-        }
-
-        if (i == m_Hotbar.GetSelected()) {
-            DrawSlotOutline(m_Renderer, m_UITexture, position, slotSize);
         }
     }
 }

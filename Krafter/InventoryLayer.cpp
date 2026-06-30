@@ -417,15 +417,17 @@ void InventoryLayer::OnRender()
         DrawSlot(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize),
             glm::vec4(1.0f, 1.0f, 1.0f, k_SlotOpacity));
 
+        // The hover outline sits behind the icon and count so the highlight frames
+        // the slot without painting over the stack number in its corner.
+        if (i == hovered) {
+            DrawSlotOutline(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize));
+        }
+
         const Item item = GetSlot(i);
         if (!item.IsEmpty()) {
             DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, item,
                 position + glm::vec2(k_IconOffset), glm::vec2(k_IconSize));
             DrawItemCount(m_Renderer, m_Font, item.count, position, glm::vec2(k_SlotSize));
-        }
-
-        if (i == hovered) {
-            DrawSlotOutline(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize));
         }
     }
 
@@ -533,7 +535,11 @@ void InventoryLayer::OnRender()
         const glm::vec2 heldPos = m_Cursor - glm::vec2(k_IconSize * 0.5f);
         DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, m_Held,
             heldPos, glm::vec2(k_IconSize));
-        DrawItemCount(m_Renderer, m_Font, m_Held.count, heldPos, glm::vec2(k_IconSize));
+        // Frame the count against the slot-sized box the icon would inset into, so
+        // the number tucks into the bottom-right corner exactly as it does in a
+        // slot rather than landing centred over the icon.
+        const glm::vec2 slotPos = heldPos - glm::vec2(k_IconOffset);
+        DrawItemCount(m_Renderer, m_Font, m_Held.count, slotPos, glm::vec2(k_SlotSize));
     }
 
     m_Renderer.End();

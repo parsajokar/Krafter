@@ -292,6 +292,11 @@ void Player::PlaceTargetBlock()
     }
 
     m_World.PlaceBlock(target, block);
+
+    // Consume one from the held stack; emptying the slot clears it back to k_Air.
+    Item held = selected;
+    held.count--;
+    m_Hotbar.SetItem(m_Hotbar.GetSelected(), held.count > 0 ? held : Item());
 }
 
 void Player::OnEvent(Event& event)
