@@ -65,9 +65,9 @@ struct Item {
 
 // Whether `item` is the right tool to break `target`. Tools are picky: a bare
 // hand (or a held block) breaks nothing, and each tool only works on the blocks
-// it is meant for. The wooden axe fells trees (logs, wood, leaves) and clears
-// plants (grass tufts, ferns, dead bushes, and cacti); everything else has no
-// tool to break it yet.
+// it is meant for. The wooden axe fells trees (logs, wood, leaves), chops the
+// planks crafted from them, and clears plants (grass tufts, ferns, dead bushes,
+// and cacti); everything else has no tool to break it yet.
 inline bool CanBreakWith(const Item& item, Block target)
 {
     if (!item.isItem) {
@@ -75,7 +75,8 @@ inline bool CanBreakWith(const Item& item, Block target)
     }
     switch (item.kind) {
     case ItemKind::k_WoodenAxe:
-        return IsTreePart(target) || IsPlant(target) || target == Block::k_Cactus;
+        return IsTreePart(target) || IsPlanks(target) || IsPlant(target)
+            || target == Block::k_Cactus;
     }
     return false;
 }

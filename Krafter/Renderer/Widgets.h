@@ -19,25 +19,28 @@ bool RectContains(const glm::vec4& rect, const glm::vec2& point);
 // Draws `block`'s side tile as a flat icon filling the pixel rectangle at
 // `position` (top-left) with `size`, biome-tinting the grayscale foliage tiles
 // so they read in colour. `blockTexture` is the world block atlas (blocks.png).
-// Shared by the hotbar HUD and the inventory screen for their slot icons.
+// `opacity` scales the whole icon's alpha (1 = solid), for fading it out. Shared
+// by the hotbar HUD and the inventory screen for their slot icons.
 void DrawBlockIcon(
     UIRenderer& renderer, const Texture2D& blockTexture, Block block,
-    const glm::vec2& position, const glm::vec2& size);
+    const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
 
 // Draws a slot's contents as an icon filling the pixel rectangle at `position`
 // (top-left) with `size`: a block draws its tile from `blockTexture` (as
 // DrawBlockIcon), while a tool draws its flat sprite from the item sheet
-// (items.png). Shared by the hotbar HUD and the inventory screen.
+// (items.png). `opacity` fades the whole icon. Shared by the hotbar HUD and the
+// inventory screen.
 void DrawItemIcon(
     UIRenderer& renderer, const Texture2D& blockTexture, const Texture2D& itemTexture,
-    const Item& item, const glm::vec2& position, const glm::vec2& size);
+    const Item& item, const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
 
 // Draws a stack count in the bottom-right of the slot box at `position` with
 // `size`, the way Minecraft labels a stack. Drawn only when `count` is above one,
-// so a lone block or a tool shows no number. `font` is the shared HUD font.
+// so a lone block or a tool shows no number. `opacity` fades the label. `font` is
+// the shared HUD font.
 void DrawItemCount(
     UIRenderer& renderer, const Font& font, int count,
-    const glm::vec2& position, const glm::vec2& size);
+    const glm::vec2& position, const glm::vec2& size, float opacity = 1.0f);
 
 // Draws a menu button: the UI slot sprite 9-sliced to `rect`, with a brighter
 // face and a selection outline when `hovered`, and `label` centred inside.

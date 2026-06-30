@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <vector>
 
 #include "glm/glm.hpp"
 
@@ -15,11 +16,13 @@ namespace Krafter {
 class Window;
 class Inventory;
 class Hotbar;
+struct Recipe;
 
 // The inventory screen, shown over the world (and HUD) when 'E' is pressed. Dims
 // the scene and lays out the player's storage: a 3x10 grid of inventory slots
-// with the 10-slot hotbar row beneath it. 'E' or Escape closes it. The callback
-// runs the close (resuming play), leaving the layer-stack change to the owner.
+// with the 10-slot hotbar row beneath it, and a horizontally scrolling crafting
+// bar (Terraria-style) of recipes below that. 'E' or Escape closes it. The
+// callback runs the close (resuming play), leaving the layer change to the owner.
 class InventoryLayer : public Layer {
 public:
     // The UI renderer, sprite sheet (ui.png), and font are owned by the
@@ -30,6 +33,7 @@ public:
         Inventory& inventory, Hotbar& hotbar, std::function<void()> onClose);
 
 private:
+    void OnUpdate() override;
     void OnRender() override;
     void OnEvent(Event& event) override;
 
@@ -52,6 +56,42 @@ private:
     // Picks up, drops, or swaps the held item against the clicked slot, the way
     // a left-click does in Minecraft's inventory.
     void ClickSlot(int index);
+
+    // The recipes shown in the crafting bar: only those the player has at least
+    // some ingredient for, in their fixed order. The bar's contents follow what's
+    // in the inventory, the way Terraria lists only the recipes you can start.
+    std::vector<const Recipe*> AvailableRecipes() const;
+
+    // The crafting bar (Terraria-style): a strip of recipe-result slots that
+    // scrolls behind a fixed selection frame in its middle. The selected recipe is
+    // the one resting under that frame; clicking another slot scrolls it there.
+    //   CraftBarRect      - the whole strip, wider than the panel, fading at edges.
+    //   SelectionSlotRect - the fixed centre frame the selected recipe sits in.
+    //   RecipeRect        - the `displayIndex`-th shown slot (scroll applied).
+    //   RecipeAt          - the shown recipe under `point` (-1 if none/too faded).
+    //   TargetScroll      - the scroll that centres the selected recipe.
+    glm::vec4 CraftBarRect() const;
+    glm::vec4 SelectionSlotRect() const;
+    glm::vec4 RecipeRect(int displayIndex) const;
+    int RecipeAt(const glm::vec2& point) const;
+    float TargetScroll() const;
+
+    // How visible the recipe with rect `recipeRect` is (1 in the middle of the
+    // bar, ramping to 0 at the faded edges), used both to draw it and to ignore
+    // clicks on the near-invisible slots at the ends.
+    float RecipeFade(const glm::vec4& recipeRect) const;
+
+    // Total count of `item` (matching kind) across every storage slot.
+    int CountItem(const Item& item) const;
+
+    // Removes `count` of `item` from storage, draining partial stacks in order.
+    void ConsumeItem(const Item& item, int count);
+
+    // Whether `recipe` can be crafted right now (the ingredients are in storage
+    // and the cursor can take the result), and crafting it: consume the inputs and
+    // drop the output onto the cursor (m_Held), stacking onto a matching held one.
+    bool CanCraft(const Recipe& recipe) const;
+    void Craft(const Recipe& recipe);
 
     // Closes the screen, first returning any held item to a free slot so it is
     // not lost when this layer (and its held state) is destroyed.
@@ -76,6 +116,21 @@ private:
     // last known cursor position so it can be drawn following the pointer.
     Item m_Held;
     glm::vec2 m_Cursor = glm::vec2(0.0f);
+
+    // The recipe resting under the crafting bar's selection frame (an index into
+    // the shown recipes), and the bar's current scroll in pixels, eased toward the
+    // scroll that centres the selected recipe so it glides into place.
+    int m_SelectedRecipe = 0;
+    float m_CraftScroll = 0.0f;
+    // Cleared until the first frame snaps the scroll to the selection, so the bar
+    // doesn't visibly slide into place when the screen first opens.
+    bool m_CraftScrollReady = false;
+
+    // Holding the mouse on the selected recipe keeps crafting it: the recipe being
+    // held (null when not crafting) and the time the next repeat is due. Recipes
+    // live in a stable list, so the pointer survives the inventory changing.
+    const Recipe* m_HeldRecipe = nullptr;
+    float m_NextCraftTime = 0.0f;
 };
 
 } // namespace Krafter

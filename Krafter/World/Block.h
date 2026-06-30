@@ -24,7 +24,10 @@ enum class Block {
     k_ShortGrass,
     k_Fern,
     k_DeadBush,
-    k_Cactus
+    k_Cactus,
+    k_OakPlanks,
+    k_BirchPlanks,
+    k_AcaciaPlanks
 };
 
 // The "log" blocks: a species' bark on the sides with a distinct end-grain tile
@@ -41,6 +44,13 @@ inline bool IsWood(Block block)
 {
     return block == Block::k_OakWood || block == Block::k_BirchWood
         || block == Block::k_AcaciaWood;
+}
+
+// The planks crafted from each species' logs: solid, full-colour building cubes.
+inline bool IsPlanks(Block block)
+{
+    return block == Block::k_OakPlanks || block == Block::k_BirchPlanks
+        || block == Block::k_AcaciaPlanks;
 }
 
 // The canopy blocks of every tree species. Their tiles are grayscale, so the
@@ -118,7 +128,7 @@ inline float BreakSeconds(Block block)
     if (block == Block::k_Cactus) {
         return 0.5f;
     }
-    if (IsLog(block) || IsWood(block)) {
+    if (IsLog(block) || IsWood(block) || IsPlanks(block)) {
         return 1.2f;
     }
     return 0.75f;

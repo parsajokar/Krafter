@@ -48,7 +48,7 @@ bool RectContains(const glm::vec4& rect, const glm::vec2& point)
 
 void DrawItemCount(
     UIRenderer& renderer, const Font& font, int count,
-    const glm::vec2& position, const glm::vec2& size)
+    const glm::vec2& position, const glm::vec2& size, float opacity)
 {
     // A single block or a tool needs no label; only real stacks are numbered.
     if (count <= 1) {
@@ -63,7 +63,7 @@ void DrawItemCount(
     // Tuck the number into the slot's bottom-right corner, a hair off the edge.
     constexpr float k_Pad = 1.0f;
     const glm::vec2 textPos = glm::floor(position + size - textSize - glm::vec2(k_Pad));
-    font.Draw(renderer, text, textPos, k_CountScale, glm::vec4(1.0f));
+    font.Draw(renderer, text, textPos, k_CountScale, glm::vec4(1.0f, 1.0f, 1.0f, opacity));
 }
 
 void DrawMenuButton(
@@ -91,7 +91,7 @@ void DrawMenuButton(
 
 void DrawBlockIcon(
     UIRenderer& renderer, const Texture2D& blockTexture, Block block,
-    const glm::vec2& position, const glm::vec2& size)
+    const glm::vec2& position, const glm::vec2& size, float opacity)
 {
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
 
@@ -130,21 +130,23 @@ void DrawBlockIcon(
     } else if (block == Block::k_ShortGrass || block == Block::k_Fern) {
         tint = k_GrassColor;
     }
+    tint.a *= opacity;
     renderer.DrawQuad(corners, tileUVs(BlockIconTile(block)), blockTexture, tint);
 
     // The grass block's side is dirt with a biome-tinted fringe layered over it,
     // so draw that fringe on top to read green like the in-world block.
     if (block == Block::k_Grass) {
-        renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), blockTexture, k_GrassColor);
+        const glm::vec4 fringe = glm::vec4(glm::vec3(k_GrassColor), k_GrassColor.a * opacity);
+        renderer.DrawQuad(corners, tileUVs(atlas.sideOverlay), blockTexture, fringe);
     }
 }
 
 void DrawItemIcon(
     UIRenderer& renderer, const Texture2D& blockTexture, const Texture2D& itemTexture,
-    const Item& item, const glm::vec2& position, const glm::vec2& size)
+    const Item& item, const glm::vec2& position, const glm::vec2& size, float opacity)
 {
     if (!item.isItem) {
-        DrawBlockIcon(renderer, blockTexture, item.block, position, size);
+        DrawBlockIcon(renderer, blockTexture, item.block, position, size, opacity);
         return;
     }
 
@@ -159,7 +161,8 @@ void DrawItemIcon(
     // closer to a block icon despite its in-tile padding.
     const glm::vec2 toolSize = size * k_ToolScale;
     const glm::vec2 toolPos = position + (size - toolSize) * 0.5f;
-    renderer.DrawSprite(itemTexture, spritePos, glm::vec2(k_ItemTile), toolPos, toolSize);
+    renderer.DrawSprite(itemTexture, spritePos, glm::vec2(k_ItemTile), toolPos, toolSize,
+        glm::vec4(1.0f, 1.0f, 1.0f, opacity));
 }
 
 } // namespace Krafter

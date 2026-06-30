@@ -43,9 +43,9 @@ void BlockAtlas::LoadAtlases()
     };
 
     s_BlockAtlases[Block::k_OakLeaves] = {
-        .top = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f),
-        .side = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f),
-        .bottom = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f)
+        .top = glm::vec2(3.0f / 16.0f, 1.0f / 16.0f),
+        .side = glm::vec2(3.0f / 16.0f, 1.0f / 16.0f),
+        .bottom = glm::vec2(3.0f / 16.0f, 1.0f / 16.0f)
     };
 
     // Birch and acacia reuse the oak layout one and two rows below it: each tile
@@ -58,9 +58,9 @@ void BlockAtlas::LoadAtlases()
     };
 
     s_BlockAtlases[Block::k_BirchLeaves] = {
-        .top = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
-        .side = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
-        .bottom = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f)
+        .top = glm::vec2(3.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(3.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(3.0f / 16.0f, 2.0f / 16.0f)
     };
 
     s_BlockAtlases[Block::k_AcaciaLog] = {
@@ -70,9 +70,9 @@ void BlockAtlas::LoadAtlases()
     };
 
     s_BlockAtlases[Block::k_AcaciaLeaves] = {
-        .top = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
-        .side = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
-        .bottom = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f)
+        .top = glm::vec2(3.0f / 16.0f, 3.0f / 16.0f),
+        .side = glm::vec2(3.0f / 16.0f, 3.0f / 16.0f),
+        .bottom = glm::vec2(3.0f / 16.0f, 3.0f / 16.0f)
     };
 
     // The "wood" variants wear each species' bark (its log's side tile) on every
@@ -98,23 +98,44 @@ void BlockAtlas::LoadAtlases()
     // Cross plants store their single tile in `side`. Fern and short grass are
     // grayscale and biome-tinted like grass; the dead bush keeps its own brown.
     s_BlockAtlases[Block::k_Fern] = {
-        .side = glm::vec2(3.0f / 16.0f, 2.0f / 16.0f)
-    };
-
-    s_BlockAtlases[Block::k_ShortGrass] = {
         .side = glm::vec2(4.0f / 16.0f, 2.0f / 16.0f)
     };
 
-    s_BlockAtlases[Block::k_DeadBush] = {
+    s_BlockAtlases[Block::k_ShortGrass] = {
         .side = glm::vec2(5.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_DeadBush] = {
+        .side = glm::vec2(6.0f / 16.0f, 2.0f / 16.0f)
     };
 
     // Cactus is a cube with distinct top, side, and bottom tiles. The mesher
     // insets its side faces so the top and bottom overhang, as in Minecraft.
     s_BlockAtlases[Block::k_Cactus] = {
-        .top = glm::vec2(4.0f / 16.0f, 1.0f / 16.0f),
-        .side = glm::vec2(5.0f / 16.0f, 1.0f / 16.0f),
-        .bottom = glm::vec2(3.0f / 16.0f, 1.0f / 16.0f)
+        .top = glm::vec2(5.0f / 16.0f, 1.0f / 16.0f),
+        .side = glm::vec2(6.0f / 16.0f, 1.0f / 16.0f),
+        .bottom = glm::vec2(7.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    // Planks (crafted from logs) borrow each species' log end-grain tile on every
+    // face as a placeholder until they get their own art: oak, birch, and acacia
+    // sit in column 0 of their log's row (rows 1, 2, 3).
+    s_BlockAtlases[Block::k_OakPlanks] = {
+        .top = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f),
+        .bottom = glm::vec2(2.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_BirchPlanks] = {
+        .top = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(2.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_AcaciaPlanks] = {
+        .top = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
+        .bottom = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f)
     };
 }
 
