@@ -31,6 +31,8 @@ enum class Block {
     k_OakPlanks,
     k_BirchPlanks,
     k_AcaciaPlanks,
+    k_Stone,
+    k_Bedrock,
 
     // Number of block kinds; must stay last. Sizes the per-block data table.
     k_Count
@@ -111,6 +113,10 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_OakPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_BirchPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_AcaciaPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_Stone, .opaque = true, .breakSeconds = 1.5f, .drop = Block::k_Stone, .harvest = ToolType::k_Pickaxe },
+    // Bedrock caps the world floor: no tool harvests it (k_None) and it drops
+    // nothing, so it can be targeted but never broken or mined away.
+    { .id = Block::k_Bedrock, .opaque = true, .harvest = ToolType::k_None },
 } };
 
 // Each row must line up with its enum value so a block indexes its own profile.

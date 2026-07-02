@@ -137,6 +137,20 @@ void BlockAtlas::LoadAtlases()
         .side = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f),
         .bottom = glm::vec2(2.0f / 16.0f, 3.0f / 16.0f)
     };
+
+    // Stone and bedrock, the underground fill and the world floor, each wear one
+    // uniform tile on every face.
+    s_BlockAtlases[Block::k_Stone] = {
+        .top = glm::vec2(14.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(14.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(14.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Bedrock] = {
+        .top = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f)
+    };
 }
 
 const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)

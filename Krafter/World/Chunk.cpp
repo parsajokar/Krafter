@@ -703,9 +703,21 @@ Chunk::Chunk(const glm::ivec2& position)
 
             const int32_t height = Biome::SurfaceHeight((float)worldX, (float)worldZ);
 
+            // The column, bottom to top: a bedrock floor with a jagged lip, then
+            // stone at depth, capped by the biome's dirt/sand subsurface band just
+            // beneath the surface block set below.
             for (int32_t y = 0; y < height; y++) {
-                bool isSubsurface = (height - y) <= biome.subsurfaceDepth;
-                SetBlock(glm::ivec3(x, y, z), isSubsurface ? biome.subsurface : Block::k_Dirt);
+                Block block;
+                if (y == 0) {
+                    block = Block::k_Bedrock;
+                } else if (y <= 2 && Hash01(worldX, worldZ, 400u + static_cast<uint32_t>(y)) < 0.5f - 0.2f * (y - 1)) {
+                    block = Block::k_Bedrock; // uneven lip on the layers above the floor
+                } else if ((height - y) <= biome.subsurfaceDepth) {
+                    block = biome.subsurface;
+                } else {
+                    block = Block::k_Stone;
+                }
+                SetBlock(glm::ivec3(x, y, z), block);
             }
 
             // Seabed and the shore band just above the waterline read as sand.
