@@ -74,7 +74,7 @@ struct BlockInfo {
 
     bool opaque = false; // hides neighbouring faces and fully blocks light
     bool cutout = false; // see-through texels (still opaque for targeting/light)
-    bool plant = false;  // cross-shaped billboard: no collision, lets light pass
+    bool plant = false; // cross-shaped billboard: no collision, lets light pass
 
     // Material groupings, used by tree physics, drops, and flat icons.
     bool log = false;
@@ -82,8 +82,8 @@ struct BlockInfo {
     bool planks = false;
     bool leaves = false;
 
-    float breakSeconds = 0.75f;          // time to mine with the proper tool
-    Block drop = Block::k_Air;           // what it yields when broken (k_Air: none)
+    float breakSeconds = 0.75f; // time to mine with the proper tool
+    Block drop = Block::k_Air; // what it yields when broken (k_Air: none)
     ToolType harvest = ToolType::k_None; // tools that can break it (mix with `|`)
 };
 
@@ -92,7 +92,7 @@ struct BlockInfo {
 inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_BlockInfo = { {
     { .id = Block::k_Air },
     { .id = Block::k_Dirt, .opaque = true, .drop = Block::k_Dirt, .harvest = ToolType::k_Shovel },
-    { .id = Block::k_Grass, .opaque = true, .drop = Block::k_Grass, .harvest = ToolType::k_Shovel },
+    { .id = Block::k_Grass, .opaque = true, .drop = Block::k_Dirt, .harvest = ToolType::k_Shovel }, // digging turf yields plain dirt
     { .id = Block::k_Sand, .opaque = true, .drop = Block::k_Sand, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Water },
     { .id = Block::k_OakLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
@@ -104,9 +104,9 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_OakWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_BirchWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_AcaciaWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_ShortGrass, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_Fern, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_DeadBush, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_ShortGrass, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_Fern, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_DeadBush, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Cactus, .opaque = true, .cutout = true, .breakSeconds = 0.5f, .drop = Block::k_Cactus, .harvest = ToolType::k_Axe },
     { .id = Block::k_OakPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_BirchPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },

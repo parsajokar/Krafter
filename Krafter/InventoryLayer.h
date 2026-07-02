@@ -17,6 +17,7 @@ class Font;
 class Inventory;
 class Hotbar;
 struct Recipe;
+struct Ingredient;
 
 // The inventory screen, shown over the world (and HUD) when 'E' is pressed. Dims
 // the scene and lays out the player's storage: a 3x10 grid of inventory slots
@@ -81,11 +82,11 @@ private:
     // clicks on the near-invisible slots at the ends.
     float RecipeFade(const glm::vec4& recipeRect) const;
 
-    // Total count of `item` (matching kind) across every storage slot.
-    int CountItem(const Item& item) const;
-
-    // Removes `count` of `item` from storage, draining partial stacks in order.
-    void ConsumeItem(const Item& item, int count);
+    // Total count of items satisfying `ingredient` across every storage slot, and
+    // removing `count` of them, draining partial stacks in order. A category match
+    // (e.g. any plank species) pools and drains across every item that satisfies it.
+    int CountIngredient(const Ingredient& ingredient) const;
+    void ConsumeIngredient(const Ingredient& ingredient, int count);
 
     // Whether `recipe` can be crafted right now (the ingredients are in storage
     // and the cursor can take the result), and crafting it: consume the inputs and

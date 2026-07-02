@@ -8,6 +8,8 @@ namespace Krafter {
 // world and cannot be placed; they only ever live in inventory and hotbar slots.
 enum class ItemKind {
     k_WoodenAxe,
+    k_WoodenPickaxe,
+    k_WoodenShovel,
 };
 
 // The tool category an item acts as, matched against a block's harvest tags. A
@@ -17,6 +19,10 @@ inline constexpr ToolType ToolTypeOf(ItemKind kind)
     switch (kind) {
     case ItemKind::k_WoodenAxe:
         return ToolType::k_Axe;
+    case ItemKind::k_WoodenPickaxe:
+        return ToolType::k_Pickaxe;
+    case ItemKind::k_WoodenShovel:
+        return ToolType::k_Shovel;
     }
     return ToolType::k_None;
 }
@@ -74,14 +80,14 @@ struct Item {
     }
 };
 
-// Whether `item` is the right tool to break `target`: a tool whose category is
-// among the block's harvest tags. A bare hand or a held block isn't a tool, so it
-// breaks nothing; what each tool clears is decided by the blocks' tags (see
-// HarvestTools), not listed here.
+// Whether `item` can break `target`. A tool breaks a block whose harvest tags
+// include its category (see HarvestTools). Anything that isn't a tool — a bare
+// hand or a held block — counts as a punch, which tears out the soft cross-shaped
+// plants (short grass, fern, dead bush) but nothing tougher.
 inline bool CanBreakWith(const Item& item, Block target)
 {
     if (!item.isItem) {
-        return false;
+        return IsPlant(target);
     }
     return CanHarvestWith(target, ToolTypeOf(item.kind));
 }

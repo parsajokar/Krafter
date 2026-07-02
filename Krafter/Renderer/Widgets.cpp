@@ -45,6 +45,10 @@ namespace {
         switch (kind) {
         case ItemKind::k_WoodenAxe:
             return glm::vec2(0.0f, 0.0f);
+        case ItemKind::k_WoodenPickaxe:
+            return glm::vec2(1.0f, 0.0f);
+        case ItemKind::k_WoodenShovel:
+            return glm::vec2(2.0f, 0.0f);
         }
         return glm::vec2(0.0f, 0.0f);
     }

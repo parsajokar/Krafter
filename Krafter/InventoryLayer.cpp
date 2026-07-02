@@ -228,7 +228,7 @@ std::vector<const Recipe*> InventoryLayer::AvailableRecipes() const
         // Listed once the player has any of the ingredients, even if not all of
         // them (or not yet enough); those show but stay dimmed until craftable.
         for (const Ingredient& ingredient : recipe.inputs) {
-            if (CountItem(ingredient.item) > 0) {
+            if (CountIngredient(ingredient) > 0) {
                 available.push_back(&recipe);
                 break;
             }
@@ -298,23 +298,23 @@ float InventoryLayer::TargetScroll() const
     return m_SelectedRecipe * k_Stride + k_SlotSize * 0.5f - k_PanelWidth * 0.5f;
 }
 
-int InventoryLayer::CountItem(const Item& item) const
+int InventoryLayer::CountIngredient(const Ingredient& ingredient) const
 {
     int total = 0;
     for (int i = 0; i < k_TotalSlots; ++i) {
         const Item slot = GetSlot(i);
-        if (!slot.IsEmpty() && slot == item) {
+        if (MatchesIngredient(ingredient, slot)) {
             total += slot.count;
         }
     }
     return total;
 }
 
-void InventoryLayer::ConsumeItem(const Item& item, int count)
+void InventoryLayer::ConsumeIngredient(const Ingredient& ingredient, int count)
 {
     for (int i = 0; i < k_TotalSlots && count > 0; ++i) {
         Item slot = GetSlot(i);
-        if (slot.IsEmpty() || slot != item) {
+        if (!MatchesIngredient(ingredient, slot)) {
             continue;
         }
         const int taken = std::min(count, slot.count);
@@ -328,7 +328,7 @@ bool InventoryLayer::CanCraft(const Recipe& recipe) const
 {
     // Every ingredient must be present in full.
     for (const Ingredient& ingredient : recipe.inputs) {
-        if (CountItem(ingredient.item) < ingredient.count) {
+        if (CountIngredient(ingredient) < ingredient.count) {
             return false;
         }
     }
@@ -344,7 +344,7 @@ void InventoryLayer::Craft(const Recipe& recipe)
         return;
     }
     for (const Ingredient& ingredient : recipe.inputs) {
-        ConsumeItem(ingredient.item, ingredient.count);
+        ConsumeIngredient(ingredient, ingredient.count);
     }
     if (m_Held.IsEmpty()) {
         m_Held = recipe.output;
@@ -473,18 +473,18 @@ void InventoryLayer::OnRender()
             continue;
         }
 
-        // Recipes the player can't afford keep their rounded slot but are drawn
-        // darker, with a faded icon, to read as disabled.
+        // Recipes the player can't afford darken their rounded slot to read as
+        // disabled, but the result icon stays bright so it's always legible; only
+        // the ingredient row below signals what's missing.
         const bool craftable = CanCraft(recipe);
         const float slotDim = craftable ? 1.0f : k_RecipeLockedSlotDim;
-        const float iconFade = craftable ? fade : fade * k_RecipeLockedIconDim;
 
         DrawSlot(m_Renderer, m_UITexture, position, glm::vec2(k_SlotSize),
             glm::vec4(glm::vec3(slotDim), k_SlotOpacity * fade));
 
         DrawItemIcon(m_Renderer, m_BlockTexture, m_ItemTexture, recipe.output,
-            position + glm::vec2(k_IconOffset), glm::vec2(k_IconSize), iconFade);
-        DrawItemCount(m_Renderer, m_Font, recipe.outputCount, position, glm::vec2(k_SlotSize), iconFade);
+            position + glm::vec2(k_IconOffset), glm::vec2(k_IconSize), fade);
+        DrawItemCount(m_Renderer, m_Font, recipe.outputCount, position, glm::vec2(k_SlotSize), fade);
     }
     m_Renderer.ClearScissor();
 
@@ -510,7 +510,7 @@ void InventoryLayer::OnRender()
         for (int i = 0; i < count; ++i) {
             const Ingredient& ingredient = selected.inputs[i];
             const glm::vec2 pos = glm::floor(glm::vec2(rowX + i * k_Stride, rowY));
-            const bool haveEnough = CountItem(ingredient.item) >= ingredient.count;
+            const bool haveEnough = CountIngredient(ingredient) >= ingredient.count;
             const float slotDim = haveEnough ? 1.0f : k_RecipeLockedSlotDim;
             const float iconDim = haveEnough ? 1.0f : k_RecipeLockedIconDim;
 
