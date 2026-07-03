@@ -71,7 +71,9 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 
             m_PendingLight.insert(position);
             m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
-                ComputeSkyLight(*grid[4], AsPointers(grid));
+                const std::array<const Chunk*, 9> pointers = AsPointers(grid);
+                ComputeSkyLight(*grid[4], pointers);
+                ComputeBlockLight(*grid[4], pointers);
                 m_LightResults.Push(position);
             });
         }

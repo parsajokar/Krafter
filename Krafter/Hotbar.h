@@ -41,8 +41,12 @@ public:
 private:
     int m_Selected = 0;
 
-    // The first slot holds the wooden axe; every other slot starts empty (k_Air).
-    std::array<Item, k_SlotCount> m_Slots = { Item::Tool(ItemKind::k_WoodenAxe) };
+    // The first slot holds the wooden axe and the second a stack of torches to
+    // light the caves; every other slot starts empty (k_Air).
+    std::array<Item, k_SlotCount> m_Slots = {
+        Item::Tool(ItemKind::k_WoodenAxe),
+        Item::Blocks(Block::k_Torch, 99)
+    };
 };
 
 } // namespace Krafter

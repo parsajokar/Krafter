@@ -28,12 +28,13 @@ void BlockAtlas::LoadAtlases()
         .bottom = glm::vec2(4.0f / 16.0f, 0.0f / 16.0f)
     };
 
-    // Column 6: a free tile. Water's pixels come from the animated water_still
+    // Column 7: a free tile. Water's pixels come from the animated water_still
     // strip at runtime, so the atlas only needs an unused slot to write into.
+    // (Column 6 is the static torch tile, so water's scratch slot sits at 7.)
     s_BlockAtlases[Block::k_Water] = {
-        .top = glm::vec2(6.0f / 16.0f, 0.0f / 16.0f),
-        .side = glm::vec2(6.0f / 16.0f, 0.0f / 16.0f),
-        .bottom = glm::vec2(6.0f / 16.0f, 0.0f / 16.0f)
+        .top = glm::vec2(7.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(7.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(7.0f / 16.0f, 0.0f / 16.0f)
     };
 
     s_BlockAtlases[Block::k_OakLog] = {
@@ -150,6 +151,19 @@ void BlockAtlas::LoadAtlases()
         .top = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f),
         .side = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f),
         .bottom = glm::vec2(15.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    // Column 5: a free tile the animated lava_still strip is streamed into at
+    // runtime, the same way water uses column 7.
+    s_BlockAtlases[Block::k_Lava] = {
+        .top = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    // Torch is drawn as a cross billboard, which reads only the side tile.
+    s_BlockAtlases[Block::k_Torch] = {
+        .side = glm::vec2(6.0f / 16.0f, 0.0f / 16.0f)
     };
 }
 

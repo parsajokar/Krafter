@@ -14,11 +14,18 @@
 
 namespace Krafter {
 
-// Atlas tile the water lives in (column 6, bottom row) and how fast it animates.
-static constexpr int32_t k_WaterTileX = 96;
+// Atlas tile the water lives in (column 7, bottom row) and how fast it animates.
+// Column 6 holds the static torch tile, so water's scratch slot moved one right.
+static constexpr int32_t k_WaterTileX = 112;
 static constexpr int32_t k_WaterTileY = 0;
 static constexpr int32_t k_WaterTileSize = 16;
 static constexpr double k_WaterFps = 12.0;
+
+// Lava's scratch tile (column 5, bottom row); it animates a touch slower than
+// water for a thicker, oozing look. Shares the water tile size.
+static constexpr int32_t k_LavaTileX = 80;
+static constexpr int32_t k_LavaTileY = 0;
+static constexpr double k_LavaFps = 8.0;
 
 void WorldRenderer::BindChunkProgram(const glm::mat4& viewProjection, const Sky& sky)
 {
@@ -187,6 +194,22 @@ void WorldRenderer::AnimateWater()
     m_Texture->UpdateRegion(k_WaterTileX, k_WaterTileY, k_WaterTileSize, k_WaterTileSize, m_WaterFrames.data() + offset);
 }
 
+void WorldRenderer::AnimateLava()
+{
+    if (m_LavaFrameCount <= 0) {
+        return;
+    }
+
+    const int32_t frame = static_cast<int32_t>(glfwGetTime() * k_LavaFps) % m_LavaFrameCount;
+    if (frame == m_LavaFrame) {
+        return;
+    }
+    m_LavaFrame = frame;
+
+    const size_t offset = static_cast<size_t>(frame) * k_WaterTileSize * k_WaterTileSize * 4;
+    m_Texture->UpdateRegion(k_LavaTileX, k_LavaTileY, k_WaterTileSize, k_WaterTileSize, m_LavaFrames.data() + offset);
+}
+
 void WorldRenderer::RenderImGui()
 {
     ImGui::SliderFloat("Deep Water Opacity", &m_WaterOpacity, 0.0f, 1.0f);
@@ -218,6 +241,25 @@ WorldRenderer::WorldRenderer()
     }
     if (waterData) {
         stbi_image_free(waterData);
+    }
+
+    // The lava strip loads the same way; its alpha is likewise forced opaque.
+    int32_t lavaWidth = 0;
+    int32_t lavaHeight = 0;
+    int32_t lavaChannels = 0;
+    uint8_t* lavaData = stbi_load("assets/textures/lava_still.png", &lavaWidth, &lavaHeight, &lavaChannels, 4);
+    if (lavaData && lavaWidth == k_WaterTileSize && lavaHeight >= k_WaterTileSize) {
+        m_LavaFrameCount = lavaHeight / k_WaterTileSize;
+        const size_t bytes = static_cast<size_t>(m_LavaFrameCount) * k_WaterTileSize * k_WaterTileSize * 4;
+        m_LavaFrames.assign(lavaData, lavaData + bytes);
+        for (size_t i = 3; i < m_LavaFrames.size(); i += 4) {
+            m_LavaFrames[i] = 255;
+        }
+    } else {
+        std::cerr << "[FILE] Could not load animated lava strip" << std::endl;
+    }
+    if (lavaData) {
+        stbi_image_free(lavaData);
     }
 
     // Unit-cube wireframe for the targeted-block outline.

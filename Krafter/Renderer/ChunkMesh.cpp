@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -41,8 +42,8 @@ static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
 static constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
 
 // Floats per vertex: position(3), uv(2), normal(3), sky light(1), water depth(1),
-// tint(3).
-static constexpr int32_t k_VertexStride = 13;
+// tint(3), block light(1).
+static constexpr int32_t k_VertexStride = 14;
 
 ChunkMeshData ChunkMesh::Compute(
     const std::array<const Chunk*, 9>& grid,
@@ -130,9 +131,22 @@ ChunkMeshData ChunkMesh::Compute(
         return target ? target->GetSkyLight(query) / static_cast<float>(Chunk::k_MaxLight) : 0.0f;
     };
 
+    // Block light has no source above the world, so unlike sky it is zero off the
+    // top of the column rather than full.
+    auto blockLightOf = [&](const glm::ivec3& cell) -> float {
+        if (cell.y >= Chunk::k_Height || cell.y < 0) {
+            return 0.0f;
+        }
+        glm::ivec3 query;
+        const Chunk* target = resolve(cell, query);
+        return target ? target->GetBlockLight(query) / static_cast<float>(Chunk::k_MaxLight) : 0.0f;
+    };
+
     // Smooth light + ambient occlusion for the face corner pointing toward
     // (su, sv), sampling the two side cells and the diagonal on the air side.
-    auto cornerLight = [&](const glm::ivec3& airCell, const glm::ivec3& u, const glm::ivec3& v,
+    // `sample` selects the light channel (sky or block), so both are gathered the
+    // same way, with the same AO darkening.
+    auto cornerLight = [&](auto&& sample, const glm::ivec3& airCell, const glm::ivec3& u, const glm::ivec3& v,
                            int32_t su, int32_t sv) -> float {
         const glm::ivec3 sideU = airCell + su * u;
         const glm::ivec3 sideV = airCell + sv * v;
@@ -144,20 +158,20 @@ ChunkMeshData ChunkMesh::Compute(
 
         const int32_t ao = (s1 && s2) ? 0 : 3 - (static_cast<int32_t>(s1) + static_cast<int32_t>(s2) + static_cast<int32_t>(sc));
 
-        float sum = skyLightOf(airCell);
+        float sum = sample(airCell);
         int32_t count = 1;
         if (!s1) {
-            sum += skyLightOf(sideU);
+            sum += sample(sideU);
             count++;
         }
         if (!s2) {
-            sum += skyLightOf(sideV);
+            sum += sample(sideV);
             count++;
         }
         // Two solid edges seal off the diagonal, so its light can't reach this
         // vertex; sampling it anyway is what leaks light through missing corners.
         if (!sc && !(s1 && s2)) {
-            sum += skyLightOf(corner);
+            sum += sample(corner);
             count++;
         }
 
@@ -199,14 +213,15 @@ ChunkMeshData ChunkMesh::Compute(
                 // biome-tinted; the dead bush keeps its own brown (untinted).
                 if (IsPlant(self)) {
                     glm::vec3 tint(1.0f);
-                    if (self != Block::k_DeadBush) {
+                    if (self != Block::k_DeadBush && self != Block::k_Torch) {
                         const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
                         const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
                         tint = Biome::Get(Biome::At(worldX, worldZ)).grassColor;
                     }
                     const float light = skyLightOf(glm::ivec3(x, y, z));
+                    const float blockLight = blockLightOf(glm::ivec3(x, y, z));
                     const glm::vec2 tile = BlockAtlas::GetAtlasOf(self).side;
-                    AddCrossToData(worldPos, tile, tint, light, data.cross.vertices, data.cross.elements);
+                    AddCrossToData(worldPos, tile, tint, light, blockLight, data.cross.vertices, data.cross.elements);
                     continue;
                 }
 
@@ -251,11 +266,27 @@ ChunkMeshData ChunkMesh::Compute(
                     }
 
                     std::array<float, 4> vertexLight = {
-                        cornerLight(airCell, faceU[k], faceV[k], -1, -1),
-                        cornerLight(airCell, faceU[k], faceV[k], 1, -1),
-                        cornerLight(airCell, faceU[k], faceV[k], 1, 1),
-                        cornerLight(airCell, faceU[k], faceV[k], -1, 1)
+                        cornerLight(skyLightOf, airCell, faceU[k], faceV[k], -1, -1),
+                        cornerLight(skyLightOf, airCell, faceU[k], faceV[k], 1, -1),
+                        cornerLight(skyLightOf, airCell, faceU[k], faceV[k], 1, 1),
+                        cornerLight(skyLightOf, airCell, faceU[k], faceV[k], -1, 1)
                     };
+                    std::array<float, 4> vertexBlockLight = {
+                        cornerLight(blockLightOf, airCell, faceU[k], faceV[k], -1, -1),
+                        cornerLight(blockLightOf, airCell, faceU[k], faceV[k], 1, -1),
+                        cornerLight(blockLightOf, airCell, faceU[k], faceV[k], 1, 1),
+                        cornerLight(blockLightOf, airCell, faceU[k], faceV[k], -1, 1)
+                    };
+
+                    // An emissive block's own faces glow at its emission level even
+                    // if the air in front is otherwise dark, so lava (and later
+                    // torches) always read bright regardless of the flood.
+                    if (LightEmission(self) > 0) {
+                        const float glow = LightEmission(self) / static_cast<float>(Chunk::k_MaxLight);
+                        for (float& corner : vertexBlockLight) {
+                            corner = std::max(corner, glow);
+                        }
+                    }
 
                     // Only the grass top is the tinted gray tile; the side base
                     // and bottom are plain dirt and stay untinted. Leaves are
@@ -267,7 +298,7 @@ ChunkMeshData ChunkMesh::Compute(
                     } else if (IsLeaves(self)) {
                         tint = leafTint;
                     }
-                    AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, buffer.vertices, buffer.elements);
+                    AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, vertexBlockLight, buffer.vertices, buffer.elements);
 
                     // Grass side faces get the biome-tinted fringe layered on top
                     // of the dirt base.
@@ -275,7 +306,7 @@ ChunkMeshData ChunkMesh::Compute(
                         && faces[k] != BlockFace::k_Top && faces[k] != BlockFace::k_Bottom;
                     if (grassSide) {
                         const glm::vec2 overlay = BlockAtlas::GetAtlasOf(self).sideOverlay;
-                        AddOverlayFace(worldPos, faces[k], overlay, grassTint, vertexLight, buffer.vertices, buffer.elements);
+                        AddOverlayFace(worldPos, faces[k], overlay, grassTint, vertexLight, vertexBlockLight, buffer.vertices, buffer.elements);
                     }
                 }
             }
@@ -325,6 +356,10 @@ void ChunkMesh::Upload(Part& part, const ChunkMeshBuffer& buffer)
     glEnableVertexArrayAttrib(part.vertexArray, 5);
     glVertexArrayAttribBinding(part.vertexArray, 5, 0);
     glVertexArrayAttribFormat(part.vertexArray, 5, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float));
+
+    glEnableVertexArrayAttrib(part.vertexArray, 6);
+    glVertexArrayAttribBinding(part.vertexArray, 6, 0);
+    glVertexArrayAttribFormat(part.vertexArray, 6, 1, GL_FLOAT, GL_FALSE, 13 * sizeof(float));
 }
 
 void ChunkMesh::Release(Part& part)
@@ -370,7 +405,7 @@ void ChunkMesh::AddFaceToData(
     const std::array<glm::vec3, 4>& positionList,
     const std::array<glm::vec2, 2>& uvCoordsList,
     const glm::vec3& normal, float waterDepth, const glm::vec3& tint,
-    const std::array<float, 4>& vertexLight,
+    const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
     const uint32_t offset = static_cast<uint32_t>(vertexBufferData.size() / k_VertexStride);
@@ -396,6 +431,7 @@ void ChunkMesh::AddFaceToData(
         vertexBufferData.push_back(tint.x);
         vertexBufferData.push_back(tint.y);
         vertexBufferData.push_back(tint.z);
+        vertexBufferData.push_back(vertexBlockLight[i]);
     }
 
     // Split along the diagonal that avoids anisotropic shading on a face with
@@ -424,7 +460,7 @@ void ChunkMesh::AddFaceToData(
 void ChunkMesh::AddFaceToData(
     const glm::vec3& position,
     const Block block, BlockFace face, float topInset, float waterDepth, const glm::vec3& tint,
-    const std::array<float, 4>& vertexLight,
+    const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
@@ -461,13 +497,13 @@ void ChunkMesh::AddFaceToData(
 
     const std::array<glm::vec2, 2> uvCoordsList = { uvCoords, uvCoords + glm::vec2(BlockAtlas::k_Step) };
 
-    AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 }
 
 void ChunkMesh::AddOverlayFace(
     const glm::vec3& position, BlockFace face,
     const glm::vec2& tile, const glm::vec3& tint,
-    const std::array<float, 4>& vertexLight,
+    const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
     // Coplanar with the dirt base: it shares the base's exact vertex positions,
@@ -480,17 +516,18 @@ void ChunkMesh::AddOverlayFace(
 
     const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
 
-    AddFaceToData(positionList, uvCoordsList, quad.normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(positionList, uvCoordsList, quad.normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 }
 
 void ChunkMesh::AddCrossToData(
-    const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light,
+    const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light, float blockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
-    // Flat lighting: every corner takes the cell's own sky light, and the normal
-    // points up so the plant catches sun like the ground it stands on. The cross
-    // pass disables back-face culling, so each plane shows from both sides.
+    // Flat lighting: every corner takes the cell's own sky and block light, and
+    // the normal points up so the plant catches sun like the ground it stands on.
+    // The cross pass disables back-face culling, so each plane shows from both sides.
     const std::array<float, 4> vertexLight = { light, light, light, light };
+    const std::array<float, 4> vertexBlockLight = { blockLight, blockLight, blockLight, blockLight };
     const glm::vec3 normal(0.0f, 1.0f, 0.0f);
     const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
 
@@ -500,13 +537,13 @@ void ChunkMesh::AddCrossToData(
         position + glm::vec3(0, 0, 0), position + glm::vec3(1, 0, 1),
         position + glm::vec3(1, 1, 1), position + glm::vec3(0, 1, 0)
     };
-    AddFaceToData(plane1, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(plane1, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 
     const std::array<glm::vec3, 4> plane2 = {
         position + glm::vec3(1, 0, 0), position + glm::vec3(0, 0, 1),
         position + glm::vec3(0, 1, 1), position + glm::vec3(1, 1, 0)
     };
-    AddFaceToData(plane2, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBufferData, elementBufferData);
+    AddFaceToData(plane2, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 }
 
 } // namespace Krafter

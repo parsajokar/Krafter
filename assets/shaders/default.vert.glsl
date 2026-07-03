@@ -8,12 +8,14 @@ layout(location = 2) in vec3 a_Normal;
 layout(location = 3) in float a_SkyLight;
 layout(location = 4) in float a_WaterDepth;
 layout(location = 5) in vec3 a_Tint;
+layout(location = 6) in float a_BlockLight;
 
 out vec2 v_UvCoords;
 out vec3 v_Normal;
 out float v_SkyLight;
 out float v_WaterDepth;
 out vec3 v_Tint;
+out float v_BlockLight;
 
 void main()
 {
@@ -22,5 +24,6 @@ void main()
     v_SkyLight = a_SkyLight;
     v_WaterDepth = a_WaterDepth;
     v_Tint = a_Tint;
+    v_BlockLight = a_BlockLight;
     gl_Position = u_ViewProjection * vec4(a_Position, 1.0);
 }

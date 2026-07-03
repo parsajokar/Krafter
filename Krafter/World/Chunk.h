@@ -38,12 +38,19 @@ public:
     uint8_t GetSkyLight(const glm::ivec3& coords) const;
     void SetSkyLight(const glm::ivec3& coords, uint8_t value);
 
+    // Block-light level in [0, 15]: light cast by emissive blocks (lava, torches),
+    // flooded outward independently of the sky so it survives day/night and the
+    // depths. Computed by the same lighting pass and sampled by the mesher.
+    uint8_t GetBlockLight(const glm::ivec3& coords) const;
+    void SetBlockLight(const glm::ivec3& coords, uint8_t value);
+
     static constexpr uint8_t k_MaxLight = 15;
 
 private:
     glm::ivec2 m_Position;
     Block* m_Blocks;
     uint8_t* m_SkyLight;
+    uint8_t* m_BlockLight;
 };
 
 } // namespace Krafter

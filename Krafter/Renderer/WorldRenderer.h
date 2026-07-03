@@ -35,6 +35,9 @@ public:
     // Advances the animated water texture, swapping the current frame into the
     // atlas's water tile.
     void AnimateWater();
+
+    // Same for the animated lava texture, cycled into the atlas's lava tile.
+    void AnimateLava();
     void RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection);
 
     // Draws the crack overlay on a block being mined. `progress` is 0..1 through
@@ -90,6 +93,11 @@ private:
     std::vector<uint8_t> m_WaterFrames;
     int32_t m_WaterFrameCount = 0;
     int32_t m_WaterFrame = -1;
+
+    // Animated lava, streamed into the atlas's lava tile the same way.
+    std::vector<uint8_t> m_LavaFrames;
+    int32_t m_LavaFrameCount = 0;
+    int32_t m_LavaFrame = -1;
 };
 
 } // namespace Krafter

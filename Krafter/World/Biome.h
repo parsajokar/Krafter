@@ -33,20 +33,16 @@ public:
     // together pick the biome (the multi-noise climate model).
     static BiomeType Select(float temperature, float humidity, float continentalness);
 
-    // Blends ocean and land (forest/desert) terrain so coastlines and biome
-    // borders meet with a smooth slope instead of a sharp cliff.
-    static int32_t SampleHeight(float temperature, float humidity, float continentalness, float noiseValue);
-
     // Final terrain surface height at a world column, sampling all the noise
-    // itself. Used by generation and by water features placing ponds.
+    // itself. Height is a function of continentalness, erosion, and a
+    // peaks-and-valleys fold of weirdness — independent of the chosen biome, the
+    // way 1.18 separates terrain shape from climate. Used by generation and by
+    // water features placing ponds.
     static int32_t SurfaceHeight(float worldX, float worldZ);
 
     Block surface;
     Block subsurface;
     int32_t subsurfaceDepth;
-
-    int32_t baseHeight;
-    int32_t heightAmplitude;
 
     // Multiplied into the grayscale grass top/overlay so each biome greens its
     // grass differently (lush forest vs. dry desert).
@@ -60,11 +56,6 @@ private:
     // Populates the biome table. Split from Configure so the seed setup and the
     // (seed-independent) biome definitions stay separate.
     static void LoadBiomes();
-
-    // Weight toward the desert biome in [0, 1] from the hot, dry corner of the
-    // (temperature, humidity) climate plane. Used both to pick the surface block
-    // and to blend terrain height, so the two always agree.
-    static float Desertness(float temperature, float humidity);
 
     // Smoothstep weight toward land in [0, 1]; 0 is open ocean, 1 is inland.
     static float Landness(float continentalness);

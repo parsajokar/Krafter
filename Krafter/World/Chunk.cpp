@@ -6,6 +6,8 @@
 #include <limits>
 #include <vector>
 
+#include "FastNoiseLite.h"
+
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Chunk.h"
 #include "Krafter/World/Coords.h"
@@ -45,6 +47,93 @@ float Hash01(int32_t x, int32_t z, uint32_t salt)
 void StoreWorldSeed(uint32_t seed)
 {
     s_WorldSeed = seed;
+}
+
+// 3D cave-carving noise. The two "spaghetti" fields are thin: their near-zero
+// isosurfaces are sheets, and where both sheets coincide they intersect in long
+// winding tunnels. The low-frequency "cavern" field opens the occasional broad
+// cheese room where it runs high. All three are seeded from the world seed in
+// Chunk::SetSeed, before any chunk generates, and only read thereafter.
+static FastNoiseLite s_CaveNoiseA;
+static FastNoiseLite s_CaveNoiseB;
+static FastNoiseLite s_CavernNoise;
+
+// Aquifers: a slowly drifting underground water table. Where a region is "wet"
+// (the mask field runs high enough) the carved space below its level fills with
+// water instead of air, giving flooded caves and perched pools whose surface
+// height wanders from region to region. Dry regions leave their caves open.
+static FastNoiseLite s_AquiferLevelNoise; // the local water-table height
+static FastNoiseLite s_AquiferMaskNoise;  // whether the region holds water at all
+
+// Where caves are allowed to breach the surface. Only in the sparse patches this
+// low-frequency field runs high do near-surface caves open as entrances;
+// everywhere else a solid cap is kept over them.
+static FastNoiseLite s_EntranceNoise;
+
+// Height the water table drifts around, and how far it swings. Kept well below
+// the typical surface so pools stay underground.
+constexpr int32_t k_AquiferBase = 48;
+constexpr int32_t k_AquiferSwing = 22;
+// Mask cutoff: regions whose mask noise falls below this are dry (no table), so
+// only a minority of caves flood and dry caves stay the norm.
+constexpr float k_AquiferWetCutoff = 0.2f;
+
+// Cave openings at or below this level pool with lava instead of air/water. Sits
+// just above the bedrock lip, so the deepest caves bottom out in lava lakes.
+constexpr int32_t k_LavaLevel = 10;
+
+// Entrance rarity: a land column may open a surface cave mouth only where the
+// entrance field exceeds this. Higher means fewer, more scattered entrances.
+constexpr float k_EntranceThreshold = 0.55f;
+
+void ConfigureCaveNoise(uint32_t seed)
+{
+    // The two tunnel fields share a frequency but use unrelated seeds, so their
+    // zero sheets are independent and cross at varied, natural angles.
+    s_CaveNoiseA.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_CaveNoiseA.SetSeed(7001 + static_cast<int>(seed));
+    s_CaveNoiseA.SetFrequency(0.025f);
+
+    s_CaveNoiseB.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_CaveNoiseB.SetSeed(7919 + static_cast<int>(seed));
+    s_CaveNoiseB.SetFrequency(0.025f);
+
+    // Lower frequency and fractal, so the caverns are large and lumpy rather than
+    // a fine speckle.
+    s_CavernNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_CavernNoise.SetSeed(3121 + static_cast<int>(seed));
+    s_CavernNoise.SetFrequency(0.012f);
+    s_CavernNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    s_CavernNoise.SetFractalOctaves(3);
+
+    // Both aquifer fields are very low frequency so a water table (and whether a
+    // region has one at all) holds steady across a cave system rather than
+    // flickering block to block.
+    s_AquiferLevelNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_AquiferLevelNoise.SetSeed(5501 + static_cast<int>(seed));
+    s_AquiferLevelNoise.SetFrequency(0.006f);
+
+    s_AquiferMaskNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_AquiferMaskNoise.SetSeed(8681 + static_cast<int>(seed));
+    s_AquiferMaskNoise.SetFrequency(0.004f);
+
+    s_EntranceNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_EntranceNoise.SetSeed(4517 + static_cast<int>(seed));
+    s_EntranceNoise.SetFrequency(0.02f);
+}
+
+// The water-table height for a column, or "no table" (returns below-world) when
+// the region is dry. Clamped a little under the surface so a pool never springs
+// out at ground level.
+int32_t AquiferLevel(int32_t worldX, int32_t worldZ, int32_t surface, int32_t surfaceMargin)
+{
+    const float fx = static_cast<float>(worldX);
+    const float fz = static_cast<float>(worldZ);
+    if (s_AquiferMaskNoise.GetNoise(fx, fz) < k_AquiferWetCutoff) {
+        return std::numeric_limits<int32_t>::min(); // dry region: caves stay open
+    }
+    const int32_t level = k_AquiferBase + static_cast<int32_t>(s_AquiferLevelNoise.GetNoise(fx, fz) * k_AquiferSwing);
+    return std::min(level, surface - surfaceMargin - 1);
 }
 
 constexpr int32_t k_LakeCellSize = 96;
@@ -676,11 +765,86 @@ void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition)
     }
 }
 
+// Hollows 3D noise caves out of the freshly filled ground. Long spaghetti
+// tunnels open where both thin noise fields sit near zero at once; broad cheese
+// caverns open where the low-frequency field runs high. Only the solid ground
+// blocks (stone and the dirt/sand subsurface) are carved, so the bedrock floor
+// and the surface block are left intact. A carved cell below the region's
+// aquifer level fills with water rather than air, so caves flood consistently
+// without any flow simulation; elsewhere they open dry. On land caves reach the
+// surface and open as entrances; under the sea they stay capped below the seabed.
+void CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition)
+{
+    constexpr float k_TunnelHalfWidth = 0.08f; // |noise| under this carves tunnel
+    constexpr float k_CavernThreshold = 0.60f; // cavern field above this carves room
+    constexpr int32_t k_SurfaceMargin = 5;     // seabed cap: keep sea caves this far down
+
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
+            const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
+
+            const int32_t surface = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+
+            // Caves normally sit under a solid cap. On dry land, in the sparse
+            // patches the entrance field permits, that cap is lifted so a cave can
+            // climb to the surface and open a mouth; under the sea and coast caves
+            // always stay capped below the seabed, out of the unsimulated water.
+            const bool land = surface > Chunk::k_SeaLevel + 3;
+            const bool entrance = land
+                && s_EntranceNoise.GetNoise((float)worldX, (float)worldZ) > k_EntranceThreshold;
+            int32_t ceiling;
+            if (entrance) {
+                ceiling = surface;
+            } else if (land) {
+                ceiling = surface - k_SurfaceMargin;
+            } else {
+                ceiling = std::min(surface, Chunk::k_SeaLevel) - k_SurfaceMargin;
+            }
+            const int32_t waterTable = AquiferLevel(worldX, worldZ, surface, k_SurfaceMargin);
+
+            for (int32_t y = 1; y <= ceiling; y++) {
+                const Block here = chunk.GetBlock(glm::ivec3(x, y, z));
+                if (here != Block::k_Stone && here != Block::k_Dirt && here != Block::k_Sand) {
+                    continue; // never carve bedrock, water, or air
+                }
+
+                const float fx = static_cast<float>(worldX);
+                const float fy = static_cast<float>(y);
+                const float fz = static_cast<float>(worldZ);
+
+                const bool tunnel = std::abs(s_CaveNoiseA.GetNoise(fx, fy, fz)) < k_TunnelHalfWidth
+                    && std::abs(s_CaveNoiseB.GetNoise(fx, fy, fz)) < k_TunnelHalfWidth;
+                const bool cavern = s_CavernNoise.GetNoise(fx, fy, fz) > k_CavernThreshold;
+
+                if (tunnel || cavern) {
+                    // Deep openings pool with lava; above that, openings below the
+                    // local water table flood with water; higher (or in a dry
+                    // region) they stay air.
+                    chunk.SetBlock(glm::ivec3(x, y, z),
+                        y <= k_LavaLevel ? Block::k_Lava
+                                         : (y <= waterTable ? Block::k_Water : Block::k_Air));
+                }
+            }
+
+            // In an entrance patch, where a cave reached the block just beneath the
+            // surface, drop the surface cap into it so the opening reads as a real
+            // mouth rather than a lidded pocket (only when the cell below is open
+            // air, not a flooded or lava-filled cave).
+            if (entrance && surface < Chunk::k_Height
+                && chunk.GetBlock(glm::ivec3(x, surface - 1, z)) == Block::k_Air) {
+                chunk.SetBlock(glm::ivec3(x, surface, z), Block::k_Air);
+            }
+        }
+    }
+}
+
 } // namespace
 
 void Chunk::SetSeed(uint32_t seed)
 {
     StoreWorldSeed(seed);
+    ConfigureCaveNoise(seed);
 }
 
 Chunk::Chunk(const glm::ivec2& position)
@@ -691,6 +855,9 @@ Chunk::Chunk(const glm::ivec2& position)
 
     m_SkyLight = new uint8_t[k_Width * k_Width * k_Height];
     memset(m_SkyLight, 0, k_Width * k_Width * k_Height * sizeof(uint8_t));
+
+    m_BlockLight = new uint8_t[k_Width * k_Width * k_Height];
+    memset(m_BlockLight, 0, k_Width * k_Width * k_Height * sizeof(uint8_t));
 
     // Base terrain: surface, sandy shore, and the global ocean fill.
     for (int32_t x = 0; x < k_Width; x++) {
@@ -730,6 +897,10 @@ Chunk::Chunk(const glm::ivec2& position)
         }
     }
 
+    // Hollow out the underground with 3D noise caves before any surface feature
+    // goes down, so lakes and trees sit on ground that's already been carved.
+    CarveCaves(*this, m_Position);
+
     // Post-process: stamp inland lakes (forests) and oases (savannah/desert) as 3D blobs.
     const std::vector<Lake> lakes = GatherLakes(m_Position);
     for (const Lake& lake : lakes) {
@@ -755,9 +926,11 @@ Chunk::Chunk(const Chunk& other)
 
     m_Blocks = new Block[k_Width * k_Width * k_Height];
     m_SkyLight = new uint8_t[k_Width * k_Width * k_Height];
+    m_BlockLight = new uint8_t[k_Width * k_Width * k_Height];
     for (uint32_t i = 0; i < k_Width * k_Width * k_Height; i++) {
         m_Blocks[i] = other.m_Blocks[i];
         m_SkyLight[i] = other.m_SkyLight[i];
+        m_BlockLight[i] = other.m_BlockLight[i];
     }
 }
 
@@ -765,15 +938,18 @@ Chunk::Chunk(Chunk&& other)
     : m_Position(other.m_Position)
     , m_Blocks(other.m_Blocks)
     , m_SkyLight(other.m_SkyLight)
+    , m_BlockLight(other.m_BlockLight)
 {
     other.m_Blocks = nullptr;
     other.m_SkyLight = nullptr;
+    other.m_BlockLight = nullptr;
 }
 
 Chunk::~Chunk()
 {
     delete[] m_Blocks;
     delete[] m_SkyLight;
+    delete[] m_BlockLight;
 }
 
 const Block& Chunk::GetBlock(const glm::ivec3& coords) const
@@ -794,6 +970,16 @@ uint8_t Chunk::GetSkyLight(const glm::ivec3& coords) const
 void Chunk::SetSkyLight(const glm::ivec3& coords, uint8_t value)
 {
     m_SkyLight[(coords.y * k_Width * k_Width) + (coords.z * k_Width) + coords.x] = value;
+}
+
+uint8_t Chunk::GetBlockLight(const glm::ivec3& coords) const
+{
+    return m_BlockLight[(coords.y * k_Width * k_Width) + (coords.z * k_Width) + coords.x];
+}
+
+void Chunk::SetBlockLight(const glm::ivec3& coords, uint8_t value)
+{
+    m_BlockLight[(coords.y * k_Width * k_Width) + (coords.z * k_Width) + coords.x] = value;
 }
 
 } // namespace Krafter

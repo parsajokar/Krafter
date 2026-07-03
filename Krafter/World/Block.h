@@ -33,6 +33,8 @@ enum class Block {
     k_AcaciaPlanks,
     k_Stone,
     k_Bedrock,
+    k_Lava,
+    k_Torch,
 
     // Number of block kinds; must stay last. Sizes the per-block data table.
     k_Count
@@ -87,6 +89,10 @@ struct BlockInfo {
     float breakSeconds = 0.75f; // time to mine with the proper tool
     Block drop = Block::k_Air; // what it yields when broken (k_Air: none)
     ToolType harvest = ToolType::k_None; // tools that can break it (mix with `|`)
+
+    // Light this block gives off, 0..15 (0 for all but lamps like lava). Seeds the
+    // block-light flood and makes the block's own faces glow in the dark.
+    uint8_t emission = 0;
 };
 
 // Every block's profile, indexed by the Block enum's value, so the rows must stay
@@ -117,6 +123,15 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     // Bedrock caps the world floor: no tool harvests it (k_None) and it drops
     // nothing, so it can be targeted but never broken or mined away.
     { .id = Block::k_Bedrock, .opaque = true, .harvest = ToolType::k_None },
+    // Cave-biome linings: the mossy floor of a lush cave and the tan floor of a
+    // dripstone cave. Ordinary pickaxe stone otherwise; they drop themselves.
+    // Lava: an opaque, glowing, unharvestable pool block (no tool breaks it, drops
+    // nothing) whose animated texture is streamed in like water's. Full emission.
+    { .id = Block::k_Lava, .opaque = true, .harvest = ToolType::k_None, .emission = 15 },
+    // Torch: a placeable light source, drawn as a cross billboard like a plant (no
+    // collision, lets light through). Pops instantly, drops itself, and emits a
+    // strong block light that the lighting pass floods into the surrounding dark.
+    { .id = Block::k_Torch, .plant = true, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
 } };
 
 // Each row must line up with its enum value so a block indexes its own profile.
@@ -194,6 +209,9 @@ inline constexpr Block DropFor(Block block) { return BlockInfoOf(block).drop; }
 
 // Which tools harvest the block (a mix is possible); k_None means nothing yet.
 inline constexpr ToolType HarvestTools(Block block) { return BlockInfoOf(block).harvest; }
+
+// Light the block emits, 0..15 (lava and future lamps); 0 for ordinary blocks.
+inline constexpr uint8_t LightEmission(Block block) { return BlockInfoOf(block).emission; }
 
 // Whether `tool` is one of the tools that harvests `block`.
 inline constexpr bool CanHarvestWith(Block block, ToolType tool)

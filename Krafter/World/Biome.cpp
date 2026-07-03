@@ -1,9 +1,12 @@
 #include <iostream>
 #include <stdexcept>
 
+#include <cmath>
+
 #include "FastNoiseLite.h"
 
 #include "Krafter/World/Biome.h"
+#include "Krafter/World/Chunk.h"
 
 namespace Krafter {
 
@@ -19,6 +22,14 @@ static FastNoiseLite s_TemperatureNoise;
 static FastNoiseLite s_HumidityNoise;
 static FastNoiseLite s_ContinentNoise;
 static FastNoiseLite s_DetailNoise;
+
+// Terrain-shape fields, the 1.18-style split of relief from climate: erosion
+// sets how mountainous vs flat the land is, and weirdness (folded into a
+// peaks-and-valleys value) carves the local ridgelines and troughs. Height comes
+// from continentalness + erosion + peaks/valleys, independent of which biome a
+// column ends up in.
+static FastNoiseLite s_ErosionNoise;
+static FastNoiseLite s_WeirdnessNoise;
 
 void Biome::Configure(int32_t seed)
 {
@@ -56,6 +67,23 @@ void Biome::Configure(int32_t seed)
     s_DetailNoise.SetSeed(1337 + seed);
     s_DetailNoise.SetFrequency(0.02f);
 
+    // Erosion is broad (large flat/mountainous regions) and fractal so the
+    // transition between them wrinkles. Weirdness is finer, setting the spacing of
+    // the ridgelines the peaks-and-valleys fold draws.
+    s_ErosionNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_ErosionNoise.SetSeed(5150 + seed);
+    s_ErosionNoise.SetFrequency(0.0012f);
+    s_ErosionNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    s_ErosionNoise.SetFractalOctaves(3);
+    s_ErosionNoise.SetFractalGain(0.4f);
+
+    s_WeirdnessNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    s_WeirdnessNoise.SetSeed(9001 + seed);
+    s_WeirdnessNoise.SetFrequency(0.0028f);
+    s_WeirdnessNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    s_WeirdnessNoise.SetFractalOctaves(3);
+    s_WeirdnessNoise.SetFractalGain(0.45f);
+
     LoadBiomes();
 }
 
@@ -74,10 +102,75 @@ float Biome::Continentalness(float worldX, float worldZ)
     return s_ContinentNoise.GetNoise(worldX, worldZ);
 }
 
+// Defined further down with the biome-selection ramps; forward-declared so the
+// terrain height can reuse it to gate relief toward the interior.
+static float SmoothRamp(float value, float start, float end);
+
+// Piecewise-linear spline over sorted control points: the shape of the terrain
+// lives in these tables rather than in a formula, the way 1.18's density
+// functions are driven by hand-authored splines.
+static float Spline(float t, const float* xs, const float* ys, int count)
+{
+    if (t <= xs[0]) {
+        return ys[0];
+    }
+    for (int i = 1; i < count; i++) {
+        if (t <= xs[i]) {
+            const float u = (t - xs[i - 1]) / (xs[i] - xs[i - 1]);
+            return ys[i - 1] + (ys[i] - ys[i - 1]) * u;
+        }
+    }
+    return ys[count - 1];
+}
+
+// The overall land elevation from continentalness: deep ocean floor, up through
+// the shelf and coast at sea level, onto the higher inland interior.
+static float ContinentalBase(float c)
+{
+    static const float xs[] = { -1.0f, -0.45f, -0.20f, -0.05f, 0.10f, 0.40f, 1.0f };
+    static const float ys[] = { 18.0f, 40.0f, 58.0f, 63.0f, 70.0f, 82.0f, 92.0f };
+    return Spline(c, xs, ys, 7);
+}
+
+// How much relief erosion allows, in blocks: low erosion builds tall, jagged
+// mountains; high erosion flattens the land toward plains and plateaus.
+static float ErosionRelief(float e)
+{
+    static const float xs[] = { -1.0f, -0.60f, -0.20f, 0.20f, 0.50f, 1.0f };
+    static const float ys[] = { 60.0f, 45.0f, 24.0f, 9.0f, 4.0f, 2.0f };
+    return Spline(e, xs, ys, 6);
+}
+
+// Minecraft's peaks-and-valleys fold of weirdness: a ridged transform into
+// [-1, 1] whose sharp crests become ridgelines and whose troughs become valleys.
+static float PeaksValleys(float w)
+{
+    return -(std::fabs(std::fabs(w) * 3.0f - 2.0f) - 1.0f);
+}
+
 int32_t Biome::SurfaceHeight(float worldX, float worldZ)
 {
-    return SampleHeight(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
-        Continentalness(worldX, worldZ), s_DetailNoise.GetNoise(worldX, worldZ));
+    const float continentalness = Continentalness(worldX, worldZ);
+    const float erosion = s_ErosionNoise.GetNoise(worldX, worldZ);
+    const float peaksValleys = PeaksValleys(s_WeirdnessNoise.GetNoise(worldX, worldZ));
+    const float detail = s_DetailNoise.GetNoise(worldX, worldZ);
+
+    // Relief is gated toward the interior so the peaks-and-valleys ridges raise
+    // mountains inland while the oceans stay smooth rather than sprouting islands.
+    const float land = SmoothRamp(continentalness, -0.30f, 0.10f);
+
+    const float height = ContinentalBase(continentalness)
+        + ErosionRelief(erosion) * peaksValleys * land
+        + detail * 4.0f;
+
+    const int32_t rounded = static_cast<int32_t>(std::lround(height));
+    if (rounded < 1) {
+        return 1;
+    }
+    if (rounded > Chunk::k_Height - 2) {
+        return Chunk::k_Height - 2;
+    }
+    return rounded;
 }
 
 BiomeType Biome::At(float worldX, float worldZ)
@@ -109,21 +202,14 @@ void Biome::LoadBiomes()
         .surface = Block::k_Sand,
         .subsurface = Block::k_Sand,
         .subsurfaceDepth = 4,
-        // Well below sea level, so ocean columns flood into deep water.
-        .baseHeight = 40,
-        .heightAmplitude = 5,
         .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
         .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
     };
 
-    // Floor (base - amplitude) sits above sea level so inland forest stays dry;
-    // coastlines still dip into the sea via the continentalness blend.
     s_Biomes[BiomeType::k_OakForest] = {
         .surface = Block::k_Grass,
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
-        .baseHeight = 75,
-        .heightAmplitude = 10,
         .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
         .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
     };
@@ -134,8 +220,6 @@ void Biome::LoadBiomes()
         .surface = Block::k_Grass,
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
-        .baseHeight = 75,
-        .heightAmplitude = 10,
         .grassColor = glm::vec3(0.624f, 0.769f, 0.412f),
         .leafColor = glm::vec3(0.553f, 0.722f, 0.376f)
     };
@@ -146,8 +230,6 @@ void Biome::LoadBiomes()
         .surface = Block::k_Grass,
         .subsurface = Block::k_Dirt,
         .subsurfaceDepth = 4,
-        .baseHeight = 73,
-        .heightAmplitude = 8,
         .grassColor = glm::vec3(0.741f, 0.722f, 0.357f),
         .leafColor = glm::vec3(0.643f, 0.639f, 0.318f)
     };
@@ -156,8 +238,6 @@ void Biome::LoadBiomes()
         .surface = Block::k_Sand,
         .subsurface = Block::k_Sand,
         .subsurfaceDepth = 4,
-        .baseHeight = 72,
-        .heightAmplitude = 8,
         .grassColor = glm::vec3(0.749f, 0.718f, 0.333f),
         .leafColor = glm::vec3(0.659f, 0.612f, 0.333f)
     };
@@ -187,10 +267,9 @@ BiomeType Biome::Select(float temperature, float humidity, float continentalness
         return BiomeType::k_Ocean;
     }
 
-    // Land is split along two independent climate axes (the same hot/dry axes
-    // that Desertness multiplies, so the desert here still coincides with the
-    // height blend). Temperature separates the cool forests from the hot
-    // grasslands; within each band, humidity picks the drier of the pair:
+    // Land is split along two independent climate axes. Temperature separates
+    // the cool forests from the hot grasslands; within each band, humidity picks
+    // the drier of the pair:
     //
     //          dry            wet
     //   hot    Desert         Savannah
@@ -204,40 +283,9 @@ BiomeType Biome::Select(float temperature, float humidity, float continentalness
     return dry ? BiomeType::k_BirchForest : BiomeType::k_OakForest;
 }
 
-float Biome::Desertness(float temperature, float humidity)
-{
-    // Desert occupies the hot, dry corner of climate space. Treating it as the
-    // intersection of two independent axes (a soft rectangle, like Minecraft's
-    // multi-noise parameter boxes) keeps the border off any single field's
-    // contour line. The product is a smooth weight reused for height blending.
-    float hot = SmoothRamp(temperature, -0.2f, 0.2f);
-    float dry = SmoothRamp(-humidity, -0.2f, 0.2f);
-    return hot * dry;
-}
-
 float Biome::Landness(float continentalness)
 {
     return SmoothRamp(continentalness, -0.3f, 0.0f);
-}
-
-int32_t Biome::SampleHeight(float temperature, float humidity, float continentalness, float noiseValue)
-{
-    const Biome& ocean = Get(BiomeType::k_Ocean);
-    const Biome& oakForest = Get(BiomeType::k_OakForest);
-    const Biome& desert = Get(BiomeType::k_Desert);
-
-    // Land terrain blends oak forest into desert by the same hot/dry weight that
-    // chooses the surface block.
-    float landBlend = Desertness(temperature, humidity);
-    float landBase = oakForest.baseHeight + (desert.baseHeight - oakForest.baseHeight) * landBlend;
-    float landAmplitude = oakForest.heightAmplitude + (desert.heightAmplitude - oakForest.heightAmplitude) * landBlend;
-
-    // Then ocean blends into that land as the coast rises out of the water.
-    float land = Landness(continentalness);
-    float baseHeight = ocean.baseHeight + (landBase - ocean.baseHeight) * land;
-    float amplitude = ocean.heightAmplitude + (landAmplitude - ocean.heightAmplitude) * land;
-
-    return (int32_t)(amplitude * noiseValue + baseHeight);
 }
 
 } // namespace Krafter

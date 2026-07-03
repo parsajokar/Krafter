@@ -58,6 +58,16 @@ struct Item {
         return item;
     }
 
+    // A stack of `count` of one block, for seeding slots with more than the single
+    // block the Block constructor gives.
+    static constexpr Item Blocks(Block block, int count)
+    {
+        Item item;
+        item.block = block;
+        item.count = count;
+        return item;
+    }
+
     constexpr bool IsEmpty() const
     {
         return !isItem && block == Block::k_Air;

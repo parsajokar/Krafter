@@ -36,6 +36,7 @@ void WorldLayer::OnUpdate()
     m_Sky.Update(m_Window.GetDelta());
     m_Renderer.SetClearColor(m_Sky.GetColor());
     m_WorldRenderer.AnimateWater();
+    m_WorldRenderer.AnimateLava();
 
     m_Player.Update();
     m_World.Update(m_Player.GetPosition(), m_Window.GetDelta());
