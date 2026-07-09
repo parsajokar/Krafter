@@ -1,24 +1,30 @@
-#version 450 core
+#version 450
 
-layout(location = 3) uniform sampler2D u_Texture;
-layout(location = 4) uniform vec4 u_Tint;
-layout(location = 5) uniform int u_UseTexture;
-layout(location = 6) uniform int u_Invert;
+layout(push_constant) uniform Push {
+    mat4 projection;
+    vec4 transform;
+    vec4 uvRect;
+    vec4 tint;
+    int useTexture;
+    int invert;
+} pc;
+
+layout(set = 0, binding = 0) uniform sampler2D u_Texture;
+
+layout(location = 0) in vec2 v_UvCoords;
 
 layout(location = 0) out vec4 o_Color;
 
-in vec2 v_UvCoords;
-
 void main()
 {
-    vec4 color = u_Tint;
-    if (u_UseTexture == 1) {
+    vec4 color = pc.tint;
+    if (pc.useTexture == 1) {
         color *= texture(u_Texture, v_UvCoords);
     }
 
     // Premultiply so transparent texels are black: with the inverting blend func
     // they leave the background untouched while opaque texels invert it.
-    if (u_Invert == 1) {
+    if (pc.invert == 1) {
         color.rgb *= color.a;
     }
 

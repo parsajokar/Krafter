@@ -97,8 +97,10 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 
             m_PendingMesh.insert(position);
             m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
+                // Both the CPU meshing and the GPU buffer upload happen here, off
+                // the main thread, so streaming never stalls the render loop.
                 ChunkMeshData data = ChunkMesh::Compute(AsPointers(grid), position);
-                m_MeshResults.Push({ position, std::move(data) });
+                m_MeshResults.Push({ position, std::make_unique<ChunkMesh>(data) });
             });
         }
     }
@@ -661,7 +663,7 @@ void World::DrainResults()
         if (it == m_Chunks.end()) {
             continue;
         }
-        it->second.mesh = std::make_unique<ChunkMesh>(result.data);
+        it->second.mesh = std::move(result.mesh);
         it->second.state = ChunkState::k_MeshReady;
     }
 }

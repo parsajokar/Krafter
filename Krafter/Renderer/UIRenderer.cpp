@@ -1,107 +1,108 @@
-#include "glad/gl.h"
+#include <algorithm>
+
+#include "vulkan/vulkan.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 
-#include "Krafter/Renderer/UIRenderer.h"
+#include "Krafter/Core/Renderer.h"
 #include "Krafter/Core/Window.h"
+#include "Krafter/Renderer/UIRenderer.h"
 
 namespace Krafter {
 
 UIRenderer::UIRenderer(Window& window)
     : m_Window(window)
-    , m_Program("assets/shaders/ui.vert.glsl", "assets/shaders/ui.frag.glsl")
 {
-    // Unit quad: (0,0) top-left to (1,1) bottom-right, with matching UVs.
+    Renderer& renderer = Renderer::Get();
+
+    // Static unit quad: (0,0) top-left to (1,1) bottom-right, with matching UVs.
     const float vertices[] = {
         0.0f, 0.0f, 0.0f, 0.0f,
         1.0f, 0.0f, 1.0f, 0.0f,
         1.0f, 1.0f, 1.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f
+        0.0f, 1.0f, 0.0f, 1.0f,
     };
-    const uint32_t elements[] = { 0, 1, 2, 0, 2, 3 };
+    const uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
+    m_QuadVertexBuffer = renderer.CreateDeviceLocalBuffer(vertices, sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    m_QuadIndexBuffer = renderer.CreateDeviceLocalBuffer(indices, sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-    glCreateVertexArrays(1, &m_VertexArray);
-    glCreateBuffers(1, &m_VertexBuffer);
-    glCreateBuffers(1, &m_ElementBuffer);
+    // A single opaque white texel, bound for untextured (solid-colour) draws.
+    const uint8_t white[4] = { 255, 255, 255, 255 };
+    m_WhiteTexture = std::make_unique<Texture2D>(white, 1, 1);
 
-    glNamedBufferData(m_VertexBuffer, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glNamedBufferData(m_ElementBuffer, sizeof(elements), elements, GL_STATIC_DRAW);
+    // Per-frame dynamic vertex ring for arbitrary-corner quads.
+    for (DynamicBuffer& dynamic : m_Dynamic) {
+        dynamic.buffer = renderer.CreateHostVisibleBuffer(
+            k_MaxDynamicVertices * 4 * sizeof(float), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, &dynamic.mapped);
+    }
 
-    glVertexArrayVertexBuffer(m_VertexArray, 0, m_VertexBuffer, 0, 4 * sizeof(float));
-    glVertexArrayElementBuffer(m_VertexArray, m_ElementBuffer);
+    PipelineConfig config;
+    config.vertPath = "assets/shaders/ui.vert.spv";
+    config.fragPath = "assets/shaders/ui.frag.spv";
+    config.vertexStride = 4 * sizeof(float);
+    config.attributes = {
+        { 0, 0, VK_FORMAT_R32G32_SFLOAT, 0 },
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, 2 * sizeof(float) },
+    };
+    config.pushConstantSize = sizeof(UIPush);
+    config.useTextureSet = true;
+    config.cullMode = VK_CULL_MODE_NONE;
+    // The UI is a flat overlay: no depth testing or writing.
+    config.depthTest = false;
+    config.depthWrite = false;
+    config.blend = true;
+    m_Pipeline = std::make_unique<Pipeline>(config);
 
-    glEnableVertexArrayAttrib(m_VertexArray, 0);
-    glVertexArrayAttribBinding(m_VertexArray, 0, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 0, 2, GL_FLOAT, GL_FALSE, 0);
-
-    glEnableVertexArrayAttrib(m_VertexArray, 1);
-    glVertexArrayAttribBinding(m_VertexArray, 1, 0);
-    glVertexArrayAttribFormat(m_VertexArray, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
-
-    // Dynamic quad: same vertex layout and element buffer, but its four vertices
-    // are re-uploaded on each draw.
-    glCreateVertexArrays(1, &m_PolyVertexArray);
-    glCreateBuffers(1, &m_PolyVertexBuffer);
-
-    glNamedBufferData(m_PolyVertexBuffer, 4 * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-
-    glVertexArrayVertexBuffer(m_PolyVertexArray, 0, m_PolyVertexBuffer, 0, 4 * sizeof(float));
-    glVertexArrayElementBuffer(m_PolyVertexArray, m_ElementBuffer);
-
-    glEnableVertexArrayAttrib(m_PolyVertexArray, 0);
-    glVertexArrayAttribBinding(m_PolyVertexArray, 0, 0);
-    glVertexArrayAttribFormat(m_PolyVertexArray, 0, 2, GL_FLOAT, GL_FALSE, 0);
-
-    glEnableVertexArrayAttrib(m_PolyVertexArray, 1);
-    glVertexArrayAttribBinding(m_PolyVertexArray, 1, 0);
-    glVertexArrayAttribFormat(m_PolyVertexArray, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
+    // The colour-inverting crosshair blend: out = (1 - dst) * src_premultiplied.
+    config.srcColorFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    config.dstColorFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    m_InvertPipeline = std::make_unique<Pipeline>(config);
 }
 
 UIRenderer::~UIRenderer()
 {
-    glDeleteBuffers(1, &m_PolyVertexBuffer);
-    glDeleteVertexArrays(1, &m_PolyVertexArray);
-    glDeleteBuffers(1, &m_ElementBuffer);
-    glDeleteBuffers(1, &m_VertexBuffer);
-    glDeleteVertexArrays(1, &m_VertexArray);
+    Renderer& renderer = Renderer::Get();
+    renderer.DestroyBuffer(m_QuadVertexBuffer);
+    renderer.DestroyBuffer(m_QuadIndexBuffer);
+    for (DynamicBuffer& dynamic : m_Dynamic) {
+        renderer.DestroyBuffer(dynamic.buffer);
+    }
 }
 
 void UIRenderer::Begin()
 {
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    m_Program.Bind();
-    glBindVertexArray(m_VertexArray);
-
     // Top-left origin, y growing downward, in pixels.
     const glm::ivec2& size = m_Window.GetSize();
-    glm::mat4 projection = glm::ortho(0.0f, (float)size.x, (float)size.y, 0.0f);
-    m_Program.SetUniformMat4(0, projection);
+    m_Projection = glm::ortho(0.0f, static_cast<float>(size.x), static_cast<float>(size.y), 0.0f);
 }
 
 void UIRenderer::End()
 {
-    glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
+    // Leave the scissor covering the whole screen for whatever draws next.
+    ClearScissor();
 }
 
 void UIRenderer::SetScissor(const glm::vec2& position, const glm::vec2& size)
 {
-    // glScissor is measured from the bottom-left, but UI space is top-left, so
-    // flip the y against the framebuffer height.
-    const glm::ivec2& windowSize = m_Window.GetSize();
-    const int32_t y = windowSize.y - static_cast<int32_t>(position.y + size.y);
+    // UI space and Vulkan scissors share a top-left origin, so no flip is needed.
+    // Clamp into the framebuffer so an off-screen field can't produce a bad rect.
+    const VkExtent2D extent = Renderer::Get().GetSwapchainExtent();
+    const int32_t x = std::clamp(static_cast<int32_t>(position.x), 0, static_cast<int32_t>(extent.width));
+    const int32_t y = std::clamp(static_cast<int32_t>(position.y), 0, static_cast<int32_t>(extent.height));
+    const uint32_t w = std::min(static_cast<uint32_t>(std::max(size.x, 0.0f)), extent.width - x);
+    const uint32_t h = std::min(static_cast<uint32_t>(std::max(size.y, 0.0f)), extent.height - y);
 
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(static_cast<int32_t>(position.x), y,
-        static_cast<int32_t>(size.x), static_cast<int32_t>(size.y));
+    VkRect2D scissor = {};
+    scissor.offset = { x, y };
+    scissor.extent = { w, h };
+    vkCmdSetScissor(Renderer::Get().GetCommandBuffer(), 0, 1, &scissor);
 }
 
 void UIRenderer::ClearScissor()
 {
-    glDisable(GL_SCISSOR_TEST);
+    VkRect2D scissor = {};
+    scissor.extent = Renderer::Get().GetSwapchainExtent();
+    vkCmdSetScissor(Renderer::Get().GetCommandBuffer(), 0, 1, &scissor);
 }
 
 void UIRenderer::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
@@ -120,44 +121,97 @@ void UIRenderer::DrawQuad(
     const glm::vec2& position, const glm::vec2& size,
     const glm::vec4& uvRect, const glm::vec4& tint, const Texture2D* texture)
 {
-    glBindVertexArray(m_VertexArray);
+    VkCommandBuffer cmd = Renderer::Get().GetCommandBuffer();
+    m_Pipeline->Bind(cmd);
+    m_Pipeline->BindTextureSet(cmd, (texture ? *texture : *m_WhiteTexture).GetDescriptorSet());
 
-    m_Program.SetUniformVec4(1, glm::vec4(position, size));
-    m_Program.SetUniformVec4(2, uvRect);
-    m_Program.SetUniformVec4(4, tint);
+    UIPush push = {};
+    push.projection = m_Projection;
+    push.transform = glm::vec4(position, size);
+    push.uvRect = uvRect;
+    push.tint = tint;
+    push.useTexture = texture ? 1 : 0;
+    push.invert = 0;
+    m_Pipeline->PushConstants(cmd, &push, sizeof(push));
 
-    if (texture) {
-        texture->Bind(0);
-        m_Program.SetUniformInt(3, 0);
-        m_Program.SetUniformInt(5, 1);
-    } else {
-        m_Program.SetUniformInt(5, 0);
-    }
-
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    const VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &m_QuadVertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(cmd, m_QuadIndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 }
 
 void UIRenderer::DrawQuadInverted(
-    const glm::vec2& position, const glm::vec2& size, const Texture2D& texture,
-    const glm::vec4& uvRect)
+    const glm::vec2& position, const glm::vec2& size, const Texture2D& texture, const glm::vec4& uvRect)
 {
-    glBindVertexArray(m_VertexArray);
-    glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+    VkCommandBuffer cmd = Renderer::Get().GetCommandBuffer();
+    m_InvertPipeline->Bind(cmd);
+    m_InvertPipeline->BindTextureSet(cmd, texture.GetDescriptorSet());
 
-    m_Program.SetUniformVec4(1, glm::vec4(position, size));
-    m_Program.SetUniformVec4(2, uvRect);
-    m_Program.SetUniformVec4(4, glm::vec4(1.0f));
+    UIPush push = {};
+    push.projection = m_Projection;
+    push.transform = glm::vec4(position, size);
+    push.uvRect = uvRect;
+    push.tint = glm::vec4(1.0f);
+    push.useTexture = 1;
+    push.invert = 1;
+    m_InvertPipeline->PushConstants(cmd, &push, sizeof(push));
 
-    texture.Bind(0);
-    m_Program.SetUniformInt(3, 0);
-    m_Program.SetUniformInt(5, 1);
-    m_Program.SetUniformInt(6, 1);
+    const VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &m_QuadVertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(cmd, m_QuadIndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+}
 
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+void UIRenderer::DrawQuad(
+    const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
+    const Texture2D& texture, const glm::vec4& tint)
+{
+    Renderer& renderer = Renderer::Get();
 
-    // Restore the default UI blending and mode for following draws.
-    m_Program.SetUniformInt(6, 0);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Start a fresh region of the ring each time the frame slot changes.
+    const uint32_t frame = renderer.GetCurrentFrameIndex();
+    if (frame != m_DynamicFrame) {
+        m_DynamicFrame = frame;
+        m_DynamicVertexOffset = 0;
+    }
+    if (m_DynamicVertexOffset + 4 > k_MaxDynamicVertices) {
+        return; // ring exhausted this frame; drop the draw rather than overwrite
+    }
+
+    const uint32_t base = m_DynamicVertexOffset;
+    float* vertices = static_cast<float*>(m_Dynamic[frame].mapped) + base * 4;
+    for (int i = 0; i < 4; i++) {
+        vertices[i * 4 + 0] = corners[i].x;
+        vertices[i * 4 + 1] = corners[i].y;
+        vertices[i * 4 + 2] = uvs[i].x;
+        vertices[i * 4 + 3] = uvs[i].y;
+    }
+    // Flush the just-written region in case the ring landed in non-coherent host
+    // memory (a no-op when coherent), so the GPU reads these vertices, not stale
+    // ones, when this frame's command buffer is submitted.
+    const VkDeviceSize writeOffset = static_cast<VkDeviceSize>(base) * 4 * sizeof(float);
+    renderer.FlushHostBuffer(m_Dynamic[frame].buffer, writeOffset, 4 * 4 * sizeof(float));
+    m_DynamicVertexOffset += 4;
+
+    VkCommandBuffer cmd = renderer.GetCommandBuffer();
+    m_Pipeline->Bind(cmd);
+    m_Pipeline->BindTextureSet(cmd, texture.GetDescriptorSet());
+
+    // Corners and UVs are baked into the vertices, so the transform and uv-rect
+    // pass through unchanged.
+    UIPush push = {};
+    push.projection = m_Projection;
+    push.transform = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    push.uvRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    push.tint = tint;
+    push.useTexture = 1;
+    push.invert = 0;
+    m_Pipeline->PushConstants(cmd, &push, sizeof(push));
+
+    const VkDeviceSize offset = base * 4 * sizeof(float);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &m_Dynamic[frame].buffer.buffer, &offset);
+    vkCmdBindIndexBuffer(cmd, m_QuadIndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 }
 
 glm::vec4 UIRenderer::SpriteUVRect(
@@ -207,34 +261,6 @@ void UIRenderer::DrawSlicedSprite(
     DrawSprite(texture, spritePos + glm::vec2(2.0f * srcThird, 0.0f),
         glm::vec2(spriteSize.x - 2.0f * srcThird, spriteSize.y),
         position + glm::vec2(size.x - capWidth, 0.0f), glm::vec2(capWidth, size.y), tint);
-}
-
-void UIRenderer::DrawQuad(
-    const std::array<glm::vec2, 4>& corners, const std::array<glm::vec2, 4>& uvs,
-    const Texture2D& texture, const glm::vec4& tint)
-{
-    float vertices[4 * 4];
-    for (int i = 0; i < 4; i++) {
-        vertices[i * 4 + 0] = corners[i].x;
-        vertices[i * 4 + 1] = corners[i].y;
-        vertices[i * 4 + 2] = uvs[i].x;
-        vertices[i * 4 + 3] = uvs[i].y;
-    }
-    glNamedBufferSubData(m_PolyVertexBuffer, 0, sizeof(vertices), vertices);
-
-    glBindVertexArray(m_PolyVertexArray);
-
-    // Corners and UVs are baked into the buffer, so the transform and uv-rect
-    // pass through unchanged.
-    m_Program.SetUniformVec4(1, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-    m_Program.SetUniformVec4(2, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-    m_Program.SetUniformVec4(4, tint);
-
-    texture.Bind(0);
-    m_Program.SetUniformInt(3, 0);
-    m_Program.SetUniformInt(5, 1);
-
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
 } // namespace Krafter

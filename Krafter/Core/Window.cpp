@@ -1,5 +1,3 @@
-#include "glad/gl.h"
-
 #include "GLFW/glfw3.h"
 
 #include "Krafter/Core/Event.h"
@@ -11,11 +9,10 @@ Window::Window()
     : m_Size(1280, 720)
 {
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // No GL context: the Vulkan renderer creates a surface from this window and
+    // owns all device state itself.
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     m_Id = glfwCreateWindow(m_Size.x, m_Size.y, "Krafter", nullptr, nullptr);
-    glfwMakeContextCurrent(m_Id);
 
     glfwSetWindowUserPointer(m_Id, this);
     glfwSetFramebufferSizeCallback(m_Id, FramebufferSizeCallback);
@@ -51,11 +48,15 @@ void Window::PollEvents()
     float currentFrameTime = GetTime();
     m_Delta = currentFrameTime - m_LastFrameTime;
     m_LastFrameTime = currentFrameTime;
-}
 
-void Window::SwapBuffers()
-{
-    glfwSwapBuffers(m_Id);
+    // Refresh the averaged FPS a few times a second so the readout stays legible.
+    m_FpsAccumTime += m_Delta;
+    m_FpsFrameCount++;
+    if (m_FpsAccumTime >= k_FpsUpdateInterval) {
+        m_Fps = static_cast<float>(m_FpsFrameCount) / m_FpsAccumTime;
+        m_FpsAccumTime = 0.0f;
+        m_FpsFrameCount = 0;
+    }
 }
 
 void Window::SetEventCallback(const EventCallback& callback)
@@ -100,7 +101,8 @@ void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
     self->m_Size.x = width;
     self->m_Size.y = height;
 
-    glViewport(0, 0, width, height);
+    // The Vulkan renderer recreates its swapchain from the framebuffer size on
+    // the next frame; there is no GL viewport to update here.
 
     if (!self->m_EventCallback) {
         return;

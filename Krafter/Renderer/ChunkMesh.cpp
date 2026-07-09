@@ -2,8 +2,9 @@
 #include <array>
 #include <cstdint>
 
-#include "glad/gl.h"
+#include "vulkan/vulkan.h"
 
+#include "Krafter/Core/Renderer.h"
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Coords.h"
@@ -323,43 +324,15 @@ void ChunkMesh::Upload(Part& part, const ChunkMeshBuffer& buffer)
         return;
     }
 
-    glCreateVertexArrays(1, &part.vertexArray);
-    glCreateBuffers(1, &part.vertexBuffer);
-    glCreateBuffers(1, &part.elementBuffer);
-
-    glNamedBufferData(part.vertexBuffer, buffer.vertices.size() * sizeof(float), buffer.vertices.data(), GL_STATIC_DRAW);
-    glNamedBufferData(part.elementBuffer, buffer.elements.size() * sizeof(uint32_t), buffer.elements.data(), GL_STATIC_DRAW);
-
-    glVertexArrayVertexBuffer(part.vertexArray, 0, part.vertexBuffer, 0, k_VertexStride * sizeof(float));
-    glVertexArrayElementBuffer(part.vertexArray, part.elementBuffer);
-
-    glEnableVertexArrayAttrib(part.vertexArray, 0);
-    glVertexArrayAttribBinding(part.vertexArray, 0, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 0, 3, GL_FLOAT, GL_FALSE, 0);
-
-    glEnableVertexArrayAttrib(part.vertexArray, 1);
-    glVertexArrayAttribBinding(part.vertexArray, 1, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
-
-    glEnableVertexArrayAttrib(part.vertexArray, 2);
-    glVertexArrayAttribBinding(part.vertexArray, 2, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 2, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float));
-
-    glEnableVertexArrayAttrib(part.vertexArray, 3);
-    glVertexArrayAttribBinding(part.vertexArray, 3, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 3, 1, GL_FLOAT, GL_FALSE, 8 * sizeof(float));
-
-    glEnableVertexArrayAttrib(part.vertexArray, 4);
-    glVertexArrayAttribBinding(part.vertexArray, 4, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 4, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float));
-
-    glEnableVertexArrayAttrib(part.vertexArray, 5);
-    glVertexArrayAttribBinding(part.vertexArray, 5, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 5, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float));
-
-    glEnableVertexArrayAttrib(part.vertexArray, 6);
-    glVertexArrayAttribBinding(part.vertexArray, 6, 0);
-    glVertexArrayAttribFormat(part.vertexArray, 6, 1, GL_FLOAT, GL_FALSE, 13 * sizeof(float));
+    // The interleaved vertex layout (k_VertexStride floats) is described by the
+    // pipeline, not the buffer; here we only upload the raw vertex and index data.
+    Renderer& renderer = Renderer::Get();
+    part.vertexBuffer = renderer.CreateDeviceLocalBuffer(
+        buffer.vertices.data(), buffer.vertices.size() * sizeof(float),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    part.indexBuffer = renderer.CreateDeviceLocalBuffer(
+        buffer.elements.data(), buffer.elements.size() * sizeof(uint32_t),
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void ChunkMesh::Release(Part& part)
@@ -367,9 +340,9 @@ void ChunkMesh::Release(Part& part)
     if (part.elementCount == 0) {
         return;
     }
-    glDeleteBuffers(1, &part.elementBuffer);
-    glDeleteBuffers(1, &part.vertexBuffer);
-    glDeleteVertexArrays(1, &part.vertexArray);
+    Renderer& renderer = Renderer::Get();
+    renderer.DestroyBuffer(part.indexBuffer);
+    renderer.DestroyBuffer(part.vertexBuffer);
 }
 
 ChunkMesh::ChunkMesh(const ChunkMeshData& data)
@@ -386,19 +359,41 @@ ChunkMesh::~ChunkMesh()
     Release(m_Opaque);
 }
 
-void ChunkMesh::BindOpaque() const
+namespace {
+
+// Binds a part's vertex and index buffers and issues its indexed draw.
+void DrawPart(VkCommandBuffer cmd, const GpuBuffer& vertexBuffer, const GpuBuffer& indexBuffer, uint32_t elementCount)
 {
-    glBindVertexArray(m_Opaque.vertexArray);
+    const VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, elementCount, 1, 0, 0, 0);
 }
 
-void ChunkMesh::BindCross() const
+} // namespace
+
+void ChunkMesh::DrawOpaque(VkCommandBuffer cmd) const
 {
-    glBindVertexArray(m_Cross.vertexArray);
+    if (m_Opaque.elementCount == 0) {
+        return;
+    }
+    DrawPart(cmd, m_Opaque.vertexBuffer, m_Opaque.indexBuffer, m_Opaque.elementCount);
 }
 
-void ChunkMesh::BindTransparent() const
+void ChunkMesh::DrawCross(VkCommandBuffer cmd) const
 {
-    glBindVertexArray(m_Transparent.vertexArray);
+    if (m_Cross.elementCount == 0) {
+        return;
+    }
+    DrawPart(cmd, m_Cross.vertexBuffer, m_Cross.indexBuffer, m_Cross.elementCount);
+}
+
+void ChunkMesh::DrawTransparent(VkCommandBuffer cmd) const
+{
+    if (m_Transparent.elementCount == 0) {
+        return;
+    }
+    DrawPart(cmd, m_Transparent.vertexBuffer, m_Transparent.indexBuffer, m_Transparent.elementCount);
 }
 
 void ChunkMesh::AddFaceToData(

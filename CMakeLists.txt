@@ -19,8 +19,6 @@ set_target_properties(glfw PROPERTIES FOLDER "Libraries/GLFW")
 set_target_properties(uninstall PROPERTIES FOLDER "Libraries/GLFW")
 set_target_properties(update_mappings PROPERTIES FOLDER "Libraries/GLFW")
 
-add_subdirectory(lib/glad)
-
 set(IMGUI_GLFW_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/glfw/include")
 add_subdirectory(lib/imgui)
 
@@ -28,9 +26,11 @@ add_subdirectory(lib/glm)
 
 add_subdirectory(lib/stb)
 
+add_subdirectory(lib/vma)
+
 add_subdirectory(lib/FastNoiseLite)
 
-find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 
 unset(CMAKE_FOLDER)
 
@@ -58,8 +58,8 @@ target_sources(
     Krafter/Renderer/ChunkMesh.cpp
     Krafter/Renderer/Texture.h
     Krafter/Renderer/Texture.cpp
-    Krafter/Renderer/ShaderProgram.h
-    Krafter/Renderer/ShaderProgram.cpp
+    Krafter/Renderer/Pipeline.h
+    Krafter/Renderer/Pipeline.cpp
     Krafter/Renderer/WorldRenderer.h
     Krafter/Renderer/WorldRenderer.cpp
     Krafter/Renderer/UIRenderer.h
@@ -110,7 +110,6 @@ target_include_directories(
     PRIVATE
     .
     lib/glfw/include
-    lib/glad/include
     lib/imgui
     lib/imgui/backends
     lib/glm
@@ -122,16 +121,50 @@ target_link_libraries(
     Krafter
     PRIVATE
     glfw
-    glad
     imgui
     glm
     stb
+    vma
     FastNoiseLite
-    ${OPENGL_gl_LIBRARY}
+    Vulkan::Vulkan
 )
 
 target_compile_definitions(
     Krafter
     PRIVATE
     GLM_ENABLE_EXPERIMENTAL
+    # Vulkan clip space uses a [0, 1] depth range (not OpenGL's [-1, 1]), so GLM's
+    # projection matrices must match. The Y-flip is handled by a negative-height
+    # viewport in the renderer.
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
 )
+
+# Shaders: compile each GLSL source to SPIR-V with glslc (from the Vulkan SDK,
+# located by find_package(Vulkan)). The .spv is written next to its source so the
+# app loads it by swapping the extension. The stage is taken from the .vert/.frag
+# infix, since glslc can't infer it from the .glsl extension.
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders)
+file(GLOB SHADER_SOURCES ${SHADER_DIR}/*.vert.glsl ${SHADER_DIR}/*.frag.glsl)
+
+set(SPIRV_OUTPUTS "")
+foreach(SHADER ${SHADER_SOURCES})
+    get_filename_component(SHADER_NAME ${SHADER} NAME)
+    string(REGEX REPLACE "\\.glsl$" ".spv" SPIRV_NAME ${SHADER_NAME})
+    set(SPIRV_FILE ${SHADER_DIR}/${SPIRV_NAME})
+    if(SHADER_NAME MATCHES "\\.vert\\.glsl$")
+        set(SHADER_STAGE vertex)
+    else()
+        set(SHADER_STAGE fragment)
+    endif()
+    add_custom_command(
+        OUTPUT ${SPIRV_FILE}
+        COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=${SHADER_STAGE} ${SHADER} -o ${SPIRV_FILE}
+        DEPENDS ${SHADER}
+        COMMENT "Compiling shader ${SHADER_NAME} -> ${SPIRV_NAME}"
+        VERBATIM
+    )
+    list(APPEND SPIRV_OUTPUTS ${SPIRV_FILE})
+endforeach()
+
+add_custom_target(Shaders DEPENDS ${SPIRV_OUTPUTS})
+add_dependencies(Krafter Shaders)

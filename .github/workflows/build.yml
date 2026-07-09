@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - name: Linux (g++)
-            os: ubuntu-latest
+            os: ubuntu-24.04
             preset_args: -G "Ninja Multi-Config"
           - name: Windows (MSVC)
             os: windows-latest
@@ -29,8 +29,12 @@ jobs:
       - name: Install Linux deps
         if: runner.os == 'Linux'
         run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list \
+            https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
           sudo apt update
-          sudo apt install -y ninja-build \
+          sudo apt install -y ninja-build vulkan-sdk \
             libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
             libxcursor-dev libxi-dev libxext-dev \
             wayland-protocols libwayland-dev libxkbcommon-dev
@@ -38,6 +42,16 @@ jobs:
       - name: Set up MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\VulkanSDK-Installer.exe"
+          curl.exe -L -o $installer https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe
+          & $installer --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+          "VULKAN_SDK=C:\VulkanSDK" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "C:\VulkanSDK\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Configure
         run: cmake -B build ${{ matrix.preset_args }}

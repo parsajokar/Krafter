@@ -2,10 +2,12 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 
 #include "glm/glm.hpp"
 
-#include "Krafter/Renderer/ShaderProgram.h"
+#include "Krafter/Core/Renderer.h"
+#include "Krafter/Renderer/Pipeline.h"
 #include "Krafter/Renderer/Texture.h"
 
 namespace Krafter {
@@ -70,6 +72,17 @@ public:
         const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint = glm::vec4(1.0f));
 
 private:
+    // Per-draw constants matching the ui shaders' push_constant block.
+    struct UIPush {
+        glm::mat4 projection;
+        glm::vec4 transform;
+        glm::vec4 uvRect;
+        glm::vec4 tint;
+        int32_t useTexture;
+        int32_t invert;
+    };
+    static_assert(sizeof(UIPush) == 120, "UIPush must match the ui shaders");
+
     void DrawQuad(
         const glm::vec2& position, const glm::vec2& size,
         const glm::vec4& uvRect, const glm::vec4& tint, const Texture2D* texture);
@@ -79,17 +92,35 @@ private:
     static glm::vec4 SpriteUVRect(
         const glm::vec2& spritePos, const glm::vec2& spriteSize, const glm::vec2& texSize);
 
+    // Vertices the current frame's dynamic ring can hold (four per arbitrary quad).
+    static constexpr uint32_t k_MaxDynamicVertices = 4096;
+
     Window& m_Window;
 
-    ShaderProgram m_Program;
+    // Two pipelines: standard alpha blending and the colour-inverting crosshair blend.
+    std::unique_ptr<Pipeline> m_Pipeline;
+    std::unique_ptr<Pipeline> m_InvertPipeline;
 
-    uint32_t m_VertexArray;
-    uint32_t m_VertexBuffer;
-    uint32_t m_ElementBuffer;
+    // Static unit quad (0..1 position and uv) transformed per draw by push constants.
+    GpuBuffer m_QuadVertexBuffer;
+    GpuBuffer m_QuadIndexBuffer;
 
-    // Separate dynamic buffer for arbitrary-corner quads, re-uploaded per draw.
-    uint32_t m_PolyVertexArray;
-    uint32_t m_PolyVertexBuffer;
+    // 1x1 white texture bound for untextured draws so the shared descriptor set is
+    // always valid (the shader ignores it when useTexture is 0).
+    std::unique_ptr<Texture2D> m_WhiteTexture;
+
+    // Per-frame ring of host-visible vertex buffers for arbitrary-corner quads,
+    // written directly each draw. One per frame-in-flight so a buffer is never
+    // overwritten while the GPU still reads it.
+    struct DynamicBuffer {
+        GpuBuffer buffer;
+        void* mapped = nullptr;
+    };
+    std::array<DynamicBuffer, Renderer::k_MaxFramesInFlight> m_Dynamic;
+    uint32_t m_DynamicVertexOffset = 0;
+    uint32_t m_DynamicFrame = UINT32_MAX;
+
+    glm::mat4 m_Projection = glm::mat4(1.0f);
 };
 
 } // namespace Krafter

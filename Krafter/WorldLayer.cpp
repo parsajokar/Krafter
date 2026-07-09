@@ -85,7 +85,7 @@ void WorldLayer::OnEvent(Event& event)
 
 void WorldLayer::OnRenderImGui()
 {
-    ImGui::Text("FPS: %.2f", 1.0f / m_Window.GetDelta());
+    ImGui::Text("FPS: %.2f", m_Window.GetFps());
 
     const glm::vec3 position = m_Player.GetPosition();
     ImGui::Text("Current Biome: %s", Biome::Name(Biome::At(position.x, position.z)));

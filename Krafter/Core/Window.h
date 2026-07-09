@@ -54,7 +54,6 @@ public:
     void Close();
 
     void PollEvents();
-    void SwapBuffers();
 
     void SetEventCallback(const EventCallback& callback);
 
@@ -79,6 +78,13 @@ public:
         return m_Delta;
     }
 
+    // Frames per second, averaged and refreshed a few times a second so the
+    // readout is steady rather than jumping with every frame's delta.
+    inline float GetFps() const
+    {
+        return m_Fps;
+    }
+
 private:
     static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -99,6 +105,13 @@ private:
 
     float m_LastFrameTime = 0.0f;
     float m_Delta = 0.0f;
+
+    // Smoothed FPS: frames and elapsed time are accumulated and the rate is
+    // recomputed every k_FpsUpdateInterval seconds.
+    static constexpr float k_FpsUpdateInterval = 0.2f;
+    float m_Fps = 0.0f;
+    float m_FpsAccumTime = 0.0f;
+    int32_t m_FpsFrameCount = 0;
 };
 
 } // namespace Krafter

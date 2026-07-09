@@ -95,7 +95,9 @@ private:
 
     struct MeshResult {
         glm::ivec2 position;
-        ChunkMeshData data;
+        // The mesh's GPU buffers are created on the worker thread (VMA is
+        // thread-safe), so the main thread only has to adopt the finished mesh.
+        std::unique_ptr<ChunkMesh> mesh;
     };
 
     // The lighting pass writes directly into the chunk's storage, so a finished
