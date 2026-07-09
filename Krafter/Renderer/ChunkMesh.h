@@ -6,6 +6,7 @@
 
 #include "glm/glm.hpp"
 
+#include "Krafter/Core/Renderer.h"
 #include "Krafter/World/Block.h"
 #include "Krafter/World/Chunk.h"
 
@@ -56,16 +57,17 @@ public:
         return m_Transparent.elementCount;
     }
 
-    void BindOpaque() const;
-    void BindCross() const;
-    void BindTransparent() const;
+    // Records the vertex/index buffer binds and an indexed draw for this part into
+    // `cmd`. The caller binds the pipeline, descriptor set, and push constants first.
+    void DrawOpaque(VkCommandBuffer cmd) const;
+    void DrawCross(VkCommandBuffer cmd) const;
+    void DrawTransparent(VkCommandBuffer cmd) const;
 
 private:
     // One set of GPU buffers for a single render pass.
     struct Part {
-        uint32_t vertexArray = 0;
-        uint32_t vertexBuffer = 0;
-        uint32_t elementBuffer = 0;
+        GpuBuffer vertexBuffer;
+        GpuBuffer indexBuffer;
         uint32_t elementCount = 0;
     };
 

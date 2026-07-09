@@ -3,7 +3,7 @@
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include "imgui_impl_vulkan.h"
 
 #include "Krafter/Core/Application.h"
 #include "Krafter/Core/Event.h"
@@ -24,13 +24,17 @@ Application::Application(const ApplicationSpecification& specification)
 
     m_Window = std::make_unique<Window>();
     m_Window->SetEventCallback([this](Event& event) { OnEvent(event); });
-    m_Renderer = std::make_unique<Renderer>();
+    m_Renderer = std::make_unique<Renderer>(*m_Window);
 
     InitImGui();
 }
 
 Application::~Application()
 {
+    // Nothing may still be executing on the GPU while layers free their Vulkan
+    // resources (textures, buffers) below.
+    m_Renderer->WaitIdle();
+
     for (auto it = m_LayerStack.rbegin(); it < m_LayerStack.rend(); it++) {
         (*it)->Detach();
         delete *it;
@@ -75,18 +79,15 @@ void Application::Run()
             layer->Update();
         }
 
-        m_Renderer->Clear();
-
-        for (Layer* layer : m_LayerStack) {
-            layer->Render();
-        }
-
         // Always run an ImGui frame so its input-capture state stays current, but
         // only build the debug overlay (and let layers contribute to it) when it
         // is toggled on. With no windows, ImGui captures nothing and draws nothing.
+        // ImGui::Render only builds draw data on the CPU; it is recorded into the
+        // command buffer after the render pass opens (Milestone 2).
         BeginImGui();
         if (m_ShowDebugUI) {
             ImGui::Begin("Settings");
+            m_Renderer->RenderImGui();
             for (Layer* layer : m_LayerStack) {
                 layer->RenderImGui();
             }
@@ -94,7 +95,20 @@ void Application::Run()
         }
         EndImGui();
 
-        m_Window->SwapBuffers();
+        // Acquire a swapchain image and open the render pass. A false return means
+        // the swapchain was recreated (e.g. after a resize); skip drawing this frame.
+        if (!m_Renderer->BeginFrame()) {
+            continue;
+        }
+
+        for (Layer* layer : m_LayerStack) {
+            layer->Render();
+        }
+
+        // The debug overlay draws on top of the scene, inside the same render pass.
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_Renderer->GetCommandBuffer());
+
+        m_Renderer->EndFrame();
 
         // Drain deferred actions now that the layer stack is no longer being
         // iterated, so scene changes can safely add or remove layers.
@@ -138,28 +152,45 @@ void Application::InitImGui()
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = "assets/editorconfig.ini";
 
-    ImGui_ImplGlfw_InitForOpenGL(m_Window->GetId(), true);
-    ImGui_ImplOpenGL3_Init("#version 450 core");
+    ImGui_ImplGlfw_InitForVulkan(m_Window->GetId(), true);
+
+    // The backend creates and owns its own descriptor pool when DescriptorPoolSize
+    // is set, and uploads the font atlas lazily (RendererHasTextures), so no manual
+    // pool or font upload is needed here.
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.ApiVersion = VK_API_VERSION_1_0;
+    initInfo.Instance = m_Renderer->GetInstance();
+    initInfo.PhysicalDevice = m_Renderer->GetPhysicalDevice();
+    initInfo.Device = m_Renderer->GetDevice();
+    initInfo.QueueFamily = m_Renderer->GetGraphicsQueueFamily();
+    initInfo.Queue = m_Renderer->GetGraphicsQueue();
+    initInfo.DescriptorPoolSize = IMGUI_IMPL_VULKAN_MINIMUM_SAMPLED_IMAGE_POOL_SIZE;
+    initInfo.MinImageCount = Renderer::k_MaxFramesInFlight;
+    initInfo.ImageCount = m_Renderer->GetSwapchainImageCount();
+    initInfo.PipelineInfoMain.RenderPass = m_Renderer->GetRenderPass();
+    initInfo.PipelineInfoMain.Subpass = 0;
+    ImGui_ImplVulkan_Init(&initInfo);
 }
 
 void Application::ShutdownImGui()
 {
-    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 }
 
 void Application::BeginImGui()
 {
-    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
 void Application::EndImGui()
 {
+    // Builds the draw data on the CPU; it is recorded into the open render pass in
+    // Run once BeginFrame has started the command buffer.
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 } // namespace Krafter
