@@ -35,8 +35,6 @@ const std::array<const char*, 1> k_DeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
-// Aborts on any Vulkan call that does not return success, naming the site. Vulkan
-// failures here are unrecoverable setup errors, so failing loudly beats limping.
 void Check(VkResult result, const char* what)
 {
     if (result != VK_SUCCESS) {
@@ -45,8 +43,6 @@ void Check(VkResult result, const char* what)
     }
 }
 
-// Records a layout transition for the whole colour range of `image`, choosing
-// barrier stages/access to match the transfer and sampling stages involved.
 void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout from, VkImageLayout to)
 {
     VkImageMemoryBarrier barrier = {};
@@ -66,9 +62,10 @@ void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout fro
         barrier.srcAccessMask = (from == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) ? VK_ACCESS_SHADER_READ_BIT : 0;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         srcStage = (from == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+            : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    } else { // -> SHADER_READ_ONLY
+    } else {
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -100,7 +97,7 @@ bool ValidationLayersSupported()
     return true;
 }
 
-} // namespace
+}
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -147,10 +144,8 @@ Renderer::Renderer(Window& window)
 
 Renderer::~Renderer()
 {
-    // Nothing may be in flight while the objects backing it are destroyed.
     vkDeviceWaitIdle(m_Device);
 
-    // Free any buffers still parked for deferred deletion.
     for (auto& bin : m_TrashBins) {
         for (const GpuBuffer& buffer : bin) {
             vmaDestroyBuffer(m_Allocator, buffer.buffer, buffer.allocation);
@@ -162,15 +157,12 @@ Renderer::~Renderer()
     for (const GpuBuffer& buffer : m_ReadyToFree) {
         vmaDestroyBuffer(m_Allocator, buffer.buffer, buffer.allocation);
     }
-    // Staging for uploads queued but never recorded (e.g. queued the same frame we
-    // shut down) still needs freeing.
     for (const PendingBufferUpload& upload : m_PendingBufferUploads) {
         vmaDestroyBuffer(m_Allocator, upload.staging.buffer, upload.staging.allocation);
     }
     for (const PendingImageUpload& upload : m_PendingImageUploads) {
         vmaDestroyBuffer(m_Allocator, upload.staging.buffer, upload.staging.allocation);
     }
-    // Free any textures still parked for deferred deletion.
     for (auto& bin : m_TextureTrashBins) {
         for (const DeferredTexture& texture : bin) {
             vkFreeDescriptorSets(m_Device, m_TexturePool, 1, &texture.set);
@@ -232,7 +224,6 @@ void Renderer::CreateInstance()
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
-    // GLFW tells us which instance extensions a surface on this platform needs.
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
@@ -293,8 +284,6 @@ void Renderer::PickPhysicalDevice()
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(m_Instance, &count, devices.data());
 
-    // Find a device with a queue family that supports both graphics and present,
-    // and the swapchain extension. Prefer a discrete GPU when several qualify.
     VkPhysicalDevice fallback = VK_NULL_HANDLE;
     for (VkPhysicalDevice device : devices) {
         uint32_t familyCount = 0;
@@ -322,7 +311,6 @@ void Renderer::PickPhysicalDevice()
             continue;
         }
 
-        // Require the swapchain extension.
         uint32_t extCount = 0;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extCount, nullptr);
         std::vector<VkExtensionProperties> exts(extCount);
@@ -341,7 +329,6 @@ void Renderer::PickPhysicalDevice()
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(device, &props);
         if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-            // Prefer a discrete GPU and stop looking once one qualifies.
             m_PhysicalDevice = device;
             m_GraphicsFamily = graphics;
             m_PresentFamily = present;
@@ -354,8 +341,6 @@ void Renderer::PickPhysicalDevice()
         }
     }
 
-    // Fall back to the first suitable non-discrete GPU only if no discrete one was
-    // found (e.g. a laptop with just an integrated GPU).
     if (m_PhysicalDevice == VK_NULL_HANDLE) {
         if (fallback == VK_NULL_HANDLE) {
             std::cerr << "[VULKAN] No suitable GPU found" << std::endl;
@@ -395,8 +380,6 @@ void Renderer::CreateLogicalDevice()
     createInfo.pEnabledFeatures = &features;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(k_DeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = k_DeviceExtensions.data();
-    // Device layers are deprecated and ignored; the instance validation layer
-    // covers device calls too, so enabledLayerCount stays 0 here.
 
     Check(vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device), "vkCreateDevice");
 
@@ -416,8 +399,6 @@ void Renderer::CreateAllocator()
 
 VkFormat Renderer::FindDepthFormat() const
 {
-    // Prefer a pure 32-bit depth format, falling back to the widely-supported
-    // 24-bit depth + 8-bit stencil combination.
     const VkFormat candidates[] = {
         VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT
     };
@@ -471,14 +452,10 @@ void Renderer::CreateSwapchain()
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, m_Surface, &caps);
 
-    // Surface format: prefer 32-bit BGRA sRGB, else take whatever the surface offers.
     uint32_t formatCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &formatCount, nullptr);
     std::vector<VkSurfaceFormatKHR> formats(formatCount);
     vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &formatCount, formats.data());
-    // A UNORM (non-sRGB) format: the shaders already output display-ready colours
-    // tuned against a plain framebuffer (as the original GL renderer used), so an
-    // sRGB swapchain would gamma-encode them again and wash everything out.
     VkSurfaceFormatKHR surfaceFormat = formats[0];
     for (const VkSurfaceFormatKHR& format : formats) {
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM
@@ -488,10 +465,6 @@ void Renderer::CreateSwapchain()
         }
     }
 
-    // Present mode: prefer MAILBOX (renders uncapped, shows the latest image, no
-    // tearing), then IMMEDIATE (uncapped, may tear), falling back to FIFO (vsync,
-    // always available). The GL renderer ran uncapped, so FIFO's refresh-rate cap
-    // would look like a big slowdown by comparison.
     uint32_t presentModeCount = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, m_Surface, &presentModeCount, nullptr);
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
@@ -510,7 +483,6 @@ void Renderer::CreateSwapchain()
         presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
-    // Extent: honour the surface's fixed size, else clamp the framebuffer size.
     VkExtent2D extent;
     if (caps.currentExtent.width != UINT32_MAX) {
         extent = caps.currentExtent;
@@ -525,7 +497,6 @@ void Renderer::CreateSwapchain()
     }
 
     uint32_t imageCount = caps.minImageCount + 1;
-    // MAILBOX needs a third image to have one to work on while two are queued.
     if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR && imageCount < 3) {
         imageCount = 3;
     }
@@ -585,7 +556,6 @@ void Renderer::CreateImageViews()
 
 void Renderer::CreateRenderPass()
 {
-    // Colour attachment cleared on load and left ready to present.
     VkAttachmentDescription color = {};
     color.format = m_SwapchainFormat;
     color.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -596,7 +566,6 @@ void Renderer::CreateRenderPass()
     color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // Depth attachment cleared on load; not stored, as nothing reads it after the pass.
     VkAttachmentDescription depth = {};
     depth.format = m_DepthFormat;
     depth.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -621,7 +590,6 @@ void Renderer::CreateRenderPass()
     subpass.pColorAttachments = &colorRef;
     subpass.pDepthStencilAttachment = &depthRef;
 
-    // Wait on both colour output and depth tests from prior work before writing.
     VkSubpassDependency dependency = {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
@@ -629,9 +597,6 @@ void Renderer::CreateRenderPass()
         | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
         | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    // Make an overlapping prior frame's colour/depth writes available before this
-    // pass clears and writes the shared attachments (the depth buffer is shared
-    // across frames in flight), not just execution-ordered against them.
     dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
         | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
@@ -655,7 +620,6 @@ void Renderer::CreateFramebuffers()
 {
     m_Framebuffers.resize(m_SwapchainImageViews.size());
     for (size_t i = 0; i < m_SwapchainImageViews.size(); i++) {
-        // All framebuffers share the single depth buffer.
         VkImageView attachments[] = { m_SwapchainImageViews[i], m_DepthView };
 
         VkFramebufferCreateInfo createInfo = {};
@@ -720,8 +684,6 @@ void Renderer::CreateSyncObjects()
 
 void Renderer::CreateTextureInfrastructure()
 {
-    // Nearest filtering, clamped: block textures are pixel art and must not bleed
-    // across atlas tiles.
     VkSamplerCreateInfo samplerInfo = {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
@@ -732,7 +694,6 @@ void Renderer::CreateTextureInfrastructure()
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     Check(vkCreateSampler(m_Device, &samplerInfo, nullptr, &m_NearestSampler), "vkCreateSampler");
 
-    // One combined image sampler at binding 0, matching set 0 in the shaders.
     VkDescriptorSetLayoutBinding binding = {};
     binding.binding = 0;
     binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -746,8 +707,6 @@ void Renderer::CreateTextureInfrastructure()
     Check(vkCreateDescriptorSetLayout(m_Device, &layoutInfo, nullptr, &m_TextureSetLayout),
         "vkCreateDescriptorSetLayout");
 
-    // Enough sets for every texture the game loads (atlas, break strip, UI sheet,
-    // font). Sets are freed individually, so the pool allows that.
     VkDescriptorPoolSize poolSize = {};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSize.descriptorCount = 64;
@@ -763,7 +722,6 @@ void Renderer::CreateTextureInfrastructure()
 
 GpuBuffer Renderer::CreateDeviceLocalBuffer(const void* data, VkDeviceSize size, VkBufferUsageFlags usage)
 {
-    // Staging buffer: host-visible, filled by the CPU now.
     VkBufferCreateInfo stagingInfo = {};
     stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     stagingInfo.size = size;
@@ -779,11 +737,8 @@ GpuBuffer Renderer::CreateDeviceLocalBuffer(const void* data, VkDeviceSize size,
     Check(vmaCreateBuffer(m_Allocator, &stagingInfo, &stagingAlloc, &staging.buffer, &staging.allocation, &stagingInfoOut),
         "vmaCreateBuffer (staging)");
     std::memcpy(stagingInfoOut.pMappedData, data, static_cast<size_t>(size));
-    // Flush in case the allocation landed in non-coherent host memory, so the copy
-    // reads the data just written (a no-op when the memory is coherent).
     vmaFlushAllocation(m_Allocator, staging.allocation, 0, size);
 
-    // Device-local destination.
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
@@ -796,9 +751,6 @@ GpuBuffer Renderer::CreateDeviceLocalBuffer(const void* data, VkDeviceSize size,
     Check(vmaCreateBuffer(m_Allocator, &bufferInfo, &deviceAlloc, &result.buffer, &result.allocation, nullptr),
         "vmaCreateBuffer (device)");
 
-    // Defer the copy to the next frame's command buffer instead of submitting and
-    // stalling the queue here. This runs on worker threads for chunk meshes, so the
-    // queue is guarded.
     {
         std::lock_guard<std::mutex> lock(m_UploadMutex);
         m_PendingBufferUploads.push_back({ staging, result.buffer, size });
@@ -846,8 +798,6 @@ void Renderer::QueueImageUpload(VkImage image, VkImageLayout oldLayout,
     Check(vmaCreateBuffer(m_Allocator, &stagingInfo, &stagingAlloc, &staging.buffer, &staging.allocation, &stagingInfoOut),
         "vmaCreateBuffer (image staging)");
     std::memcpy(stagingInfoOut.pMappedData, pixels, static_cast<size_t>(size));
-    // Flush in case the allocation landed in non-coherent host memory (a no-op
-    // when coherent), so the buffer-to-image copy reads the pixels just written.
     vmaFlushAllocation(m_Allocator, staging.allocation, 0, size);
 
     m_PendingImageUploads.push_back({ staging, image, oldLayout, x, y, width, height });
@@ -855,8 +805,6 @@ void Renderer::QueueImageUpload(VkImage image, VkImageLayout oldLayout,
 
 void Renderer::RecordPendingUploads(VkCommandBuffer cmd)
 {
-    // Take ownership of the worker-produced buffer uploads under the lock, then
-    // record them without holding it.
     std::vector<PendingBufferUpload> bufferUploads;
     {
         std::lock_guard<std::mutex> lock(m_UploadMutex);
@@ -888,7 +836,6 @@ void Renderer::RecordPendingUploads(VkCommandBuffer cmd)
         m_PendingTrash.push_back(upload.staging);
     }
 
-    // Make buffer copies visible to the vertex input stage before the render pass.
     if (!bufferUploads.empty()) {
         VkMemoryBarrier barrier = {};
         barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -903,8 +850,6 @@ void Renderer::RecordPendingUploads(VkCommandBuffer cmd)
 
 void Renderer::DestroyBuffer(const GpuBuffer& buffer)
 {
-    // The GPU may still be reading this buffer for up to k_MaxFramesInFlight frames,
-    // so defer the actual free rather than destroying it now (see BeginFrame).
     if (buffer.buffer != VK_NULL_HANDLE) {
         m_PendingTrash.push_back(buffer);
     }
@@ -945,7 +890,6 @@ VkDescriptorSet Renderer::AllocateTextureSet(VkImageView view)
 
 void Renderer::DestroyTexture(VkImage image, VmaAllocation allocation, VkImageView view, VkDescriptorSet set)
 {
-    // Defer: an in-flight frame may still be sampling this texture.
     m_PendingTextureTrash.push_back({ image, allocation, view, set });
 }
 
@@ -976,8 +920,6 @@ void Renderer::EndSingleTimeCommands(VkCommandBuffer cmd)
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
-    // Blocking: uploads happen during Update, before the frame's work is recorded,
-    // so a full queue wait keeps them simple and correct.
     vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(m_GraphicsQueue);
 
@@ -986,7 +928,6 @@ void Renderer::EndSingleTimeCommands(VkCommandBuffer cmd)
 
 void Renderer::CleanupSwapchain()
 {
-    // Depth is sized to the swapchain, so it is torn down and rebuilt alongside it.
     vkDestroyImageView(m_Device, m_DepthView, nullptr);
     vmaDestroyImage(m_Allocator, m_DepthImage, m_DepthAllocation);
     m_DepthView = VK_NULL_HANDLE;
@@ -1008,7 +949,6 @@ void Renderer::CleanupSwapchain()
 
 void Renderer::RecreateSwapchain()
 {
-    // Block while minimised (a zero-size framebuffer): there is nothing to draw to.
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(m_Window.GetId(), &width, &height);
@@ -1026,12 +966,6 @@ void Renderer::RecreateSwapchain()
     CreateDepthResources();
     CreateFramebuffers();
 
-    // Recreate the per-image render-finished semaphores unconditionally. A present
-    // that returned OUT_OF_DATE never waited on its signal, so that semaphore is
-    // left signalled; reusing it as a submit's signal target later is illegal
-    // (double-signalling a binary semaphore). vkDeviceWaitIdle above guarantees
-    // none are still in use, so destroying and recreating them here is safe and
-    // clears any stale signalled state. Also re-fit the count in case it changed.
     for (VkSemaphore semaphore : m_RenderFinishedSemaphores) {
         vkDestroySemaphore(m_Device, semaphore, nullptr);
     }
@@ -1060,7 +994,6 @@ bool Renderer::BeginFrame()
         Check(acquire, "vkAcquireNextImageKHR");
     }
 
-    // If a previous frame is still using this image, wait on its fence before reuse.
     if (m_ImagesInFlight[m_ImageIndex] != VK_NULL_HANDLE) {
         vkWaitForFences(m_Device, 1, &m_ImagesInFlight[m_ImageIndex], VK_TRUE, UINT64_MAX);
     }
@@ -1068,21 +1001,12 @@ bool Renderer::BeginFrame()
 
     vkResetFences(m_Device, 1, &m_InFlightFences[m_CurrentFrame]);
 
-    // This slot's previous frame is now finished (its fence was just waited on), so
-    // the buffers parked in its bin two frames ago are safe to free. Move them to
-    // the ready list rather than freeing all at once, then take ownership of
-    // everything retired since the last frame for freeing later.
     for (const GpuBuffer& buffer : m_TrashBins[m_CurrentFrame]) {
         m_ReadyToFree.push_back(buffer);
     }
     m_TrashBins[m_CurrentFrame].clear();
     m_TrashBins[m_CurrentFrame].swap(m_PendingTrash);
 
-    // Free already-safe buffers oldest-first, spreading a large streaming burst
-    // over several frames instead of one big stall. The budget keeps a floor of
-    // k_MaxFreesPerFrame but scales with the backlog, so a sustained burst (more
-    // than the floor retiring every frame) still drains rather than growing the
-    // list without bound.
     const size_t budget = std::max<size_t>(k_MaxFreesPerFrame, m_ReadyToFree.size() / 4);
     for (size_t freed = 0; freed < budget && !m_ReadyToFree.empty(); freed++) {
         const GpuBuffer& buffer = m_ReadyToFree.front();
@@ -1105,8 +1029,6 @@ bool Renderer::BeginFrame()
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     Check(vkBeginCommandBuffer(cmd, &beginInfo), "vkBeginCommandBuffer");
 
-    // Record queued uploads (chunk meshes, animated textures) into this command
-    // buffer before the render pass, so they cost no separate submit or queue wait.
     RecordPendingUploads(cmd);
 
     VkClearValue clearValues[2];
@@ -1122,11 +1044,6 @@ bool Renderer::BeginFrame()
     passInfo.pClearValues = clearValues;
     vkCmdBeginRenderPass(cmd, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Viewport and scissor are dynamic pipeline state, so set them per frame; the
-    // swapchain extent may have changed since the pipelines were built. The
-    // viewport is flipped along Y (origin at the bottom, negative height) so the
-    // OpenGL-oriented projection matrices the game already builds map correctly to
-    // Vulkan's clip space without touching every shader.
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = static_cast<float>(m_SwapchainExtent.height);
@@ -1193,4 +1110,4 @@ void Renderer::RenderImGui()
         VK_VERSION_PATCH(props.apiVersion));
 }
 
-} // namespace Krafter
+}

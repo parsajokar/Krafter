@@ -11,12 +11,8 @@
 
 namespace Krafter {
 
-// A fixed pool of worker threads that run queued jobs. Generic and oblivious to
-// what the jobs do; callers hand back their results through their own channels.
 class JobSystem {
 public:
-    // Spawns `threadCount` workers, or one fewer than the hardware concurrency
-    // (leaving a core for the main thread) when left at 0.
     explicit JobSystem(uint32_t threadCount = 0);
     ~JobSystem();
 
@@ -41,4 +37,4 @@ private:
     std::vector<std::thread> m_Workers;
 };
 
-} // namespace Krafter
+}

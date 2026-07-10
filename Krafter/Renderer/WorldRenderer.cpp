@@ -15,40 +15,32 @@
 
 namespace Krafter {
 
-// Atlas tile the water lives in (column 7, bottom row) and how fast it animates.
 static constexpr int32_t k_WaterTileX = 112;
 static constexpr int32_t k_WaterTileY = 0;
 static constexpr int32_t k_WaterTileSize = 16;
 static constexpr double k_WaterFps = 12.0;
 
-// Lava's scratch tile (column 5, bottom row); it animates a touch slower than water.
 static constexpr int32_t k_LavaTileX = 80;
 static constexpr int32_t k_LavaTileY = 0;
 static constexpr double k_LavaFps = 8.0;
 
-// The interleaved chunk vertex is 14 floats: position(3), uv(2), normal(3), sky
-// light(1), water depth(1), tint(3), block light(1).
 static constexpr uint32_t k_VertexStride = 14 * sizeof(float);
 
 namespace {
 
-// The vertex attributes read from the interleaved chunk buffer, matching the
-// locations declared in default.vert.glsl.
 std::vector<VkVertexInputAttributeDescription> ChunkAttributes()
 {
     return {
-        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 },                // position
-        { 1, 0, VK_FORMAT_R32G32_SFLOAT, 3 * sizeof(float) },   // uv
-        { 2, 0, VK_FORMAT_R32G32B32_SFLOAT, 5 * sizeof(float) },// normal
-        { 3, 0, VK_FORMAT_R32_SFLOAT, 8 * sizeof(float) },      // sky light
-        { 4, 0, VK_FORMAT_R32_SFLOAT, 9 * sizeof(float) },      // water depth
-        { 5, 0, VK_FORMAT_R32G32B32_SFLOAT, 10 * sizeof(float) },// tint
-        { 6, 0, VK_FORMAT_R32_SFLOAT, 13 * sizeof(float) },     // block light
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 },
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, 3 * sizeof(float) },
+        { 2, 0, VK_FORMAT_R32G32B32_SFLOAT, 5 * sizeof(float) },
+        { 3, 0, VK_FORMAT_R32_SFLOAT, 8 * sizeof(float) },
+        { 4, 0, VK_FORMAT_R32_SFLOAT, 9 * sizeof(float) },
+        { 5, 0, VK_FORMAT_R32G32B32_SFLOAT, 10 * sizeof(float) },
+        { 6, 0, VK_FORMAT_R32_SFLOAT, 13 * sizeof(float) },
     };
 }
 
-// Loads a vertical strip of 16x16 animation frames, forcing alpha opaque so the
-// shader alone controls the fluid's transparency. Returns the frame count.
 int32_t LoadFluidStrip(const char* path, std::vector<uint8_t>& outFrames)
 {
     stbi_set_flip_vertically_on_load(false);
@@ -73,7 +65,6 @@ int32_t LoadFluidStrip(const char* path, std::vector<uint8_t>& outFrames)
     return frameCount;
 }
 
-// Binds a static vertex/index buffer pair and issues one indexed draw.
 void DrawIndexed(VkCommandBuffer cmd, const GpuBuffer& vertexBuffer, const GpuBuffer& indexBuffer, uint32_t indexCount)
 {
     const VkDeviceSize offset = 0;
@@ -82,7 +73,7 @@ void DrawIndexed(VkCommandBuffer cmd, const GpuBuffer& vertexBuffer, const GpuBu
     vkCmdDrawIndexed(cmd, indexCount, 1, 0, 0, 0);
 }
 
-} // namespace
+}
 
 WorldRenderer::ChunkPush WorldRenderer::MakeChunkPush(
     const glm::mat4& viewProjection, const Sky& sky, float alphaScale, float isWater) const
@@ -185,8 +176,6 @@ void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float prog
         return;
     }
 
-    // Pick the crack stage from progress and find its band in the strip. The
-    // texture is loaded flipped, so stage s climbs down from the top.
     int32_t stage = static_cast<int32_t>(progress * static_cast<float>(m_BreakFrameCount));
     stage = glm::clamp(stage, 0, m_BreakFrameCount - 1);
     const float span = 1.0f / static_cast<float>(m_BreakFrameCount);
@@ -239,8 +228,6 @@ WorldRenderer::WorldRenderer()
     m_WaterFrameCount = LoadFluidStrip("assets/textures/water_still.png", m_WaterFrames);
     m_LavaFrameCount = LoadFluidStrip("assets/textures/lava_still.png", m_LavaFrames);
 
-    // Three pipelines share the chunk shaders and vertex layout, differing only in
-    // culling and depth-write state per pass.
     PipelineConfig config;
     config.vertPath = "assets/shaders/default.vert.spv";
     config.fragPath = "assets/shaders/default.frag.spv";
@@ -252,34 +239,30 @@ WorldRenderer::WorldRenderer()
     config.depthTest = true;
     config.blend = true;
 
-    // Opaque: back-face culled, depth-writing. Chunk geometry winds counter-
-    // clockwise seen from outside, matching the flipped-Y viewport's front face.
     config.cullMode = VK_CULL_MODE_BACK_BIT;
     config.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     config.depthWrite = true;
     m_OpaquePipeline = std::make_unique<Pipeline>(config);
 
-    // Cross plants: double-sided (no cull) so both billboard faces show.
     config.cullMode = VK_CULL_MODE_NONE;
     m_CrossPipeline = std::make_unique<Pipeline>(config);
 
-    // Water: double-sided and non-depth-writing so it blends over what is behind
-    // it without occluding other water.
     config.depthWrite = false;
     m_TransparentPipeline = std::make_unique<Pipeline>(config);
 
     Renderer& renderer = Renderer::Get();
 
-    // --- Targeted-block outline: a unit-cube wireframe drawn as lines. ---
+    // clang-format off
     const float outlineCorners[] = {
         0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
     };
     const uint32_t outlineEdges[] = {
-        0, 1, 1, 2, 2, 3, 3, 0, // bottom
-        4, 5, 5, 6, 6, 7, 7, 4, // top
-        0, 4, 1, 5, 2, 6, 3, 7, // verticals
+        0, 1, 1, 2, 2, 3, 3, 0,
+        4, 5, 5, 6, 6, 7, 7, 4,
+        0, 4, 1, 5, 2, 6, 3, 7,
     };
+    // clang-format on
     m_OutlineIndexCount = static_cast<uint32_t>(std::size(outlineEdges));
     m_OutlineVertexBuffer = renderer.CreateDeviceLocalBuffer(
         outlineCorners, sizeof(outlineCorners), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
@@ -297,27 +280,22 @@ WorldRenderer::WorldRenderer()
     outlineConfig.cullMode = VK_CULL_MODE_NONE;
     m_OutlinePipeline = std::make_unique<Pipeline>(outlineConfig);
 
-    // --- Crack overlay: a unit cube whose six faces each carry a full 0..1 UV. ---
+    // clang-format off
     const float breakVertices[] = {
-        // Front (z = 1)
         0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-        // Back (z = 0)
         1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-        // Left (x = 0)
         0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f,
         0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-        // Right (x = 1)
         1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-        // Bottom (y = 0)
         0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-        // Top (y = 1)
         0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
         1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
     };
+    // clang-format on
     uint32_t breakIndices[36];
     for (uint32_t face = 0; face < 6; face++) {
         const uint32_t v = face * 4;
@@ -336,7 +314,6 @@ WorldRenderer::WorldRenderer()
         breakIndices, sizeof(breakIndices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
     m_BreakTexture = std::make_unique<Texture2D>("assets/textures/destroy.png");
-    // The strip stacks square frames, so the count is its height over its width.
     const glm::ivec2& breakSize = m_BreakTexture->GetSize();
     if (breakSize.x > 0) {
         m_BreakFrameCount = breakSize.y / breakSize.x;
@@ -354,19 +331,19 @@ WorldRenderer::WorldRenderer()
     breakConfig.useTextureSet = true;
     breakConfig.cullMode = VK_CULL_MODE_NONE;
     breakConfig.depthWrite = false;
-    // Pull the cracks toward the camera so they sit on the block face without z-fighting.
     breakConfig.depthBias = true;
     breakConfig.depthBiasConstant = -1.0f;
     breakConfig.depthBiasSlope = -1.0f;
     m_BreakPipeline = std::make_unique<Pipeline>(breakConfig);
 
-    // --- Item-drop billboard: one quad (corner offset + uv), textured per draw. ---
+    // clang-format off
     const float itemVertices[] = {
         -0.5f, -0.5f, 0.0f, 0.0f,
         0.5f, -0.5f, 1.0f, 0.0f,
         0.5f, 0.5f, 1.0f, 1.0f,
         -0.5f, 0.5f, 0.0f, 1.0f,
     };
+    // clang-format on
     const uint32_t itemIndices[] = { 0, 1, 2, 0, 2, 3 };
     m_ItemIndexCount = static_cast<uint32_t>(std::size(itemIndices));
     m_ItemVertexBuffer = renderer.CreateDeviceLocalBuffer(
@@ -399,4 +376,4 @@ WorldRenderer::~WorldRenderer()
     renderer.DestroyBuffer(m_ItemIndexBuffer);
 }
 
-} // namespace Krafter
+}

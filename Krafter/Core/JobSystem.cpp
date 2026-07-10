@@ -53,4 +53,4 @@ void JobSystem::WorkerLoop()
     }
 }
 
-} // namespace Krafter
+}

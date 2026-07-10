@@ -11,8 +11,6 @@ public:
     void PushLayer(Layer* layer);
     void PushOverlay(Layer* layer);
 
-    // Removes a layer or overlay from the stack (does not delete it). Safe only
-    // outside iteration of the stack.
     void Remove(Layer* layer);
 
     inline std::vector<Layer*>::iterator begin()
@@ -54,4 +52,4 @@ private:
     size_t m_LayerPushIndex = 0;
 };
 
-} // namespace Krafter
+}

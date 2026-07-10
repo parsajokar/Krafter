@@ -78,8 +78,6 @@ public:
         return m_Delta;
     }
 
-    // Frames per second, averaged and refreshed a few times a second so the
-    // readout is steady rather than jumping with every frame's delta.
     inline float GetFps() const
     {
         return m_Fps;
@@ -98,7 +96,6 @@ private:
 
     EventCallback m_EventCallback;
 
-    // Windowed-mode position and size, saved so fullscreen can be toggled back.
     bool m_Fullscreen = false;
     glm::ivec2 m_WindowedPos = glm::ivec2(0);
     glm::ivec2 m_WindowedSize = glm::ivec2(0);
@@ -106,12 +103,10 @@ private:
     float m_LastFrameTime = 0.0f;
     float m_Delta = 0.0f;
 
-    // Smoothed FPS: frames and elapsed time are accumulated and the rate is
-    // recomputed every k_FpsUpdateInterval seconds.
     static constexpr float k_FpsUpdateInterval = 0.2f;
     float m_Fps = 0.0f;
     float m_FpsAccumTime = 0.0f;
     int32_t m_FpsFrameCount = 0;
 };
 
-} // namespace Krafter
+}

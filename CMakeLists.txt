@@ -101,7 +101,6 @@ target_sources(
     Krafter/Core/JobSystem.h
     Krafter/Core/JobSystem.cpp
     Krafter/Core/ResultQueue.h
-    Krafter/Core/Platform.h
     Krafter/Main.cpp
 )
 

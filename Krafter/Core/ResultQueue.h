@@ -8,9 +8,6 @@
 
 namespace Krafter {
 
-// A mutex-guarded queue for handing finished work from worker threads back to
-// the main thread. Producers Push; the consumer Drains everything (or a capped
-// batch, to spread expensive follow-up work across frames).
 template <typename T>
 class ResultQueue {
 public:
@@ -45,4 +42,4 @@ private:
     std::deque<T> m_Items;
 };
 
-} // namespace Krafter
+}

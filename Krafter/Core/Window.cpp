@@ -9,8 +9,6 @@ Window::Window()
     : m_Size(1280, 720)
 {
     glfwInit();
-    // No GL context: the Vulkan renderer creates a surface from this window and
-    // owns all device state itself.
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     m_Id = glfwCreateWindow(m_Size.x, m_Size.y, "Krafter", nullptr, nullptr);
 
@@ -49,7 +47,6 @@ void Window::PollEvents()
     m_Delta = currentFrameTime - m_LastFrameTime;
     m_LastFrameTime = currentFrameTime;
 
-    // Refresh the averaged FPS a few times a second so the readout stays legible.
     m_FpsAccumTime += m_Delta;
     m_FpsFrameCount++;
     if (m_FpsAccumTime >= k_FpsUpdateInterval) {
@@ -84,7 +81,6 @@ void Window::ToggleFullscreen()
         return;
     }
 
-    // Remember the windowed placement so it can be restored later.
     glfwGetWindowPos(m_Id, &m_WindowedPos.x, &m_WindowedPos.y);
     glfwGetWindowSize(m_Id, &m_WindowedSize.x, &m_WindowedSize.y);
 
@@ -100,9 +96,6 @@ void Window::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 
     self->m_Size.x = width;
     self->m_Size.y = height;
-
-    // The Vulkan renderer recreates its swapchain from the framebuffer size on
-    // the next frame; there is no GL viewport to update here.
 
     if (!self->m_EventCallback) {
         return;
@@ -180,4 +173,4 @@ void Window::ScrollCallback(GLFWwindow* window, double x, double y)
     self->m_EventCallback(event);
 }
 
-} // namespace Krafter
+}

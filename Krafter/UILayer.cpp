@@ -1,5 +1,5 @@
-#include "Krafter/Core/Event.h"
 #include "Krafter/UILayer.h"
+#include "Krafter/Core/Event.h"
 #include "Krafter/Core/Window.h"
 #include "Krafter/Renderer/UIRenderer.h"
 #include "Krafter/Renderer/Widgets.h"
@@ -34,7 +34,6 @@ void UILayer::OnEvent(Event& event)
         return;
     }
 
-    // Keys 1-9 select slots 1-9; 0 selects the tenth slot.
     if (event.key >= Key::k_1 && event.key <= Key::k_9) {
         m_Hotbar.SetSelected(static_cast<int>(event.key) - static_cast<int>(Key::k_1));
         event.handled = true;
@@ -46,7 +45,6 @@ void UILayer::OnEvent(Event& event)
 
 void UILayer::DrawCrosshair()
 {
-    // The crosshair art is the bottom-left 15x15 of the UI texture.
     constexpr glm::vec2 k_SpriteSize = glm::vec2(15.0f, 15.0f);
     constexpr float k_Scale = 2.0f;
 
@@ -54,18 +52,13 @@ void UILayer::DrawCrosshair()
     const glm::vec2 spritePos = glm::vec2(0.0f, texSize.y - k_SpriteSize.y);
 
     const glm::vec2 size = k_SpriteSize * k_Scale;
-    // Snap to the pixel grid: an odd size centres on a half-pixel, which blurs
-    // and visually shifts the sprite against the pixel-aligned hotbar.
     const glm::vec2 position = glm::floor(glm::vec2(m_Window.GetSize()) * 0.5f - size * 0.5f);
 
-    // Inverts the colours behind it so it stays visible on any background.
     m_Renderer.DrawSpriteInverted(m_UITexture, spritePos, k_SpriteSize, position, size);
 }
 
 void UILayer::DrawHotbar()
 {
-    // The slot box is a 22x22 sprite drawn at 2x; the sprites come from Widgets
-    // (DrawSlot/DrawSlotOutline), so only the source size is needed for layout.
     constexpr glm::vec2 k_SpriteSize = glm::vec2(22.0f, 22.0f);
     constexpr int k_SlotCount = Hotbar::k_SlotCount;
     constexpr float k_Spacing = 2.0f;
@@ -77,12 +70,9 @@ void UILayer::DrawHotbar()
     const float totalWidth = stride * k_SlotCount - k_Spacing * k_Scale;
 
     const glm::vec2 windowSize = glm::vec2(m_Window.GetSize());
-    // Snap to the pixel grid so the bar lines up with the crosshair above it.
     const float startX = glm::floor((windowSize.x - totalWidth) * 0.5f);
     const float y = glm::floor(windowSize.y - slotSize.y - k_Margin);
 
-    // Inset the icon so it sits inside the slot's border, then shrink it a touch
-    // more and re-centre so the art doesn't crowd the slot edges.
     constexpr float k_IconInset = 4.0f * k_Scale;
     constexpr float k_IconScale = 0.87f;
     const glm::vec2 insetSize = slotSize - 2.0f * k_IconInset;
@@ -94,8 +84,6 @@ void UILayer::DrawHotbar()
         DrawSlot(m_Renderer, m_UITexture, position, slotSize,
             glm::vec4(1.0f, 1.0f, 1.0f, k_UIOpacity));
 
-        // The selection outline sits behind the icon and count so the highlight
-        // frames the slot without painting over the stack number in its corner.
         if (i == m_Hotbar.GetSelected()) {
             DrawSlotOutline(m_Renderer, m_UITexture, position, slotSize);
         }
@@ -109,4 +97,4 @@ void UILayer::DrawHotbar()
     }
 }
 
-} // namespace Krafter
+}
