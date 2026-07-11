@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <set>
@@ -39,7 +40,7 @@ void Check(VkResult result, const char* what)
 {
     if (result != VK_SUCCESS) {
         std::cerr << "[VULKAN] " << what << " failed (" << result << ")" << std::endl;
-        assert(false);
+        std::abort();
     }
 }
 
@@ -213,7 +214,7 @@ void Renderer::CreateInstance()
 {
     if (k_EnableValidation && !ValidationLayersSupported()) {
         std::cerr << "[VULKAN] Validation layers requested but not available" << std::endl;
-        assert(false);
+        std::abort();
     }
 
     VkApplicationInfo appInfo = {};
@@ -279,7 +280,7 @@ void Renderer::PickPhysicalDevice()
     vkEnumeratePhysicalDevices(m_Instance, &count, nullptr);
     if (count == 0) {
         std::cerr << "[VULKAN] No Vulkan-capable GPU found" << std::endl;
-        assert(false);
+        std::abort();
     }
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(m_Instance, &count, devices.data());
@@ -344,7 +345,7 @@ void Renderer::PickPhysicalDevice()
     if (m_PhysicalDevice == VK_NULL_HANDLE) {
         if (fallback == VK_NULL_HANDLE) {
             std::cerr << "[VULKAN] No suitable GPU found" << std::endl;
-            assert(false);
+            std::abort();
         }
         m_PhysicalDevice = fallback;
     }
@@ -410,8 +411,7 @@ VkFormat Renderer::FindDepthFormat() const
         }
     }
     std::cerr << "[VULKAN] No supported depth format" << std::endl;
-    assert(false);
-    return VK_FORMAT_D32_SFLOAT;
+    std::abort();
 }
 
 void Renderer::CreateDepthResources()

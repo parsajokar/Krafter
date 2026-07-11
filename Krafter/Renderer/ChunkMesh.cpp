@@ -11,6 +11,8 @@
 
 namespace Krafter {
 
+namespace {
+
 struct FaceQuad {
     glm::vec3 origin;
     glm::vec3 dx;
@@ -18,7 +20,7 @@ struct FaceQuad {
     glm::vec3 normal;
 };
 
-static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
+FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
 {
     switch (face) {
     case BlockFace::k_Front:
@@ -36,9 +38,11 @@ static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
     }
 }
 
-static constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
+constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
 
-static constexpr int32_t k_VertexStride = 14;
+constexpr int32_t k_VertexStride = 14;
+
+}
 
 ChunkMeshData ChunkMesh::Compute(
     const std::array<const Chunk*, 9>& grid,

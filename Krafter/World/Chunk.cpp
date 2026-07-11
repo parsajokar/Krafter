@@ -1,8 +1,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <iostream>
 #include <limits>
 #include <vector>
 
@@ -16,16 +14,7 @@ namespace Krafter {
 
 namespace {
 
-int32_t FloorDiv(int32_t a, int32_t b)
-{
-    int32_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) {
-        q--;
-    }
-    return q;
-}
-
-static uint32_t s_WorldSeed = 0;
+uint32_t s_WorldSeed = 0;
 
 uint32_t Hash(int32_t x, int32_t z, uint32_t salt)
 {
@@ -45,14 +34,14 @@ void StoreWorldSeed(uint32_t seed)
     s_WorldSeed = seed;
 }
 
-static FastNoiseLite s_CaveNoiseA;
-static FastNoiseLite s_CaveNoiseB;
-static FastNoiseLite s_CavernNoise;
+FastNoiseLite s_CaveNoiseA;
+FastNoiseLite s_CaveNoiseB;
+FastNoiseLite s_CavernNoise;
 
-static FastNoiseLite s_AquiferLevelNoise;
-static FastNoiseLite s_AquiferMaskNoise;
+FastNoiseLite s_AquiferLevelNoise;
+FastNoiseLite s_AquiferMaskNoise;
 
-static FastNoiseLite s_EntranceNoise;
+FastNoiseLite s_EntranceNoise;
 
 constexpr int32_t k_AquiferBase = 48;
 constexpr int32_t k_AquiferSwing = 22;
@@ -694,16 +683,10 @@ void Chunk::SetSeed(uint32_t seed)
 
 Chunk::Chunk(const glm::ivec2& position)
     : m_Position(position)
+    , m_Blocks(k_Width * k_Width * k_Height, Block::k_Air)
+    , m_SkyLight(k_Width * k_Width * k_Height, 0)
+    , m_BlockLight(k_Width * k_Width * k_Height, 0)
 {
-    m_Blocks = new Block[k_Width * k_Width * k_Height];
-    memset(m_Blocks, 0, k_Width * k_Width * k_Height * sizeof(Block));
-
-    m_SkyLight = new uint8_t[k_Width * k_Width * k_Height];
-    memset(m_SkyLight, 0, k_Width * k_Width * k_Height * sizeof(uint8_t));
-
-    m_BlockLight = new uint8_t[k_Width * k_Width * k_Height];
-    memset(m_BlockLight, 0, k_Width * k_Width * k_Height * sizeof(uint8_t));
-
     for (int32_t x = 0; x < k_Width; x++) {
         for (int32_t z = 0; z < k_Width; z++) {
             const int32_t worldX = m_Position.x * k_Width + x;
@@ -750,39 +733,6 @@ Chunk::Chunk(const glm::ivec2& position)
     }
 
     ScatterPlants(*this, m_Position);
-}
-
-Chunk::Chunk(const Chunk& other)
-    : m_Position(other.m_Position)
-{
-    std::cout << "[CHUNK] Copying chunk at position (" << other.m_Position.x << ", " << other.m_Position.y << ")" << std::endl;
-
-    m_Blocks = new Block[k_Width * k_Width * k_Height];
-    m_SkyLight = new uint8_t[k_Width * k_Width * k_Height];
-    m_BlockLight = new uint8_t[k_Width * k_Width * k_Height];
-    for (uint32_t i = 0; i < k_Width * k_Width * k_Height; i++) {
-        m_Blocks[i] = other.m_Blocks[i];
-        m_SkyLight[i] = other.m_SkyLight[i];
-        m_BlockLight[i] = other.m_BlockLight[i];
-    }
-}
-
-Chunk::Chunk(Chunk&& other)
-    : m_Position(other.m_Position)
-    , m_Blocks(other.m_Blocks)
-    , m_SkyLight(other.m_SkyLight)
-    , m_BlockLight(other.m_BlockLight)
-{
-    other.m_Blocks = nullptr;
-    other.m_SkyLight = nullptr;
-    other.m_BlockLight = nullptr;
-}
-
-Chunk::~Chunk()
-{
-    delete[] m_Blocks;
-    delete[] m_SkyLight;
-    delete[] m_BlockLight;
 }
 
 const Block& Chunk::GetBlock(const glm::ivec3& coords) const

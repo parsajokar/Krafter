@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "glm/glm.hpp"
 
@@ -16,9 +17,6 @@ public:
     static constexpr int32_t k_SeaLevel = 63;
 
     Chunk(const glm::ivec2& position);
-    Chunk(const Chunk& other);
-    Chunk(Chunk&& other);
-    ~Chunk();
 
     static void SetSeed(uint32_t seed);
 
@@ -40,9 +38,9 @@ public:
 
 private:
     glm::ivec2 m_Position;
-    Block* m_Blocks;
-    uint8_t* m_SkyLight;
-    uint8_t* m_BlockLight;
+    std::vector<Block> m_Blocks;
+    std::vector<uint8_t> m_SkyLight;
+    std::vector<uint8_t> m_BlockLight;
 };
 
 }

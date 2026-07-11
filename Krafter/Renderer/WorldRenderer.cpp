@@ -15,18 +15,18 @@
 
 namespace Krafter {
 
-static constexpr int32_t k_WaterTileX = 112;
-static constexpr int32_t k_WaterTileY = 0;
-static constexpr int32_t k_WaterTileSize = 16;
-static constexpr double k_WaterFps = 12.0;
-
-static constexpr int32_t k_LavaTileX = 80;
-static constexpr int32_t k_LavaTileY = 0;
-static constexpr double k_LavaFps = 8.0;
-
-static constexpr uint32_t k_VertexStride = 14 * sizeof(float);
-
 namespace {
+
+constexpr int32_t k_WaterTileX = 112;
+constexpr int32_t k_WaterTileY = 0;
+constexpr int32_t k_WaterTileSize = 16;
+constexpr double k_WaterFps = 12.0;
+
+constexpr int32_t k_LavaTileX = 80;
+constexpr int32_t k_LavaTileY = 0;
+constexpr double k_LavaFps = 8.0;
+
+constexpr uint32_t k_VertexStride = 14 * sizeof(float);
 
 std::vector<VkVertexInputAttributeDescription> ChunkAttributes()
 {

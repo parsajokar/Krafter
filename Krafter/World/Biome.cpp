@@ -10,13 +10,57 @@
 
 namespace Krafter {
 
-static FastNoiseLite s_TemperatureNoise;
-static FastNoiseLite s_HumidityNoise;
-static FastNoiseLite s_ContinentNoise;
-static FastNoiseLite s_DetailNoise;
+namespace {
 
-static FastNoiseLite s_ErosionNoise;
-static FastNoiseLite s_WeirdnessNoise;
+FastNoiseLite s_TemperatureNoise;
+FastNoiseLite s_HumidityNoise;
+FastNoiseLite s_ContinentNoise;
+FastNoiseLite s_DetailNoise;
+
+FastNoiseLite s_ErosionNoise;
+FastNoiseLite s_WeirdnessNoise;
+
+float SmoothRamp(float value, float start, float end)
+{
+    float t = (value - start) / (end - start);
+    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+float Spline(float t, const float* xs, const float* ys, int count)
+{
+    if (t <= xs[0]) {
+        return ys[0];
+    }
+    for (int i = 1; i < count; i++) {
+        if (t <= xs[i]) {
+            const float u = (t - xs[i - 1]) / (xs[i] - xs[i - 1]);
+            return ys[i - 1] + (ys[i] - ys[i - 1]) * u;
+        }
+    }
+    return ys[count - 1];
+}
+
+float ContinentalBase(float c)
+{
+    static const float xs[] = { -1.0f, -0.45f, -0.20f, -0.05f, 0.10f, 0.40f, 1.0f };
+    static const float ys[] = { 18.0f, 40.0f, 58.0f, 63.0f, 70.0f, 82.0f, 92.0f };
+    return Spline(c, xs, ys, 7);
+}
+
+float ErosionRelief(float e)
+{
+    static const float xs[] = { -1.0f, -0.60f, -0.20f, 0.20f, 0.50f, 1.0f };
+    static const float ys[] = { 60.0f, 45.0f, 24.0f, 9.0f, 4.0f, 2.0f };
+    return Spline(e, xs, ys, 6);
+}
+
+float PeaksValleys(float w)
+{
+    return -(std::fabs(std::fabs(w) * 3.0f - 2.0f) - 1.0f);
+}
+
+}
 
 void Biome::Configure(int32_t seed)
 {
@@ -72,41 +116,6 @@ float Biome::Humidity(float worldX, float worldZ)
 float Biome::Continentalness(float worldX, float worldZ)
 {
     return s_ContinentNoise.GetNoise(worldX, worldZ);
-}
-
-static float SmoothRamp(float value, float start, float end);
-
-static float Spline(float t, const float* xs, const float* ys, int count)
-{
-    if (t <= xs[0]) {
-        return ys[0];
-    }
-    for (int i = 1; i < count; i++) {
-        if (t <= xs[i]) {
-            const float u = (t - xs[i - 1]) / (xs[i] - xs[i - 1]);
-            return ys[i - 1] + (ys[i] - ys[i - 1]) * u;
-        }
-    }
-    return ys[count - 1];
-}
-
-static float ContinentalBase(float c)
-{
-    static const float xs[] = { -1.0f, -0.45f, -0.20f, -0.05f, 0.10f, 0.40f, 1.0f };
-    static const float ys[] = { 18.0f, 40.0f, 58.0f, 63.0f, 70.0f, 82.0f, 92.0f };
-    return Spline(c, xs, ys, 7);
-}
-
-static float ErosionRelief(float e)
-{
-    static const float xs[] = { -1.0f, -0.60f, -0.20f, 0.20f, 0.50f, 1.0f };
-    static const float ys[] = { 60.0f, 45.0f, 24.0f, 9.0f, 4.0f, 2.0f };
-    return Spline(e, xs, ys, 6);
-}
-
-static float PeaksValleys(float w)
-{
-    return -(std::fabs(std::fabs(w) * 3.0f - 2.0f) - 1.0f);
 }
 
 int32_t Biome::SurfaceHeight(float worldX, float worldZ)
@@ -206,13 +215,6 @@ const Biome& Biome::Get(BiomeType type)
         std::cerr << "Biome is not defined!" << std::endl;
         throw e;
     }
-}
-
-static float SmoothRamp(float value, float start, float end)
-{
-    float t = (value - start) / (end - start);
-    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-    return t * t * (3.0f - 2.0f * t);
 }
 
 BiomeType Biome::Select(float temperature, float humidity, float continentalness)

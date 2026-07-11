@@ -31,7 +31,8 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
     m_LastCameraPosition = cameraPosition;
     UpdateDrops(deltaTime, cameraPosition);
 
-    glm::ivec2 origin = glm::ivec2(cameraPosition.x, cameraPosition.z) / Chunk::k_Width;
+    glm::ivec2 origin = ToChunkPosition(
+        glm::ivec3(glm::floor(cameraPosition.x), 0, glm::floor(cameraPosition.z)));
 
     for (int32_t x = -m_RenderDistance - 2; x <= m_RenderDistance + 2; x++) {
         for (int32_t z = -m_RenderDistance - 2; z <= m_RenderDistance + 2; z++) {

@@ -3,44 +3,31 @@
 
 #include "glm/glm.hpp"
 
+#include "Krafter/World/Coords.h"
 #include "Krafter/World/Lighting.h"
 
 namespace Krafter {
 
-static constexpr int32_t k_Width = Chunk::k_Width;
-static constexpr int32_t k_Height = Chunk::k_Height;
-static constexpr int32_t k_Max = Chunk::k_MaxLight;
+namespace {
 
-static constexpr int32_t k_Lo = -k_Width;
-static constexpr int32_t k_Hi = 2 * k_Width - 1;
-static constexpr int32_t k_Span = 3 * k_Width;
+constexpr int32_t k_Width = Chunk::k_Width;
+constexpr int32_t k_Height = Chunk::k_Height;
+constexpr int32_t k_Max = Chunk::k_MaxLight;
 
-static constexpr int32_t Index(int32_t x, int32_t y, int32_t z)
+constexpr int32_t k_Lo = -k_Width;
+constexpr int32_t k_Hi = 2 * k_Width - 1;
+constexpr int32_t k_Span = 3 * k_Width;
+
+constexpr int32_t Index(int32_t x, int32_t y, int32_t z)
 {
     return (y * k_Span * k_Span) + ((z + k_Width) * k_Span) + (x + k_Width);
 }
 
-static constexpr int32_t ColumnIndex(int32_t x, int32_t z)
+constexpr int32_t ColumnIndex(int32_t x, int32_t z)
 {
     return ((z + k_Width) * k_Span) + (x + k_Width);
 }
 
-static constexpr int32_t FloorDiv(int32_t a, int32_t b)
-{
-    int32_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) {
-        q--;
-    }
-    return q;
-}
-
-static constexpr int32_t FloorMod(int32_t a, int32_t b)
-{
-    int32_t r = a % b;
-    if (r != 0 && (r < 0) != (b < 0)) {
-        r += b;
-    }
-    return r;
 }
 
 void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
