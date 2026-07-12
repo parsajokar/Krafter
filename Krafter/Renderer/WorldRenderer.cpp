@@ -20,11 +20,9 @@ namespace {
 constexpr int32_t k_WaterTileX = 112;
 constexpr int32_t k_WaterTileY = 0;
 constexpr int32_t k_WaterTileSize = 16;
-constexpr double k_WaterFps = 12.0;
 
 constexpr int32_t k_LavaTileX = 80;
 constexpr int32_t k_LavaTileY = 0;
-constexpr double k_LavaFps = 8.0;
 
 constexpr uint32_t k_VertexStride = 14 * sizeof(float);
 
@@ -132,7 +130,7 @@ void WorldRenderer::AnimateWater()
     if (m_WaterFrameCount <= 0) {
         return;
     }
-    const int32_t frame = static_cast<int32_t>(glfwGetTime() * k_WaterFps) % m_WaterFrameCount;
+    const int32_t frame = static_cast<int32_t>(glfwGetTime() * m_WaterFps) % m_WaterFrameCount;
     if (frame == m_WaterFrame) {
         return;
     }
@@ -147,7 +145,7 @@ void WorldRenderer::AnimateLava()
     if (m_LavaFrameCount <= 0) {
         return;
     }
-    const int32_t frame = static_cast<int32_t>(glfwGetTime() * k_LavaFps) % m_LavaFrameCount;
+    const int32_t frame = static_cast<int32_t>(glfwGetTime() * m_LavaFps) % m_LavaFrameCount;
     if (frame == m_LavaFrame) {
         return;
     }
@@ -216,7 +214,10 @@ void WorldRenderer::RenderItemDrop(
 
 void WorldRenderer::RenderImGui()
 {
+    ImGui::Text("World Renderer");
     ImGui::SliderFloat("Deep Water Opacity", &m_WaterOpacity, 0.0f, 1.0f);
+    ImGui::SliderFloat("Water Anim FPS", &m_WaterFps, 0.0f, 30.0f);
+    ImGui::SliderFloat("Lava Anim FPS", &m_LavaFps, 0.0f, 30.0f);
 }
 
 WorldRenderer::WorldRenderer()

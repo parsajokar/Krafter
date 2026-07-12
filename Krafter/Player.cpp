@@ -47,7 +47,7 @@ void Player::Update()
         m_PlaceCooldown -= m_Window.GetDelta();
         if (m_PlaceCooldown <= 0.0f) {
             PlaceTargetBlock();
-            m_PlaceCooldown = k_PlaceInterval;
+            m_PlaceCooldown = m_PlaceInterval;
         }
     }
 }
@@ -90,11 +90,11 @@ void Player::UpdateSurvival()
     const glm::vec3 horizontal = wish * m_Speed;
 
     if (m_JumpHeld && m_OnGround) {
-        m_VerticalVelocity = k_JumpSpeed;
+        m_VerticalVelocity = m_JumpSpeed;
         m_OnGround = false;
     }
 
-    m_VerticalVelocity = glm::max(m_VerticalVelocity - k_Gravity * delta, -k_TerminalSpeed);
+    m_VerticalVelocity = glm::max(m_VerticalVelocity - m_Gravity * delta, -m_TerminalSpeed);
 
     position.x += horizontal.x * delta;
     if (CollidesAt(position)) {
@@ -119,9 +119,9 @@ void Player::UpdateSurvival()
 
 void Player::BodyCellBounds(const glm::vec3& eye, glm::ivec3& outLo, glm::ivec3& outHi) const
 {
-    const float half = k_Width * 0.5f;
-    const glm::vec3 min = eye - glm::vec3(half, k_EyeHeight, half);
-    const glm::vec3 max = eye + glm::vec3(half, k_Height - k_EyeHeight, half);
+    const float half = m_Width * 0.5f;
+    const glm::vec3 min = eye - glm::vec3(half, m_EyeHeight, half);
+    const glm::vec3 max = eye + glm::vec3(half, m_Height - m_EyeHeight, half);
     outLo = glm::ivec3(glm::floor(min));
     outHi = glm::ivec3(glm::floor(max));
 }
@@ -157,7 +157,7 @@ bool Player::OccupiesCell(const glm::ivec3& cell) const
 
 bool Player::RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const
 {
-    return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
+    return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), m_Reach, hit, before);
 }
 
 void Player::UpdateBreaking()
@@ -277,7 +277,7 @@ void Player::OnEvent(Event& event)
     if (event.button == MouseButton::k_Right) {
         if (event.type == EventType::k_MouseButtonPressed) {
             m_PlaceHeld = true;
-            m_PlaceCooldown = k_PlaceInterval;
+            m_PlaceCooldown = m_PlaceInterval;
             PlaceTargetBlock();
             event.handled = true;
             return;
@@ -365,6 +365,7 @@ void Player::OnEvent(Event& event)
 
 void Player::RenderImGui()
 {
+    ImGui::Text("Player");
     ImGui::SliderFloat("Movement Speed", &m_Speed, 1.0f, 100.0f);
     ImGui::SliderFloat("Mouse Sensitivity", &m_Sensitivity, 1.0f, 100.0f);
 
@@ -372,6 +373,23 @@ void Player::RenderImGui()
     if (ImGui::SliderFloat("Field of View", &fov, 30.0f, 110.0f)) {
         m_Camera.SetFieldOfView(glm::radians(fov));
     }
+    ImGui::SliderFloat("Reach", &m_Reach, 1.0f, 32.0f);
+    ImGui::SliderFloat("Place Interval", &m_PlaceInterval, 0.0f, 1.0f, "%.2fs");
+
+    if (ImGui::TreeNode("Physics")) {
+        ImGui::SliderFloat("Gravity", &m_Gravity, 0.0f, 100.0f);
+        ImGui::SliderFloat("Jump Speed", &m_JumpSpeed, 0.0f, 30.0f);
+        ImGui::SliderFloat("Terminal Speed", &m_TerminalSpeed, 1.0f, 200.0f);
+        ImGui::TreePop();
+    }
+
+    if (ImGui::TreeNode("Collision Box")) {
+        ImGui::SliderFloat("Width", &m_Width, 0.1f, 2.0f);
+        ImGui::SliderFloat("Height", &m_Height, 0.5f, 4.0f);
+        ImGui::SliderFloat("Eye Height", &m_EyeHeight, 0.1f, m_Height);
+        ImGui::TreePop();
+    }
+
     ImGui::Text("Yaw: %.2f, Pitch: %.2f", glm::degrees(m_Camera.GetYaw()), glm::degrees(m_Camera.GetPitch()));
 
     const glm::vec3 position = m_Camera.GetPosition();

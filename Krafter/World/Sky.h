@@ -33,6 +33,7 @@ public:
 
 private:
     static constexpr float k_BaseDayLengthSeconds = 600.0f;
+    bool m_Manual = false;
     float m_Speed = 1.0f;
     float m_TimeOfDay = 0.2f;
 

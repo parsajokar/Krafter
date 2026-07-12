@@ -1,12 +1,9 @@
-#include <algorithm>
-#include <cmath>
 #include <limits>
 #include <vector>
 
 #include "imgui.h"
 
 #include "Krafter/Renderer/WorldRenderer.h"
-#include "Krafter/World/Biome.h"
 #include "Krafter/World/Coords.h"
 #include "Krafter/World/Lighting.h"
 #include "Krafter/World/Sky.h"
@@ -15,21 +12,20 @@
 namespace Krafter {
 
 World::World(int32_t seed)
+    : m_Generator(seed)
+    , m_FallingSystem(*this)
+    , m_DropSystem(*this)
 {
-    Biome::Configure(seed);
-    Chunk::SetSeed(static_cast<uint32_t>(seed));
 }
 
 World::~World() = default;
 
 void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 {
-    DrainResults();
-    UpdateFallingBlocks(deltaTime);
+    DrainResults(deltaTime);
+    m_FallingSystem.Update(deltaTime);
 
-    m_Time += deltaTime;
-    m_LastCameraPosition = cameraPosition;
-    UpdateDrops(deltaTime, cameraPosition);
+    m_DropSystem.Update(deltaTime, cameraPosition);
 
     glm::ivec2 origin = ToChunkPosition(
         glm::ivec3(glm::floor(cameraPosition.x), 0, glm::floor(cameraPosition.z)));
@@ -44,9 +40,10 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
                 continue;
             }
             m_PendingTerrain.insert(position);
-            m_JobSystem.Dispatch([this, position] {
+            m_JobSystem.Dispatch([this, position, gen = m_Generation] {
                 auto chunk = std::make_shared<Chunk>(position);
-                m_TerrainResults.Push({ position, std::move(chunk) });
+                m_Generator.Generate(*chunk, position);
+                m_TerrainResults.Push({ position, std::move(chunk), gen });
             });
         }
     }
@@ -66,11 +63,11 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
             }
 
             m_PendingLight.insert(position);
-            m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
+            m_JobSystem.Dispatch([this, position, gen = m_Generation, grid = Gather3x3(position)] {
                 const std::array<const Chunk*, 9> pointers = AsPointers(grid);
                 ComputeSkyLight(*grid[4], pointers);
                 ComputeBlockLight(*grid[4], pointers);
-                m_LightResults.Push(position);
+                m_LightResults.Push({ position, gen });
             });
         }
     }
@@ -90,16 +87,23 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
             }
 
             m_PendingMesh.insert(position);
-            m_JobSystem.Dispatch([this, position, grid = Gather3x3(position)] {
+            m_JobSystem.Dispatch([this, position, gen = m_Generation, grid = Gather3x3(position)] {
                 ChunkMeshData data = ChunkMesh::Compute(AsPointers(grid), position);
-                m_MeshResults.Push({ position, std::make_unique<ChunkMesh>(data) });
+                m_MeshResults.Push({ position, std::make_unique<ChunkMesh>(data), gen });
             });
         }
     }
 
-    for (auto it = m_Chunks.begin(); it != m_Chunks.end();) {
+    m_RemovalCredit += m_ChunkRemovalsPerSecond * deltaTime;
+    int32_t removalBudget = static_cast<int32_t>(m_RemovalCredit);
+    m_RemovalCredit -= static_cast<float>(removalBudget);
+
+    int32_t removed = 0;
+    for (auto it = m_Chunks.begin();
+         it != m_Chunks.end() && removed < removalBudget;) {
         if (!IsInRadius(it->first, origin, m_RenderDistance + 2)) {
             it = m_Chunks.erase(it);
+            removed++;
         } else {
             ++it;
         }
@@ -116,22 +120,7 @@ void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, con
     }
     renderer.SetCullFace(false);
 
-    constexpr glm::vec3 k_WorldUp(0.0f, 1.0f, 0.0f);
-    for (const ItemDrop& drop : m_Drops) {
-        glm::vec3 center = drop.position;
-        center.y += std::sin((m_Time + drop.phase) * k_DropBobSpeed) * k_DropBobAmplitude;
-
-        const glm::vec3 toEye = m_LastCameraPosition - center;
-        if (glm::dot(toEye, toEye) < 1e-6f) {
-            continue;
-        }
-        const glm::vec3 forward = glm::normalize(toEye);
-        const glm::vec3 right = glm::normalize(glm::cross(k_WorldUp, forward));
-        const glm::vec3 up = glm::cross(forward, right);
-
-        renderer.RenderItemDrop(
-            center, right * k_DropSize, up * k_DropSize, BlockIconTile(drop.block), viewProjection);
-    }
+    m_DropSystem.Render(renderer, viewProjection);
 
     for (const auto& [position, record] : m_Chunks) {
         if (record.mesh) {
@@ -152,10 +141,25 @@ void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, con
 
 void World::RenderImGui()
 {
-    ImGui::InputInt("Render Distance", &m_RenderDistance);
-    ImGui::InputInt("Max Mesh Uploads Per Frame", &m_MaxMeshUploadsPerFrame);
+    ImGui::Text("World");
+    ImGui::SliderInt("Render Distance", &m_RenderDistance, 1, 32);
+    ImGui::SliderFloat("Chunk Uploads / sec", &m_ChunkUploadsPerSecond, 1.0f, 2000.0f, "%.0f");
+    ImGui::SliderFloat("Chunk Removals / sec", &m_ChunkRemovalsPerSecond, 1.0f, 2000.0f, "%.0f");
+    if (ImGui::Button("Reload Chunks")) {
+        Reload();
+    }
+
+    size_t meshed = 0;
+    for (const auto& [position, record] : m_Chunks) {
+        if (record.state == ChunkState::k_MeshReady) {
+            meshed++;
+        }
+    }
+
     ImGui::Text("Workers: %zu", m_JobSystem.WorkerCount());
-    ImGui::Text("Chunks: %zu", m_Chunks.size());
+    ImGui::Text("Chunks: %zu (meshed %zu)", m_Chunks.size(), meshed);
+    ImGui::Text("Pending: terrain %zu, light %zu, mesh %zu",
+        m_PendingTerrain.size(), m_PendingLight.size(), m_PendingMesh.size());
 }
 
 Block World::GetBlock(const glm::ivec3& worldPosition) const
@@ -191,8 +195,9 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     }
 
     Chunk& chunk = *it->second.chunk;
-    const Block previous = chunk.GetBlock(ToLocalPosition(worldPosition));
-    chunk.SetBlock(ToLocalPosition(worldPosition), block);
+    const glm::ivec3 localPosition = ToLocalPosition(worldPosition);
+    const Block previous = chunk.GetBlock(localPosition);
+    chunk.SetBlock(localPosition, block);
 
     std::vector<glm::ivec3> topplingCactus;
     for (int32_t y = worldPosition.y + 1; y < Chunk::k_Height; y++) {
@@ -203,7 +208,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
             break;
         }
         const glm::ivec3 below = cell - glm::ivec3(0, 1, 0);
-        const bool belowToppling = m_Falling.count(below)
+        const bool belowToppling = m_FallingSystem.IsFalling(below)
             || (!topplingCactus.empty() && topplingCactus.back() == below);
         if (IsOpaque(chunk.GetBlock(ToLocalPosition(below))) && !belowToppling) {
             break;
@@ -214,7 +219,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
             chunk.SetBlock(local, Block::k_Air);
         }
     }
-    ScheduleFall(topplingCactus, worldPosition);
+    m_FallingSystem.Schedule(topplingCactus, worldPosition);
 
     if (IsOpaque(block)) {
         for (const glm::ivec3& side : k_HorizontalNeighbors) {
@@ -269,7 +274,7 @@ void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
     };
 
     auto isStanding = [this](const glm::ivec3& cell) {
-        return IsNaturalTreePart(GetBlock(cell)) && !m_Falling.count(cell);
+        return IsNaturalTreePart(GetBlock(cell)) && !m_FallingSystem.IsFalling(cell);
     };
 
     std::unordered_set<glm::ivec3> visited;
@@ -317,129 +322,7 @@ void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
         floating.insert(floating.end(), component.begin(), component.end());
     }
 
-    ScheduleFall(floating, brokenPosition);
-}
-
-void World::ScheduleFall(const std::vector<glm::ivec3>& cells, const glm::ivec3& origin)
-{
-    for (const glm::ivec3& cell : cells) {
-        if (!m_Falling.insert(cell).second) {
-            continue;
-        }
-        const glm::ivec3 d = glm::abs(cell - origin);
-        const int32_t dist = std::max({ d.x, d.y, d.z });
-        m_FallingBlocks.push_back({ cell, static_cast<float>(dist) * k_FallStep });
-    }
-}
-
-void World::UpdateFallingBlocks(float deltaTime)
-{
-    if (m_FallingBlocks.empty()) {
-        return;
-    }
-
-    std::unordered_set<glm::ivec2> touchedChunks;
-
-    for (size_t i = 0; i < m_FallingBlocks.size();) {
-        FallingBlock& falling = m_FallingBlocks[i];
-        falling.delay -= deltaTime;
-        if (falling.delay > 0.0f) {
-            i++;
-            continue;
-        }
-
-        const glm::ivec3 cell = falling.cell;
-        const glm::ivec2 cellChunk = ToChunkPosition(cell);
-        auto it = m_Chunks.find(cellChunk);
-
-        const bool unloaded = it == m_Chunks.end() || !it->second.chunk;
-        if (!unloaded && !CanEdit(cellChunk)) {
-            i++;
-            continue;
-        }
-        if (!unloaded) {
-            const Block here = it->second.chunk->GetBlock(ToLocalPosition(cell));
-            if (IsNaturalTreePart(here) || here == Block::k_Cactus) {
-                it->second.chunk->SetBlock(ToLocalPosition(cell), Block::k_Air);
-                touchedChunks.insert(cellChunk);
-
-                SpawnDrop(glm::vec3(cell) + 0.5f, DropFor(here));
-            }
-        }
-
-        m_Falling.erase(cell);
-        m_FallingBlocks[i] = m_FallingBlocks.back();
-        m_FallingBlocks.pop_back();
-    }
-
-    for (const glm::ivec2& chunkPosition : touchedChunks) {
-        for (int32_t dz = -1; dz <= 1; dz++) {
-            for (int32_t dx = -1; dx <= 1; dx++) {
-                InvalidateChunk(chunkPosition + glm::ivec2(dx, dz));
-            }
-        }
-    }
-}
-
-void World::SpawnDrop(const glm::vec3& position, Block block)
-{
-    if (block == Block::k_Air) {
-        return;
-    }
-
-    const float angle = static_cast<float>(m_Drops.size()) * 2.39996323f;
-    const glm::vec3 velocity(
-        std::cos(angle) * k_DropPopOut, k_DropPopUp, std::sin(angle) * k_DropPopOut);
-    m_Drops.push_back({ position, velocity, block, 0.0f, angle });
-}
-
-void World::UpdateDrops(float deltaTime, const glm::vec3& cameraPosition)
-{
-    for (size_t i = 0; i < m_Drops.size();) {
-        ItemDrop& drop = m_Drops[i];
-        drop.age += deltaTime;
-
-        const glm::vec3 target = cameraPosition - glm::vec3(0.0f, k_PlayerEyeHeight, 0.0f);
-        const glm::vec3 toTarget = target - drop.position;
-        const float distSq = glm::dot(toTarget, toTarget);
-
-        if (drop.age >= k_PickupDelay && distSq <= k_AttractRadius * k_AttractRadius) {
-            if (distSq <= k_PickupRadius * k_PickupRadius) {
-                m_PendingDrops.push_back(drop.block);
-                m_Drops[i] = m_Drops.back();
-                m_Drops.pop_back();
-                continue;
-            }
-
-            const float dist = std::sqrt(distSq);
-            const float closeness = 1.0f - dist / k_AttractRadius;
-            const float speed = glm::mix(k_AttractMinSpeed, k_AttractMaxSpeed, closeness);
-            const float step = std::min(speed * deltaTime, dist);
-            drop.position += (toTarget / dist) * step;
-            drop.velocity = glm::vec3(0.0f);
-            i++;
-            continue;
-        }
-
-        drop.velocity.y -= k_DropGravity * deltaTime;
-        drop.position += drop.velocity * deltaTime;
-
-        const float feetY = drop.position.y - k_DropHalfHeight;
-        const glm::ivec3 ground = glm::ivec3(glm::floor(
-            glm::vec3(drop.position.x, feetY - 0.05f, drop.position.z)));
-        if (drop.velocity.y <= 0.0f && IsOpaque(GetBlock(ground))) {
-            drop.position.y = static_cast<float>(ground.y) + 1.0f + k_DropHalfHeight;
-            drop.velocity = glm::vec3(0.0f);
-        }
-
-        if (drop.age >= k_DropLifetime || drop.position.y < k_DropVoidY) {
-            m_Drops[i] = m_Drops.back();
-            m_Drops.pop_back();
-            continue;
-        }
-
-        i++;
-    }
+    m_FallingSystem.Schedule(floating, brokenPosition);
 }
 
 void World::BreakCactusColumn(const glm::ivec3& worldPosition)
@@ -452,7 +335,7 @@ void World::BreakCactusColumn(const glm::ivec3& worldPosition)
         }
         column.push_back(cell);
     }
-    ScheduleFall(column, worldPosition);
+    m_FallingSystem.Schedule(column, worldPosition);
 }
 
 void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
@@ -556,23 +439,34 @@ std::array<const Chunk*, 9> World::AsPointers(const std::array<std::shared_ptr<C
     return pointers;
 }
 
-void World::DrainResults()
+void World::DrainResults(float deltaTime)
 {
     for (auto& result : m_TerrainResults.Drain()) {
+        if (result.generation != m_Generation) {
+            continue;
+        }
         m_PendingTerrain.erase(result.position);
         m_Chunks.try_emplace(result.position, std::move(result.chunk), ChunkState::k_TerrainReady);
     }
 
-    for (const auto& position : m_LightResults.Drain()) {
-        m_PendingLight.erase(position);
-        auto it = m_Chunks.find(position);
+    for (const auto& result : m_LightResults.Drain()) {
+        if (result.generation != m_Generation) {
+            continue;
+        }
+        m_PendingLight.erase(result.position);
+        auto it = m_Chunks.find(result.position);
         if (it != m_Chunks.end() && it->second.state == ChunkState::k_TerrainReady) {
             it->second.state = ChunkState::k_LightReady;
         }
     }
 
-    size_t meshBudget = static_cast<size_t>(std::max(m_MaxMeshUploadsPerFrame, 0));
+    m_UploadCredit += m_ChunkUploadsPerSecond * deltaTime;
+    const size_t meshBudget = static_cast<size_t>(m_UploadCredit);
+    m_UploadCredit -= static_cast<float>(meshBudget);
     for (auto& result : m_MeshResults.DrainUpTo(meshBudget)) {
+        if (result.generation != m_Generation) {
+            continue;
+        }
         m_PendingMesh.erase(result.position);
         auto it = m_Chunks.find(result.position);
         if (it == m_Chunks.end()) {
@@ -581,6 +475,18 @@ void World::DrainResults()
         it->second.mesh = std::move(result.mesh);
         it->second.state = ChunkState::k_MeshReady;
     }
+}
+
+void World::Reload()
+{
+    // Bump the epoch so any in-flight jobs from the previous epoch are discarded
+    // when their results drain, then clear all loaded and pending chunks. The
+    // regeneration is re-requested by the next Update.
+    m_Generation++;
+    m_Chunks.clear();
+    m_PendingTerrain.clear();
+    m_PendingLight.clear();
+    m_PendingMesh.clear();
 }
 
 void World::InvalidateChunk(const glm::ivec2& chunkPosition)

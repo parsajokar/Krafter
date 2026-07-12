@@ -10,6 +10,10 @@ namespace Krafter {
 
 void Sky::Update(float delta)
 {
+    if (m_Manual) {
+        return;
+    }
+
     m_TimeOfDay += delta * m_Speed / k_BaseDayLengthSeconds;
     m_TimeOfDay -= std::floor(m_TimeOfDay);
 
@@ -39,11 +43,19 @@ void Sky::Update(float delta)
 
 void Sky::RenderImGui()
 {
-    ImGui::Text("Sky:");
+    ImGui::Text("Sky");
+    ImGui::Checkbox("Manual (pose lighting)", &m_Manual);
     ImGui::SliderFloat("Time of Day", &m_TimeOfDay, 0.0f, 1.0f);
     ImGui::SliderFloat("Day Speed", &m_Speed, 0.0f, 100.0f, "%.2fx");
-    ImGui::Text("Sun Color: %.2f %.2f %.2f", m_SunColor.r, m_SunColor.g, m_SunColor.b);
-    ImGui::Text("Ambient:   %.2f %.2f %.2f", m_AmbientColor.r, m_AmbientColor.g, m_AmbientColor.b);
+    if (m_Manual) {
+        ImGui::ColorEdit3("Sky Color", &m_Color.x);
+        ImGui::ColorEdit3("Sun Color", &m_SunColor.x);
+        ImGui::ColorEdit3("Ambient Color", &m_AmbientColor.x);
+        ImGui::SliderFloat3("Sun Direction", &m_SunDirection.x, -1.0f, 1.0f);
+    } else {
+        ImGui::Text("Sun Color: %.2f %.2f %.2f", m_SunColor.r, m_SunColor.g, m_SunColor.b);
+        ImGui::Text("Ambient:   %.2f %.2f %.2f", m_AmbientColor.r, m_AmbientColor.g, m_AmbientColor.b);
+    }
 }
 
 }

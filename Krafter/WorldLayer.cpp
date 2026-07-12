@@ -84,7 +84,6 @@ void WorldLayer::OnRenderImGui()
     const glm::vec3 position = m_Player.GetPosition();
     ImGui::Text("Current Biome: %s", Biome::Name(Biome::At(position.x, position.z)));
 
-    m_Renderer.RenderImGui();
     m_WorldRenderer.RenderImGui();
     m_Sky.RenderImGui();
     m_Player.RenderImGui();

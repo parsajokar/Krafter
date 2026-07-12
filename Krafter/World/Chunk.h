@@ -18,8 +18,6 @@ public:
 
     Chunk(const glm::ivec2& position);
 
-    static void SetSeed(uint32_t seed);
-
     inline const glm::ivec2& GetPosition() const
     {
         return m_Position;

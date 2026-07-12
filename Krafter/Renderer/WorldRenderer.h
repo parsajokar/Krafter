@@ -88,6 +88,8 @@ private:
     ChunkPush MakeChunkPush(const glm::mat4& viewProjection, const Sky& sky, float alphaScale, float isWater) const;
 
     float m_WaterOpacity = 0.95f;
+    float m_WaterFps = 12.0f;
+    float m_LavaFps = 8.0f;
 
     std::unique_ptr<Texture2D> m_Texture;
 

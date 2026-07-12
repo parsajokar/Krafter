@@ -61,17 +61,22 @@ inline constexpr bool HasTool(ToolType set, ToolType tool)
     return tool != ToolType::k_None && (set & tool) != ToolType::k_None;
 }
 
+enum class BlockCategory {
+    k_None,
+    k_Log,
+    k_Wood,
+    k_Planks,
+    k_Leaves,
+    k_Plant,
+};
+
 struct BlockInfo {
     Block id = Block::k_Air;
 
     bool opaque = false;
     bool cutout = false;
-    bool plant = false;
 
-    bool log = false;
-    bool wood = false;
-    bool planks = false;
-    bool leaves = false;
+    BlockCategory category = BlockCategory::k_None;
 
     float breakSeconds = 0.75f;
     Block drop = Block::k_Air;
@@ -86,26 +91,26 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_Grass, .opaque = true, .drop = Block::k_Dirt, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Sand, .opaque = true, .drop = Block::k_Sand, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Water },
-    { .id = Block::k_OakLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_OakLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaLog, .opaque = true, .log = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaLeaves, .opaque = true, .cutout = true, .leaves = true, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_OakWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaWood, .opaque = true, .wood = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_ShortGrass, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
-    { .id = Block::k_Fern, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
-    { .id = Block::k_DeadBush, .plant = true, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_OakLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_ShortGrass, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_Fern, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_DeadBush, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Cactus, .opaque = true, .cutout = true, .breakSeconds = 0.5f, .drop = Block::k_Cactus, .harvest = ToolType::k_Axe },
-    { .id = Block::k_OakPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaPlanks, .opaque = true, .planks = true, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_Stone, .opaque = true, .breakSeconds = 1.5f, .drop = Block::k_Stone, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Bedrock, .opaque = true, .harvest = ToolType::k_None },
     { .id = Block::k_Lava, .opaque = true, .harvest = ToolType::k_None, .emission = 15 },
-    { .id = Block::k_Torch, .plant = true, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
+    { .id = Block::k_Torch, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
 } };
 
 constexpr bool BlockInfoTableInOrder()
@@ -124,23 +129,24 @@ inline constexpr const BlockInfo& BlockInfoOf(Block block)
     return k_BlockInfo[static_cast<size_t>(block)];
 }
 
-inline constexpr bool IsLog(Block block) { return BlockInfoOf(block).log; }
-inline constexpr bool IsWood(Block block) { return BlockInfoOf(block).wood; }
-inline constexpr bool IsPlanks(Block block) { return BlockInfoOf(block).planks; }
-inline constexpr bool IsLeaves(Block block) { return BlockInfoOf(block).leaves; }
+inline constexpr bool IsLog(Block block) { return BlockInfoOf(block).category == BlockCategory::k_Log; }
+inline constexpr bool IsWood(Block block) { return BlockInfoOf(block).category == BlockCategory::k_Wood; }
+inline constexpr bool IsPlanks(Block block) { return BlockInfoOf(block).category == BlockCategory::k_Planks; }
+inline constexpr bool IsLeaves(Block block) { return BlockInfoOf(block).category == BlockCategory::k_Leaves; }
 
-inline constexpr bool IsPlant(Block block) { return BlockInfoOf(block).plant; }
+inline constexpr bool IsPlant(Block block) { return BlockInfoOf(block).category == BlockCategory::k_Plant; }
 
 inline constexpr bool IsTreePart(Block block)
 {
-    const BlockInfo& info = BlockInfoOf(block);
-    return info.log || info.wood || info.leaves;
+    const BlockCategory category = BlockInfoOf(block).category;
+    return category == BlockCategory::k_Log || category == BlockCategory::k_Wood
+        || category == BlockCategory::k_Leaves;
 }
 
 inline constexpr bool IsNaturalTreePart(Block block)
 {
-    const BlockInfo& info = BlockInfoOf(block);
-    return info.wood || info.leaves;
+    const BlockCategory category = BlockInfoOf(block).category;
+    return category == BlockCategory::k_Wood || category == BlockCategory::k_Leaves;
 }
 
 inline constexpr bool IsOpaque(Block block) { return BlockInfoOf(block).opaque; }
@@ -149,8 +155,7 @@ inline constexpr bool IsCutout(Block block) { return BlockInfoOf(block).cutout; 
 
 inline constexpr bool IsTargetable(Block block)
 {
-    const BlockInfo& info = BlockInfoOf(block);
-    return info.opaque || info.plant;
+    return IsOpaque(block) || IsPlant(block);
 }
 
 inline constexpr float BreakSeconds(Block block) { return BlockInfoOf(block).breakSeconds; }

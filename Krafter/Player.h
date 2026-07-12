@@ -83,19 +83,17 @@ private:
 
     void PlaceTargetBlock();
 
-    static constexpr float k_Reach = 8.0f;
-
-    static constexpr float k_Width = 0.6f;
-    static constexpr float k_Height = 1.8f;
-    static constexpr float k_EyeHeight = 1.62f;
-    static constexpr float k_Gravity = 36.0f;
-    static constexpr float k_JumpSpeed = 9.0f;
-    static constexpr float k_TerminalSpeed = 60.0f;
-
     static constexpr float k_DefaultFlySpeed = 50.0f;
     static constexpr float k_DefaultWalkSpeed = 5.6f;
 
-    static constexpr float k_PlaceInterval = 0.2f;
+    float m_Reach = 8.0f;
+    float m_Width = 0.6f;
+    float m_Height = 1.8f;
+    float m_EyeHeight = 1.62f;
+    float m_Gravity = 36.0f;
+    float m_JumpSpeed = 9.0f;
+    float m_TerminalSpeed = 60.0f;
+    float m_PlaceInterval = 0.2f;
 
     Window& m_Window;
     World& m_World;
