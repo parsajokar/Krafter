@@ -35,4 +35,4 @@ private:
     std::string m_Name;
 };
 
-} // namespace Krafter
+}

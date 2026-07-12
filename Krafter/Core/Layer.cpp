@@ -43,4 +43,4 @@ void Layer::HandleEvent(Event& event)
     OnEvent(event);
 }
 
-} // namespace Krafter
+}

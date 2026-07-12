@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "glm/glm.hpp"
 
@@ -13,17 +14,9 @@ public:
     static constexpr int32_t k_Width = 16;
     static constexpr int32_t k_Height = 256;
 
-    // Global level that oceans and rivers flood up to.
     static constexpr int32_t k_SeaLevel = 63;
 
     Chunk(const glm::ivec2& position);
-    Chunk(const Chunk& other);
-    Chunk(Chunk&& other);
-    ~Chunk();
-
-    // Sets the world seed mixed into feature placement (trees, plants, lakes).
-    // Call once before any chunk is generated.
-    static void SetSeed(uint32_t seed);
 
     inline const glm::ivec2& GetPosition() const
     {
@@ -33,14 +26,9 @@ public:
     const Block& GetBlock(const glm::ivec3& coords) const;
     void SetBlock(const glm::ivec3& coords, Block value);
 
-    // Sky-light level in [0, 15]. Computed by the lighting pass once the chunk
-    // and its neighbours have terrain, then sampled by the mesher.
     uint8_t GetSkyLight(const glm::ivec3& coords) const;
     void SetSkyLight(const glm::ivec3& coords, uint8_t value);
 
-    // Block-light level in [0, 15]: light cast by emissive blocks (lava, torches),
-    // flooded outward independently of the sky so it survives day/night and the
-    // depths. Computed by the same lighting pass and sampled by the mesher.
     uint8_t GetBlockLight(const glm::ivec3& coords) const;
     void SetBlockLight(const glm::ivec3& coords, uint8_t value);
 
@@ -48,9 +36,9 @@ public:
 
 private:
     glm::ivec2 m_Position;
-    Block* m_Blocks;
-    uint8_t* m_SkyLight;
-    uint8_t* m_BlockLight;
+    std::vector<Block> m_Blocks;
+    std::vector<uint8_t> m_SkyLight;
+    std::vector<uint8_t> m_BlockLight;
 };
 
-} // namespace Krafter
+}

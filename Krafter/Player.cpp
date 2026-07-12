@@ -22,24 +22,15 @@ Player::Player(Window& window, World& world, const glm::vec3& position, float fo
 
 void Player::Update()
 {
-    // Stow whatever the world dropped as blocks fell away (a chopped tree's
-    // stranded logs, a toppled cactus); the directly mined block is stowed in
-    // UpdateBreaking when its break completes.
     for (const Block drop : m_World.TakeDrops()) {
         CollectDrop(drop);
     }
 
     if (m_Mode == GameMode::k_Survival) {
-        // Survival physics run whenever enabled, even when the player isn't in
-        // control (the inventory screen): movement input is zero while
-        // uncontrolled, so only gravity and existing velocity move the body, and
-        // a fall already underway keeps its momentum.
         if (m_PhysicsEnabled) {
             UpdateSurvival();
         }
     } else if (m_IsControlled) {
-        // Spectator flight is pure input with no momentum, so it only moves while
-        // the player is in control.
         UpdateSpectator();
     }
 
@@ -52,13 +43,11 @@ void Player::Update()
 
     UpdateBreaking();
 
-    // Holding right click keeps placing on a fixed cadence; the first placement
-    // fired on the press, so this only handles the repeats.
     if (m_IsControlled && m_PlaceHeld) {
         m_PlaceCooldown -= m_Window.GetDelta();
         if (m_PlaceCooldown <= 0.0f) {
             PlaceTargetBlock();
-            m_PlaceCooldown = k_PlaceInterval;
+            m_PlaceCooldown = m_PlaceInterval;
         }
     }
 }
@@ -80,8 +69,6 @@ void Player::UpdateSurvival()
 {
     glm::vec3 position = m_Camera.GetPosition();
 
-    // Hold the player in place until the terrain below has generated, so it
-    // doesn't fall through the not-yet-loaded world on first spawn.
     if (!m_World.IsChunkLoaded(position)) {
         m_VerticalVelocity = 0.0f;
         return;
@@ -89,8 +76,6 @@ void Player::UpdateSurvival()
 
     const float delta = m_Window.GetDelta();
 
-    // Walk along the ground plane: the look direction flattened to XZ, so looking
-    // up or down never lifts or sinks the player.
     glm::vec3 direction = m_Camera.GetDirection();
     glm::vec3 forward = glm::vec3(direction.x, 0.0f, direction.z);
     if (glm::dot(forward, forward) > 0.0f) {
@@ -104,18 +89,13 @@ void Player::UpdateSurvival()
     }
     const glm::vec3 horizontal = wish * m_Speed;
 
-    // Jump while grounded; holding the key re-jumps on each landing.
     if (m_JumpHeld && m_OnGround) {
-        m_VerticalVelocity = k_JumpSpeed;
+        m_VerticalVelocity = m_JumpSpeed;
         m_OnGround = false;
     }
 
-    // Gravity, capped at a terminal speed so a long fall can't tunnel through the
-    // ground in a single step.
-    m_VerticalVelocity = glm::max(m_VerticalVelocity - k_Gravity * delta, -k_TerminalSpeed);
+    m_VerticalVelocity = glm::max(m_VerticalVelocity - m_Gravity * delta, -m_TerminalSpeed);
 
-    // Resolve each axis on its own so a wall stops only that axis and the player
-    // slides along it instead of sticking.
     position.x += horizontal.x * delta;
     if (CollidesAt(position)) {
         position.x = m_Camera.GetPosition().x;
@@ -130,8 +110,6 @@ void Player::UpdateSurvival()
     position.y += m_VerticalVelocity * delta;
     if (CollidesAt(position)) {
         position.y = m_Camera.GetPosition().y;
-        // Hitting something while falling means we've landed; while rising it's a
-        // ceiling. Either way the vertical motion stops.
         m_OnGround = m_VerticalVelocity < 0.0f;
         m_VerticalVelocity = 0.0f;
     }
@@ -141,9 +119,9 @@ void Player::UpdateSurvival()
 
 void Player::BodyCellBounds(const glm::vec3& eye, glm::ivec3& outLo, glm::ivec3& outHi) const
 {
-    const float half = k_Width * 0.5f;
-    const glm::vec3 min = eye - glm::vec3(half, k_EyeHeight, half);
-    const glm::vec3 max = eye + glm::vec3(half, k_Height - k_EyeHeight, half);
+    const float half = m_Width * 0.5f;
+    const glm::vec3 min = eye - glm::vec3(half, m_EyeHeight, half);
+    const glm::vec3 max = eye + glm::vec3(half, m_Height - m_EyeHeight, half);
     outLo = glm::ivec3(glm::floor(min));
     outHi = glm::ivec3(glm::floor(max));
 }
@@ -179,13 +157,11 @@ bool Player::OccupiesCell(const glm::ivec3& cell) const
 
 bool Player::RaycastTarget(glm::ivec3& hit, glm::ivec3& before) const
 {
-    return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), k_Reach, hit, before);
+    return m_World.RaycastBlock(m_Camera.GetPosition(), m_Camera.GetDirection(), m_Reach, hit, before);
 }
 
 void Player::UpdateBreaking()
 {
-    // The break only runs while the button is held, in control, aimed at a block
-    // the tool can break. Otherwise it lapses and the crack clears.
     if (!m_IsControlled || !m_BreakHeld || !m_HasTarget
         || !CanBreakWith(m_Hotbar.GetSelectedItem(), m_World.GetBlock(m_TargetBlock))) {
         m_IsBreaking = false;
@@ -193,7 +169,6 @@ void Player::UpdateBreaking()
         return;
     }
 
-    // Re-aiming at a different block restarts the break from the first crack.
     if (!m_IsBreaking || m_TargetBlock != m_BreakBlock) {
         m_BreakBlock = m_TargetBlock;
         m_BreakProgress = 0.0f;
@@ -202,14 +177,9 @@ void Player::UpdateBreaking()
 
     m_BreakProgress += m_Window.GetDelta();
 
-    // Reaching the block's break time removes it. The break then lapses so the
-    // next held frame starts fresh on whatever the player is now aimed at,
-    // letting a held swing chew through a row of blocks one after another.
     if (m_BreakProgress >= BreakSeconds(m_World.GetBlock(m_BreakBlock))) {
         const Block broken = m_World.GetBlock(m_BreakBlock);
         m_World.SetBlock(m_BreakBlock, Block::k_Air);
-        // Drop the block into the world to be walked over, rather than stowing it
-        // straight away; the cascade of a felled tree drops its logs the same way.
         m_World.SpawnDrop(glm::vec3(m_BreakBlock) + 0.5f, DropFor(broken));
         m_IsBreaking = false;
         m_BreakProgress = 0.0f;
@@ -222,9 +192,6 @@ void Player::CollectDrop(Block drop)
         return;
     }
 
-    // First top up an existing stack of the same block that still has room, so a
-    // run of logs piles into one slot instead of scattering across many. Scan the
-    // hotbar before the grid so quick-select stacks fill first.
     for (int slot = 0; slot < Hotbar::k_SlotCount; ++slot) {
         Item item = m_Hotbar.GetItem(slot);
         if (item.IsBlock() && item.block == drop && item.count < Item::k_MaxStack) {
@@ -242,8 +209,6 @@ void Player::CollectDrop(Block drop)
         }
     }
 
-    // No partial stack to join; start a fresh one in the first empty slot (hotbar
-    // first, so a felled log is ready to place), then the inventory grid.
     for (int slot = 0; slot < Hotbar::k_SlotCount; ++slot) {
         if (m_Hotbar.GetItem(slot).IsEmpty()) {
             m_Hotbar.SetItem(slot, drop);
@@ -277,23 +242,18 @@ void Player::PlaceTargetBlock()
 
     const Item selected = m_Hotbar.GetSelectedItem();
     if (!selected.IsBlock()) {
-        return; // an empty slot or a tool (such as the axe): nothing to place
+        return;
     }
     const Block block = selected.block;
 
-    // Replaceable foliage is overwritten in place; everything else is placed
-    // against the targeted face.
     const glm::ivec3 target = IsPlant(m_World.GetBlock(hit)) ? hit : before;
 
-    // In survival the body collides, so refuse a placement that would land inside
-    // the player and seal them in.
     if (m_Mode == GameMode::k_Survival && OccupiesCell(target)) {
         return;
     }
 
     m_World.PlaceBlock(target, block);
 
-    // Consume one from the held stack; emptying the slot clears it back to k_Air.
     Item held = selected;
     held.count--;
     m_Hotbar.SetItem(m_Hotbar.GetSelected(), held.count > 0 ? held : Item());
@@ -302,9 +262,6 @@ void Player::PlaceTargetBlock()
 void Player::OnEvent(Event& event)
 {
     if (event.button == MouseButton::k_Left) {
-        // Breaking is gradual now: holding the button mines the aimed-at block
-        // over its break time (Update drives the progress and the actual
-        // removal), so the press and release only track whether it is held.
         if (event.type == EventType::k_MouseButtonPressed) {
             m_BreakHeld = true;
             event.handled = true;
@@ -319,9 +276,8 @@ void Player::OnEvent(Event& event)
 
     if (event.button == MouseButton::k_Right) {
         if (event.type == EventType::k_MouseButtonPressed) {
-            // Place once now, then keep placing while the button stays held.
             m_PlaceHeld = true;
-            m_PlaceCooldown = k_PlaceInterval;
+            m_PlaceCooldown = m_PlaceInterval;
             PlaceTargetBlock();
             event.handled = true;
             return;
@@ -333,7 +289,6 @@ void Player::OnEvent(Event& event)
         }
     }
 
-    // Opposite keys cancel; auto-repeats are ignored so a held key counts once.
     auto applyMove = [&](float sign) {
         switch (event.key) {
         case Key::k_W:
@@ -356,8 +311,6 @@ void Player::OnEvent(Event& event)
     switch (event.type) {
     case EventType::k_KeyPressed:
         if (event.key == Key::k_Space) {
-            // Survival jumps (hold to keep jumping on each landing); spectator
-            // flies freely and leaves space unbound.
             if (m_Mode == GameMode::k_Survival) {
                 m_JumpHeld = true;
                 event.handled = true;
@@ -412,6 +365,7 @@ void Player::OnEvent(Event& event)
 
 void Player::RenderImGui()
 {
+    ImGui::Text("Player");
     ImGui::SliderFloat("Movement Speed", &m_Speed, 1.0f, 100.0f);
     ImGui::SliderFloat("Mouse Sensitivity", &m_Sensitivity, 1.0f, 100.0f);
 
@@ -419,6 +373,23 @@ void Player::RenderImGui()
     if (ImGui::SliderFloat("Field of View", &fov, 30.0f, 110.0f)) {
         m_Camera.SetFieldOfView(glm::radians(fov));
     }
+    ImGui::SliderFloat("Reach", &m_Reach, 1.0f, 32.0f);
+    ImGui::SliderFloat("Place Interval", &m_PlaceInterval, 0.0f, 1.0f, "%.2fs");
+
+    if (ImGui::TreeNode("Physics")) {
+        ImGui::SliderFloat("Gravity", &m_Gravity, 0.0f, 100.0f);
+        ImGui::SliderFloat("Jump Speed", &m_JumpSpeed, 0.0f, 30.0f);
+        ImGui::SliderFloat("Terminal Speed", &m_TerminalSpeed, 1.0f, 200.0f);
+        ImGui::TreePop();
+    }
+
+    if (ImGui::TreeNode("Collision Box")) {
+        ImGui::SliderFloat("Width", &m_Width, 0.1f, 2.0f);
+        ImGui::SliderFloat("Height", &m_Height, 0.5f, 4.0f);
+        ImGui::SliderFloat("Eye Height", &m_EyeHeight, 0.1f, m_Height);
+        ImGui::TreePop();
+    }
+
     ImGui::Text("Yaw: %.2f, Pitch: %.2f", glm::degrees(m_Camera.GetYaw()), glm::degrees(m_Camera.GetPitch()));
 
     const glm::vec3 position = m_Camera.GetPosition();
@@ -428,12 +399,9 @@ void Player::RenderImGui()
 void Player::SetControlled(bool controlled)
 {
     m_IsControlled = controlled;
-    // Taking control resumes physics; releasing it for a menu freezes the player
-    // in place. (The inventory uses SuspendForInventory, which keeps physics on.)
     m_PhysicsEnabled = controlled;
     ApplyControlMode();
 
-    // Reset movement and rebaseline the look so toggling doesn't drift or snap.
     m_MoveInput = glm::vec2(0.0f);
     m_VerticalVelocity = 0.0f;
     m_JumpHeld = false;
@@ -446,9 +414,6 @@ void Player::SetControlled(bool controlled)
 
 void Player::SuspendForInventory()
 {
-    // Release look and input and free the cursor for the inventory screen, but
-    // leave m_PhysicsEnabled and m_VerticalVelocity untouched so the survival
-    // simulation keeps integrating and a fall in progress carries its momentum.
     m_IsControlled = false;
     ApplyControlMode();
 
@@ -473,4 +438,4 @@ void Player::ApplyControlMode()
     }
 }
 
-} // namespace Krafter
+}

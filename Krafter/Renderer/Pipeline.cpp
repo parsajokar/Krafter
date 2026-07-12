@@ -15,8 +15,6 @@ VkShaderModule Pipeline::LoadModule(VkDevice device, const std::string& path)
     if (!file) {
         std::cerr << "[FILE] Could not read shader " << path << std::endl;
         assert(false);
-        // In release builds the assert is compiled out; bail before turning the
-        // failed stream's tellg() of -1 into a SIZE_MAX-byte allocation.
         return VK_NULL_HANDLE;
     }
 
@@ -61,8 +59,6 @@ Pipeline::Pipeline(const PipelineConfig& config)
     stages[1].module = frag;
     stages[1].pName = "main";
 
-    // Pipeline layout: the shared texture set (set 0) when used, plus the push
-    // constant block visible to both stages.
     VkPushConstantRange pushRange = {};
     pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.size = config.pushConstantSize;
@@ -81,7 +77,6 @@ Pipeline::Pipeline(const PipelineConfig& config)
     }
     vkCreatePipelineLayout(device, &layoutInfo, nullptr, &m_Layout);
 
-    // Vertex input: a single interleaved buffer at binding 0.
     VkVertexInputBindingDescription binding = {};
     binding.binding = 0;
     binding.stride = config.vertexStride;
@@ -100,7 +95,6 @@ Pipeline::Pipeline(const PipelineConfig& config)
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = config.topology;
 
-    // Viewport and scissor are dynamic; the renderer sets them per frame.
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
@@ -124,7 +118,6 @@ Pipeline::Pipeline(const PipelineConfig& config)
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = config.depthTest ? VK_TRUE : VK_FALSE;
     depthStencil.depthWriteEnable = config.depthWrite ? VK_TRUE : VK_FALSE;
-    // LEQUAL so a decal drawn right after a coplanar face wins the equal-depth test.
     depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
     VkPipelineColorBlendAttachmentState blendAttachment = {};
@@ -170,7 +163,6 @@ Pipeline::Pipeline(const PipelineConfig& config)
         assert(false);
     }
 
-    // The modules are only needed while building; the pipeline owns its copy.
     vkDestroyShaderModule(device, vert, nullptr);
     vkDestroyShaderModule(device, frag, nullptr);
 }
@@ -198,4 +190,4 @@ void Pipeline::BindTextureSet(VkCommandBuffer cmd, VkDescriptorSet set) const
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Layout, 0, 1, &set, 0, nullptr);
 }
 
-} // namespace Krafter
+}

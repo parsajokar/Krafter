@@ -45,6 +45,12 @@ target_sources(
     Krafter/World/World.cpp
     Krafter/World/Chunk.h
     Krafter/World/Chunk.cpp
+    Krafter/World/TerrainGenerator.h
+    Krafter/World/TerrainGenerator.cpp
+    Krafter/World/DropSystem.h
+    Krafter/World/DropSystem.cpp
+    Krafter/World/FallingBlockSystem.h
+    Krafter/World/FallingBlockSystem.cpp
     Krafter/World/Block.h
     Krafter/World/Block.cpp
     Krafter/World/Biome.h
@@ -91,6 +97,14 @@ target_sources(
     Krafter/Core/Application.cpp
     Krafter/Core/Renderer.h
     Krafter/Core/Renderer.cpp
+    Krafter/Core/VulkanContext.h
+    Krafter/Core/VulkanContext.cpp
+    Krafter/Core/Swapchain.h
+    Krafter/Core/Swapchain.cpp
+    Krafter/Core/BufferManager.h
+    Krafter/Core/BufferManager.cpp
+    Krafter/Core/TextureManager.h
+    Krafter/Core/TextureManager.cpp
     Krafter/Core/Layer.h
     Krafter/Core/Layer.cpp
     Krafter/Core/LayerStack.h
@@ -101,7 +115,6 @@ target_sources(
     Krafter/Core/JobSystem.h
     Krafter/Core/JobSystem.cpp
     Krafter/Core/ResultQueue.h
-    Krafter/Core/Platform.h
     Krafter/Main.cpp
 )
 

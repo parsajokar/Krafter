@@ -3,45 +3,31 @@
 
 #include "glm/glm.hpp"
 
+#include "Krafter/World/Coords.h"
 #include "Krafter/World/Lighting.h"
 
 namespace Krafter {
 
-static constexpr int32_t k_Width = Chunk::k_Width;
-static constexpr int32_t k_Height = Chunk::k_Height;
-static constexpr int32_t k_Max = Chunk::k_MaxLight;
+namespace {
 
-// The apron spans the centre chunk plus one chunk of margin on each side.
-static constexpr int32_t k_Lo = -k_Width;
-static constexpr int32_t k_Hi = 2 * k_Width - 1;
-static constexpr int32_t k_Span = 3 * k_Width;
+constexpr int32_t k_Width = Chunk::k_Width;
+constexpr int32_t k_Height = Chunk::k_Height;
+constexpr int32_t k_Max = Chunk::k_MaxLight;
 
-static constexpr int32_t Index(int32_t x, int32_t y, int32_t z)
+constexpr int32_t k_Lo = -k_Width;
+constexpr int32_t k_Hi = 2 * k_Width - 1;
+constexpr int32_t k_Span = 3 * k_Width;
+
+constexpr int32_t Index(int32_t x, int32_t y, int32_t z)
 {
     return (y * k_Span * k_Span) + ((z + k_Width) * k_Span) + (x + k_Width);
 }
 
-static constexpr int32_t ColumnIndex(int32_t x, int32_t z)
+constexpr int32_t ColumnIndex(int32_t x, int32_t z)
 {
     return ((z + k_Width) * k_Span) + (x + k_Width);
 }
 
-static constexpr int32_t FloorDiv(int32_t a, int32_t b)
-{
-    int32_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) {
-        q--;
-    }
-    return q;
-}
-
-static constexpr int32_t FloorMod(int32_t a, int32_t b)
-{
-    int32_t r = a % b;
-    if (r != 0 && (r < 0) != (b < 0)) {
-        r += b;
-    }
-    return r;
 }
 
 void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
@@ -53,8 +39,6 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         if (!chunk) {
             return true;
         }
-        // Water and cutout foliage let skylight through, so the seabed, submerged
-        // blocks, and the ground beneath leaves all stay lit.
         const Block block = chunk->GetBlock(glm::ivec3(FloorMod(x, k_Width), y, FloorMod(z, k_Width)));
         return IsOpaque(block) && !IsCutout(block);
     };
@@ -68,7 +52,6 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         }
     }
 
-    // Each column is lit from the top down until it meets a solid block.
     std::vector<int32_t> skyFloor(k_Span * k_Span, 0);
     std::vector<uint8_t> light(k_Span * k_Span * k_Height, 0);
     for (int32_t x = k_Lo; x <= k_Hi; x++) {
@@ -87,8 +70,6 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         }
     }
 
-    // Only sky cells bordering a darker region need to flood; flat open areas
-    // are already uniform.
     constexpr int32_t hdx[] = { -1, 1, 0, 0 };
     constexpr int32_t hdz[] = { 0, 0, -1, 1 };
 
@@ -116,7 +97,6 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         }
     }
 
-    // Spread light to air neighbours, one level dimmer each step.
     constexpr int32_t dx[] = { -1, 1, 0, 0, 0, 0 };
     constexpr int32_t dy[] = { 0, 0, -1, 1, 0, 0 };
     constexpr int32_t dz[] = { 0, 0, 0, 0, -1, 1 };
@@ -167,9 +147,6 @@ void ComputeBlockLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         return chunk->GetBlock(glm::ivec3(FloorMod(x, k_Width), y, FloorMod(z, k_Width)));
     };
 
-    // Opaque, non-cutout blocks stop block light just as they stop sky light. An
-    // emitter is seeded at its emission level even though it is itself opaque
-    // (lava), so its glow still floods out into the surrounding air.
     std::vector<uint8_t> solid(k_Span * k_Span * k_Height);
     std::vector<uint8_t> light(k_Span * k_Span * k_Height, 0);
     std::vector<glm::ivec3> queue;
@@ -187,7 +164,6 @@ void ComputeBlockLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         }
     }
 
-    // Spread to non-opaque neighbours, one level dimmer each step.
     constexpr int32_t dx[] = { -1, 1, 0, 0, 0, 0 };
     constexpr int32_t dy[] = { 0, 0, -1, 1, 0, 0 };
     constexpr int32_t dz[] = { 0, 0, 0, 0, -1, 1 };
@@ -226,4 +202,4 @@ void ComputeBlockLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
     }
 }
 
-} // namespace Krafter
+}

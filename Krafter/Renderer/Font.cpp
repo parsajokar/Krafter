@@ -12,9 +12,6 @@ Font::Font(std::string_view path)
 {
     m_CellSize = m_Texture.GetSize().x / k_Columns;
 
-    // Measure each glyph by finding its rightmost opaque column. The image is
-    // loaded top-down (unflipped) here so its rows line up with the CP437 grid;
-    // Texture2D always restores the flipped-load default the GPU textures use.
     stbi_set_flip_vertically_on_load(false);
 
     int width = 0, height = 0, channels = 0;
@@ -36,8 +33,6 @@ Font::Font(std::string_view path)
             }
         }
 
-        // Blank cells (the space glyph, control codes) get a half-cell advance so
-        // words still have a gap between them.
         m_GlyphWidth[c] = rightmost >= 0 ? static_cast<float>(rightmost + 1) : m_CellSize * 0.5f;
     }
 
@@ -54,7 +49,6 @@ float Font::Measure(std::string_view text, float scale) const
     for (char ch : text) {
         width += (m_GlyphWidth[static_cast<uint8_t>(ch)] + k_Spacing) * scale;
     }
-    // Drop the trailing gap so the measure matches the visible glyphs exactly.
     if (!text.empty()) {
         width -= k_Spacing * scale;
     }
@@ -71,7 +65,6 @@ void Font::Draw(
     const glm::vec2& position, float scale, const glm::vec4& color, bool shadow) const
 {
     if (shadow) {
-        // A darkened copy one source-pixel down-right, like Minecraft's font.
         const glm::vec4 shadowColor = glm::vec4(glm::vec3(color) * 0.25f, color.a);
         DrawGlyphs(renderer, text, position + glm::vec2(scale), scale, shadowColor);
     }
@@ -91,8 +84,6 @@ void Font::DrawGlyphs(
         const uint8_t c = static_cast<uint8_t>(ch);
         const glm::vec2 cellPos = glm::vec2(c % k_Columns, c / k_Columns) * cell;
 
-        // Textures load vertically flipped, so flip V to keep the glyph upright,
-        // matching how UILayer samples its sprites.
         const glm::vec2 uvMin = cellPos / texSize;
         const glm::vec2 uvMax = (cellPos + cell) / texSize;
         const glm::vec4 uvRect = glm::vec4(
@@ -104,4 +95,4 @@ void Font::DrawGlyphs(
     }
 }
 
-} // namespace Krafter
+}

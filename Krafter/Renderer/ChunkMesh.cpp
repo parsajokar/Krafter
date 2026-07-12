@@ -11,9 +11,8 @@
 
 namespace Krafter {
 
-// Origin and in-plane axes of a block face, shared by the regular face builder
-// and the grass overlay. Vertices wind origin -> +dx -> +dx+dy -> +dy, which is
-// counter-clockwise seen from outside (matching the back-face culling).
+namespace {
+
 struct FaceQuad {
     glm::vec3 origin;
     glm::vec3 dx;
@@ -21,7 +20,7 @@ struct FaceQuad {
     glm::vec3 normal;
 };
 
-static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
+FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
 {
     switch (face) {
     case BlockFace::k_Front:
@@ -34,17 +33,16 @@ static FaceQuad FaceGeometryOf(const glm::vec3& position, BlockFace face)
         return { position + glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1) };
     case BlockFace::k_Bottom:
         return { position + glm::vec3(1, 0, 0), glm::vec3(0, 0, 1), glm::vec3(-1, 0, 0), glm::vec3(0, -1, 0) };
-    default: // k_Top
+    default:
         return { position + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0) };
     }
 }
 
-// Ambient-occlusion brightness for the four corner levels (0 = most occluded).
-static constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
+constexpr float k_AoFactor[] = { 0.5f, 0.7f, 0.85f, 1.0f };
 
-// Floats per vertex: position(3), uv(2), normal(3), sky light(1), water depth(1),
-// tint(3), block light(1).
-static constexpr int32_t k_VertexStride = 14;
+constexpr int32_t k_VertexStride = 14;
+
+}
 
 ChunkMeshData ChunkMesh::Compute(
     const std::array<const Chunk*, 9>& grid,
@@ -61,7 +59,6 @@ ChunkMeshData ChunkMesh::Compute(
         BlockFace::k_Left, BlockFace::k_Right
     };
 
-    // In-plane axes of each face, matching the quad's dx/dy in AddFaceToData.
     constexpr glm::ivec3 faceU[] = {
         { 0, 0, 1 }, { 0, 0, -1 }, { 0, 0, 1 }, { 0, 0, 1 }, { -1, 0, 0 }, { 1, 0, 0 }
     };
@@ -88,26 +85,12 @@ ChunkMeshData ChunkMesh::Compute(
         return target ? target->GetBlock(query) : Block::k_Air;
     };
 
-    // Ambient occlusion and smooth lighting share the sky-light pass's notion of
-    // a solid occluder: a full opaque cube. Air, water, and cutout foliage (leaves
-    // and cactus) let their neighbours' faces through, so a cactus doesn't shade
-    // the sand it stands on the way a real block would.
     auto isSolid = [&](const glm::ivec3& cell) -> bool {
         const Block block = blockAt(cell);
         return IsOpaque(block) && !IsCutout(block);
     };
 
-    // Whether `neighbor` fully covers the shared face of `self`, letting us cull
-    // it. Opaque blocks hide anything behind them. Cutout foliage has holes, so
-    // to other solid geometry it never hides a neighbour: the dirt under a leaf
-    // still draws its top, and (like Minecraft's "fancy" leaves) the shared faces
-    // between adjacent leaf blocks are kept, so a canopy reads as dense layers.
-    // To water, though, a leaf reads as solid, so a submerged water surface is
-    // culled against it rather than z-fighting the coplanar leaf face. Water
-    // otherwise only culls against more water, so water-vs-air surfaces show.
     auto hidesFace = [](Block self, Block neighbor) -> bool {
-        // Stacked cactus culls its shared cap/base faces against itself, so the
-        // coplanar segment boundary doesn't draw two z-fighting faces.
         if (self == Block::k_Cactus && neighbor == Block::k_Cactus) {
             return true;
         }
@@ -132,8 +115,6 @@ ChunkMeshData ChunkMesh::Compute(
         return target ? target->GetSkyLight(query) / static_cast<float>(Chunk::k_MaxLight) : 0.0f;
     };
 
-    // Block light has no source above the world, so unlike sky it is zero off the
-    // top of the column rather than full.
     auto blockLightOf = [&](const glm::ivec3& cell) -> float {
         if (cell.y >= Chunk::k_Height || cell.y < 0) {
             return 0.0f;
@@ -143,10 +124,6 @@ ChunkMeshData ChunkMesh::Compute(
         return target ? target->GetBlockLight(query) / static_cast<float>(Chunk::k_MaxLight) : 0.0f;
     };
 
-    // Smooth light + ambient occlusion for the face corner pointing toward
-    // (su, sv), sampling the two side cells and the diagonal on the air side.
-    // `sample` selects the light channel (sky or block), so both are gathered the
-    // same way, with the same AO darkening.
     auto cornerLight = [&](auto&& sample, const glm::ivec3& airCell, const glm::ivec3& u, const glm::ivec3& v,
                            int32_t su, int32_t sv) -> float {
         const glm::ivec3 sideU = airCell + su * u;
@@ -169,8 +146,6 @@ ChunkMeshData ChunkMesh::Compute(
             sum += sample(sideV);
             count++;
         }
-        // Two solid edges seal off the diagonal, so its light can't reach this
-        // vertex; sampling it anyway is what leaks light through missing corners.
         if (!sc && !(s1 && s2)) {
             sum += sample(corner);
             count++;
@@ -181,8 +156,6 @@ ChunkMeshData ChunkMesh::Compute(
 
     const Chunk& center = *grid[4];
 
-    // Thickness of the contiguous water column containing this cell, so the
-    // shader can fade water from clear in the shallows to opaque in deep water.
     auto waterDepth = [&](int32_t lx, int32_t y, int32_t lz) -> float {
         int32_t top = y;
         while (top + 1 < Chunk::k_Height && center.GetBlock(glm::ivec3(lx, top + 1, lz)) == Block::k_Water) {
@@ -208,10 +181,6 @@ ChunkMeshData ChunkMesh::Compute(
                     y,
                     chunkPosition.y * Chunk::k_Width + z);
 
-                // Cross plants short-circuit the per-face cube path: they are two
-                // crossed billboards, lit flatly from their own cell's sky light
-                // (no AO, since they cast none). Grass and ferns are grayscale and
-                // biome-tinted; the dead bush keeps its own brown (untinted).
                 if (IsPlant(self)) {
                     glm::vec3 tint(1.0f);
                     if (self != Block::k_DeadBush && self != Block::k_Torch) {
@@ -229,17 +198,11 @@ ChunkMeshData ChunkMesh::Compute(
                 const bool transparent = self == Block::k_Water;
                 ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
 
-                // Water that isn't submerged under more water sits below a full
-                // block, so its surface reads as sunken. This holds even when a
-                // solid block covers it: the inset leaves a visible gap.
                 const bool surfaceWater = transparent && blockAt(glm::ivec3(x, y + 1, z)) != Block::k_Water;
                 const float topInset = surfaceWater ? 4.0f / 16.0f : 0.0f;
 
                 const float depth = transparent ? waterDepth(x, y, z) : 0.0f;
 
-                // Grass tops/fringes and leaves are grayscale; tint them by the
-                // biome at this column. Grass tints only its top and side fringe;
-                // leaves tint every face. Everything else stays untinted (white).
                 glm::vec3 grassTint(1.0f);
                 glm::vec3 leafTint(1.0f);
                 if (self == Block::k_Grass || IsLeaves(self)) {
@@ -257,8 +220,6 @@ ChunkMeshData ChunkMesh::Compute(
                     }
                     const Block neighbor = blockAt(airCell);
                     if (transparent && faces[k] == BlockFace::k_Top) {
-                        // The inset surface sits below whatever is above, so draw
-                        // it unless submerged under more water.
                         if (neighbor == Block::k_Water) {
                             continue;
                         }
@@ -279,9 +240,6 @@ ChunkMeshData ChunkMesh::Compute(
                         cornerLight(blockLightOf, airCell, faceU[k], faceV[k], -1, 1)
                     };
 
-                    // An emissive block's own faces glow at its emission level even
-                    // if the air in front is otherwise dark, so lava (and later
-                    // torches) always read bright regardless of the flood.
                     if (LightEmission(self) > 0) {
                         const float glow = LightEmission(self) / static_cast<float>(Chunk::k_MaxLight);
                         for (float& corner : vertexBlockLight) {
@@ -289,9 +247,6 @@ ChunkMeshData ChunkMesh::Compute(
                         }
                     }
 
-                    // Only the grass top is the tinted gray tile; the side base
-                    // and bottom are plain dirt and stay untinted. Leaves are
-                    // grayscale on every face, so the whole block is tinted.
                     const bool grassTop = self == Block::k_Grass && faces[k] == BlockFace::k_Top;
                     glm::vec3 tint(1.0f);
                     if (grassTop) {
@@ -301,8 +256,6 @@ ChunkMeshData ChunkMesh::Compute(
                     }
                     AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, vertexBlockLight, buffer.vertices, buffer.elements);
 
-                    // Grass side faces get the biome-tinted fringe layered on top
-                    // of the dirt base.
                     const bool grassSide = self == Block::k_Grass
                         && faces[k] != BlockFace::k_Top && faces[k] != BlockFace::k_Bottom;
                     if (grassSide) {
@@ -324,8 +277,6 @@ void ChunkMesh::Upload(Part& part, const ChunkMeshBuffer& buffer)
         return;
     }
 
-    // The interleaved vertex layout (k_VertexStride floats) is described by the
-    // pipeline, not the buffer; here we only upload the raw vertex and index data.
     Renderer& renderer = Renderer::Get();
     part.vertexBuffer = renderer.CreateDeviceLocalBuffer(
         buffer.vertices.data(), buffer.vertices.size() * sizeof(float),
@@ -361,7 +312,6 @@ ChunkMesh::~ChunkMesh()
 
 namespace {
 
-// Binds a part's vertex and index buffers and issues its indexed draw.
 void DrawPart(VkCommandBuffer cmd, const GpuBuffer& vertexBuffer, const GpuBuffer& indexBuffer, uint32_t elementCount)
 {
     const VkDeviceSize offset = 0;
@@ -370,7 +320,7 @@ void DrawPart(VkCommandBuffer cmd, const GpuBuffer& vertexBuffer, const GpuBuffe
     vkCmdDrawIndexed(cmd, elementCount, 1, 0, 0, 0);
 }
 
-} // namespace
+}
 
 void ChunkMesh::DrawOpaque(VkCommandBuffer cmd) const
 {
@@ -429,10 +379,6 @@ void ChunkMesh::AddFaceToData(
         vertexBufferData.push_back(vertexBlockLight[i]);
     }
 
-    // Split along the diagonal that avoids anisotropic shading on a face with
-    // one occluded corner. Both triangles wind counter-clockwise when viewed
-    // from outside (the quad order 0,1,2,3 is CCW there) so back-face culling
-    // keeps the outward face.
     if (vertexLight[0] + vertexLight[2] < vertexLight[1] + vertexLight[3]) {
         elementBufferData.push_back(offset + 1);
         elementBufferData.push_back(offset + 3);
@@ -471,8 +417,6 @@ void ChunkMesh::AddFaceToData(
         quad.origin, quad.origin + quad.dx, quad.origin + quad.dx + quad.dy, quad.origin + quad.dy
     };
 
-    // Cactus pulls its four side faces inward by 1/16 (the top and bottom stay
-    // full), so the cap and base overhang the stem like Minecraft's model.
     if (block == Block::k_Cactus && face != BlockFace::k_Top && face != BlockFace::k_Bottom) {
         const glm::vec3 inset = quad.normal * (1.0f / 16.0f);
         for (glm::vec3& vertex : positionList) {
@@ -480,8 +424,6 @@ void ChunkMesh::AddFaceToData(
         }
     }
 
-    // Drop only the vertices on the block's top edge, so the top face lowers and
-    // the side faces shrink to meet it while the bottom stays put.
     if (topInset > 0.0f) {
         for (glm::vec3& vertex : positionList) {
             if (vertex.y > position.y + 0.5f) {
@@ -501,9 +443,6 @@ void ChunkMesh::AddOverlayFace(
     const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
-    // Coplanar with the dirt base: it shares the base's exact vertex positions,
-    // so with GL_LEQUAL depth testing the overlay (emitted right after the base)
-    // wins the equal-depth test and sits flush, with no z-fight and no lip.
     const FaceQuad quad = FaceGeometryOf(position, face);
     const std::array<glm::vec3, 4> positionList = {
         quad.origin, quad.origin + quad.dx, quad.origin + quad.dx + quad.dy, quad.origin + quad.dy
@@ -518,16 +457,11 @@ void ChunkMesh::AddCrossToData(
     const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light, float blockLight,
     std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
 {
-    // Flat lighting: every corner takes the cell's own sky and block light, and
-    // the normal points up so the plant catches sun like the ground it stands on.
-    // The cross pass disables back-face culling, so each plane shows from both sides.
     const std::array<float, 4> vertexLight = { light, light, light, light };
     const std::array<float, 4> vertexBlockLight = { blockLight, blockLight, blockLight, blockLight };
     const glm::vec3 normal(0.0f, 1.0f, 0.0f);
     const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
 
-    // Two diagonal planes, each wound origin -> +dx -> +dx+dy -> +dy so the V
-    // axis runs bottom-to-top (matching the cube faces, so the tile is upright).
     const std::array<glm::vec3, 4> plane1 = {
         position + glm::vec3(0, 0, 0), position + glm::vec3(1, 0, 1),
         position + glm::vec3(1, 1, 1), position + glm::vec3(0, 1, 0)
@@ -541,4 +475,4 @@ void ChunkMesh::AddCrossToData(
     AddFaceToData(plane2, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 }
 
-} // namespace Krafter
+}

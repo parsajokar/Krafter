@@ -61,4 +61,4 @@ void Camera::RecalculateViewProjection()
     m_ViewProjection = m_Projection * view;
 }
 
-} // namespace Krafter
+}

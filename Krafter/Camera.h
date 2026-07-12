@@ -6,9 +6,6 @@
 
 namespace Krafter {
 
-// A passive view onto the world: a position and a yaw/pitch orientation plus a
-// perspective projection, from which it derives the combined view-projection
-// matrix. It does not read input or move itself; the Player aims and moves it.
 class Camera {
 public:
     Camera(const glm::vec3& position, float fov);
@@ -19,7 +16,6 @@ public:
         return m_Position;
     }
 
-    // Orientation as yaw (around +y) and pitch (look up/down), in radians.
     void SetRotation(float yaw, float pitch);
     inline float GetYaw() const
     {
@@ -30,17 +26,14 @@ public:
         return m_Pitch;
     }
 
-    // Normalized forward (look) direction derived from yaw/pitch.
     glm::vec3 GetDirection() const;
 
-    // Vertical field of view, in radians. Setting it rebuilds the projection.
     void SetFieldOfView(float fov);
     inline float GetFieldOfView() const
     {
         return m_FieldOfView;
     }
 
-    // Rebuilds the projection for a new viewport; degenerate sizes are ignored.
     void SetViewportSize(int32_t width, int32_t height);
 
     inline const glm::mat4& GetViewProjection() const
@@ -57,11 +50,10 @@ private:
     float m_Pitch;
     float m_FieldOfView;
 
-    // Cached so the projection can be rebuilt when only the field of view changes.
     float m_AspectRatio = 1.0f;
 
     glm::mat4 m_Projection = glm::mat4(1.0f);
     glm::mat4 m_ViewProjection = glm::mat4(1.0f);
 };
 
-} // namespace Krafter
+}

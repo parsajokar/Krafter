@@ -17,7 +17,6 @@ enum class EventType {
     k_WindowResized,
 };
 
-// Which fields are meaningful depends on `type`.
 struct Event {
     EventType type;
     bool handled = false;
@@ -25,12 +24,10 @@ struct Event {
     Key key = {};
     bool isRepeat = false;
 
-    // A typed Unicode code point (k_TextInput), for text fields.
     unsigned int codepoint = 0;
 
     MouseButton button = {};
 
-    // Cursor position (k_MouseMoved) or scroll offset (k_MouseScrolled).
     glm::vec2 mouse = {};
 
     glm::ivec2 size = {};
@@ -50,4 +47,4 @@ inline bool IsKeyEvent(EventType type)
         || type == EventType::k_TextInput;
 }
 
-} // namespace Krafter
+}

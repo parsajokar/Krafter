@@ -13,11 +13,6 @@ class UIRenderer;
 class Texture2D;
 class Font;
 
-// Common base for the UI layers (the HUD and the full-screen menus). They all
-// borrow the application-owned window, UI renderer, sprite sheet, and font, and
-// the interactive ones track the cursor; this gathers those shared members so
-// each layer only declares what's unique to it. Drawing and input stay each
-// layer's own (OnRender/OnEvent), since those differ.
 class UIScreen : public Layer {
 protected:
     UIScreen(
@@ -36,9 +31,7 @@ protected:
     Texture2D& m_UITexture;
     Font& m_Font;
 
-    // Last known cursor position, for the layers that hit-test against it (the
-    // menus and inventory). The HUD leaves it unused.
     glm::vec2 m_Cursor = glm::vec2(0.0f);
 };
 
-} // namespace Krafter
+}

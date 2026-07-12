@@ -13,8 +13,6 @@ GameApplication::GameApplication(const ApplicationSpecification& specification)
     , m_UITexture("assets/textures/ui.png")
     , m_Font("assets/textures/font.png")
 {
-    // Start on the main menu alone; the world is not built until a play mode is
-    // chosen ("Survive" or "Spectate").
     m_MainMenu = new MainMenuLayer(
         GetWindow(), m_UIRenderer, m_UITexture, m_Font,
         [this](int32_t seed, GameMode mode) { StartGame(seed, mode); });
@@ -23,10 +21,6 @@ GameApplication::GameApplication(const ApplicationSpecification& specification)
 
 GameApplication::~GameApplication()
 {
-    // Remove every live layer now, while the shared UI resources are still alive;
-    // the base destructor only runs after our members (those resources) are gone.
-    // Order mirrors the scene transitions: pause menu, inventory, HUD, world, then
-    // menu (the inventory and HUD reference the world's player, so they go first).
     if (m_PauseMenu != nullptr) {
         RemoveLayer(m_PauseMenu);
     }
@@ -46,11 +40,7 @@ GameApplication::~GameApplication()
 
 void GameApplication::StartGame(int32_t seed, GameMode mode)
 {
-    // Defer the layer swap: this runs from the menu's click handler, while the
-    // layer stack is being iterated, so the world cannot be pushed in place.
     QueueAfterFrame([this, seed, mode]() {
-        // Ignore a duplicate trigger from the same frame: the menu is gone once
-        // the first swap ran.
         if (m_MainMenu == nullptr) {
             return;
         }
@@ -61,16 +51,11 @@ void GameApplication::StartGame(int32_t seed, GameMode mode)
             [this]() { OpenInventory(); });
         PushLayer(m_World);
 
-        // The HUD shares the world's player hotbar. The overlay is pushed after
-        // the world layer and so is destroyed before it, keeping the reference
-        // valid.
         m_UI = new UILayer(GetWindow(), m_UIRenderer, m_UITexture, m_Font, m_World->GetHotbar());
         PushOverlay(m_UI);
 
         m_World->BeginPlay();
 
-        // The menu has done its job; tear it down now rather than leaving it
-        // dormant in the stack until shutdown.
         RemoveLayer(m_MainMenu);
         m_MainMenu = nullptr;
     });
@@ -78,10 +63,7 @@ void GameApplication::StartGame(int32_t seed, GameMode mode)
 
 void GameApplication::PauseGame()
 {
-    // Defer the layer push: this runs from the world layer's event handler while
-    // the stack is mid-iteration.
     QueueAfterFrame([this]() {
-        // Ignore if there's no world, or the menu is already up (a repeat Escape).
         if (m_World == nullptr || m_PauseMenu != nullptr) {
             return;
         }
@@ -97,8 +79,6 @@ void GameApplication::PauseGame()
 
 void GameApplication::ResumeGame()
 {
-    // Defer the layer removal: this runs from the pause menu's event handler while
-    // the stack is mid-iteration.
     QueueAfterFrame([this]() {
         if (m_PauseMenu == nullptr) {
             return;
@@ -115,17 +95,11 @@ void GameApplication::ResumeGame()
 
 void GameApplication::OpenInventory()
 {
-    // Defer the layer push: this runs from the world layer's event handler while
-    // the stack is mid-iteration.
     QueueAfterFrame([this]() {
-        // Ignore if there's no world, or the screen is already up (a repeat 'E').
         if (m_World == nullptr || m_Inventory != nullptr) {
             return;
         }
 
-        // Release player control and free the cursor for the screen, but leave
-        // physics running so momentum (e.g. a fall) carries on, and hide the HUD
-        // so its bottom hotbar doesn't show beneath the screen's own hotbar row.
         m_World->SuspendForInventory();
         if (m_UI != nullptr) {
             m_UI->SetVisible(false);
@@ -140,8 +114,6 @@ void GameApplication::OpenInventory()
 
 void GameApplication::CloseInventory()
 {
-    // Defer the layer removal: this runs from the inventory layer's event handler
-    // while the stack is mid-iteration.
     QueueAfterFrame([this]() {
         if (m_Inventory == nullptr) {
             return;
@@ -150,7 +122,6 @@ void GameApplication::CloseInventory()
         RemoveLayer(m_Inventory);
         m_Inventory = nullptr;
 
-        // Restore the HUD and hand control back to the player.
         if (m_UI != nullptr) {
             m_UI->SetVisible(true);
         }
@@ -162,30 +133,21 @@ void GameApplication::CloseInventory()
 
 void GameApplication::ReturnToMenu()
 {
-    // Defer the swap for the same reason as StartGame: this runs from the pause
-    // menu's event handler while the stack is mid-iteration.
     QueueAfterFrame([this]() {
-        // Ignore a duplicate trigger from the same frame: the world is gone once
-        // the first swap ran.
         if (m_World == nullptr) {
             return;
         }
 
-        // The pause menu sits on top; remove it first if it's still up.
         if (m_PauseMenu != nullptr) {
             RemoveLayer(m_PauseMenu);
             m_PauseMenu = nullptr;
         }
 
-        // The inventory screen also references the world's player, so drop it
-        // before the world too if it happens to be open.
         if (m_Inventory != nullptr) {
             RemoveLayer(m_Inventory);
             m_Inventory = nullptr;
         }
 
-        // Remove the HUD before the world: the HUD holds a reference into the
-        // world's player, so the world must outlive it.
         RemoveLayer(m_UI);
         m_UI = nullptr;
         RemoveLayer(m_World);
@@ -198,4 +160,4 @@ void GameApplication::ReturnToMenu()
     });
 }
 
-} // namespace Krafter
+}

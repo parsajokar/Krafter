@@ -1,6 +1,6 @@
 # Krafter
 
-Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++20** and **OpenGL 4.5**.
+Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++20** and **Vulkan**.
 
 [demo1.webm](https://github.com/user-attachments/assets/baaa82f7-d113-42d4-9c09-26da6cfa86e8)
 
@@ -49,7 +49,7 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
 - **Data-driven blocks** — every block's render, occlusion, mining, drop, and
   harvest-tool data lives in one per-block table, so adding or retuning a block is a
   single entry rather than edits scattered across the codebase.
-- **From-scratch rendering & UI** — an OpenGL 4.5 renderer, a custom bitmap-font
+- **From-scratch rendering & UI** — a Vulkan renderer, a custom bitmap-font
   text renderer, a 9-slice sprite UI (main menu with seed input, pause menu, hotbar
   HUD, inventory & crafting screen, inverted-blend crosshair), and an ImGui debug
   overlay.
@@ -59,10 +59,10 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
 ## 🛠️ Tech Stack
 
 - **Language:** C++20
-- **Graphics:** OpenGL 4.5
+- **Graphics:** Vulkan
 - **Libraries:**
   - GLFW — Windowing & Input
-  - GLAD — OpenGL 4.5 Functionalities
+  - Vulkan Memory Allocator (VMA) — GPU Memory Management
   - ImGui — Immediate Mode GUI
   - GLM — Math Library with SIMD Instruction Support
   - stb — Texture File Loading Library
@@ -75,7 +75,8 @@ Krafter is a **Minecraft-style voxel sandbox game** built from scratch in **C++2
 - C++20 compiler
 - CMake 3.20+
 - Ninja 1.12+
-- OpenGL 4.5 capable GPU
+- Vulkan SDK (provides `glslc` for shader compilation)
+- Vulkan 1.0 capable GPU
 
 ### Clone the repository
 

@@ -17,7 +17,6 @@ Texture2D::Texture2D(std::string_view path)
     stbi_set_flip_vertically_on_load(true);
 
     int32_t channelsInFile = 0;
-    // Force four channels so the upload is always tightly packed RGBA8.
     uint8_t* data = stbi_load(path.data(), &m_Size.x, &m_Size.y, &channelsInFile, STBI_rgb_alpha);
     if (!data) {
         std::cerr << "[FILE] Could not read " << path << std::endl;
@@ -56,9 +55,6 @@ void Texture2D::Create(const void* pixels, int32_t width, int32_t height)
 
     vmaCreateImage(renderer.GetAllocator(), &imageInfo, &allocInfo, &m_Image, &m_Allocation, nullptr);
 
-    // Queue the pixel upload; it is recorded into the next frame's command buffer.
-    // Nothing samples the texture before then, so its initial undefined contents
-    // are never observed.
     renderer.QueueImageUpload(m_Image, VK_IMAGE_LAYOUT_UNDEFINED, 0, 0, width, height, pixels);
 
     VkImageViewCreateInfo viewInfo = {};
@@ -81,9 +77,7 @@ Texture2D::~Texture2D()
 
 void Texture2D::UpdateRegion(int32_t x, int32_t y, int32_t width, int32_t height, const void* pixels) const
 {
-    // The atlas is in shader-read layout after the frame that first used it; the
-    // renderer transitions, copies, and transitions back when it records this.
     Renderer::Get().QueueImageUpload(m_Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, x, y, width, height, pixels);
 }
 
-} // namespace Krafter
+}

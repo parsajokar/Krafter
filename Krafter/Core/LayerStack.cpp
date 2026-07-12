@@ -22,11 +22,10 @@ void LayerStack::Remove(Layer* layer)
         return;
     }
 
-    // A removed non-overlay layer shifts the overlay boundary down by one.
     if (static_cast<size_t>(it - m_Layers.begin()) < m_LayerPushIndex) {
         m_LayerPushIndex--;
     }
     m_Layers.erase(it);
 }
 
-} // namespace Krafter
+}

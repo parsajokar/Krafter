@@ -15,22 +15,21 @@ UIRenderer::UIRenderer(Window& window)
 {
     Renderer& renderer = Renderer::Get();
 
-    // Static unit quad: (0,0) top-left to (1,1) bottom-right, with matching UVs.
+    // clang-format off
     const float vertices[] = {
         0.0f, 0.0f, 0.0f, 0.0f,
         1.0f, 0.0f, 1.0f, 0.0f,
         1.0f, 1.0f, 1.0f, 1.0f,
         0.0f, 1.0f, 0.0f, 1.0f,
     };
+    // clang-format on
     const uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
     m_QuadVertexBuffer = renderer.CreateDeviceLocalBuffer(vertices, sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     m_QuadIndexBuffer = renderer.CreateDeviceLocalBuffer(indices, sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-    // A single opaque white texel, bound for untextured (solid-colour) draws.
     const uint8_t white[4] = { 255, 255, 255, 255 };
     m_WhiteTexture = std::make_unique<Texture2D>(white, 1, 1);
 
-    // Per-frame dynamic vertex ring for arbitrary-corner quads.
     for (DynamicBuffer& dynamic : m_Dynamic) {
         dynamic.buffer = renderer.CreateHostVisibleBuffer(
             k_MaxDynamicVertices * 4 * sizeof(float), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, &dynamic.mapped);
@@ -47,13 +46,11 @@ UIRenderer::UIRenderer(Window& window)
     config.pushConstantSize = sizeof(UIPush);
     config.useTextureSet = true;
     config.cullMode = VK_CULL_MODE_NONE;
-    // The UI is a flat overlay: no depth testing or writing.
     config.depthTest = false;
     config.depthWrite = false;
     config.blend = true;
     m_Pipeline = std::make_unique<Pipeline>(config);
 
-    // The colour-inverting crosshair blend: out = (1 - dst) * src_premultiplied.
     config.srcColorFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
     config.dstColorFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
     m_InvertPipeline = std::make_unique<Pipeline>(config);
@@ -71,21 +68,17 @@ UIRenderer::~UIRenderer()
 
 void UIRenderer::Begin()
 {
-    // Top-left origin, y growing downward, in pixels.
     const glm::ivec2& size = m_Window.GetSize();
     m_Projection = glm::ortho(0.0f, static_cast<float>(size.x), static_cast<float>(size.y), 0.0f);
 }
 
 void UIRenderer::End()
 {
-    // Leave the scissor covering the whole screen for whatever draws next.
     ClearScissor();
 }
 
 void UIRenderer::SetScissor(const glm::vec2& position, const glm::vec2& size)
 {
-    // UI space and Vulkan scissors share a top-left origin, so no flip is needed.
-    // Clamp into the framebuffer so an off-screen field can't produce a bad rect.
     const VkExtent2D extent = Renderer::Get().GetSwapchainExtent();
     const int32_t x = std::clamp(static_cast<int32_t>(position.x), 0, static_cast<int32_t>(extent.width));
     const int32_t y = std::clamp(static_cast<int32_t>(position.y), 0, static_cast<int32_t>(extent.height));
@@ -168,14 +161,13 @@ void UIRenderer::DrawQuad(
 {
     Renderer& renderer = Renderer::Get();
 
-    // Start a fresh region of the ring each time the frame slot changes.
     const uint32_t frame = renderer.GetCurrentFrameIndex();
     if (frame != m_DynamicFrame) {
         m_DynamicFrame = frame;
         m_DynamicVertexOffset = 0;
     }
     if (m_DynamicVertexOffset + 4 > k_MaxDynamicVertices) {
-        return; // ring exhausted this frame; drop the draw rather than overwrite
+        return;
     }
 
     const uint32_t base = m_DynamicVertexOffset;
@@ -186,9 +178,6 @@ void UIRenderer::DrawQuad(
         vertices[i * 4 + 2] = uvs[i].x;
         vertices[i * 4 + 3] = uvs[i].y;
     }
-    // Flush the just-written region in case the ring landed in non-coherent host
-    // memory (a no-op when coherent), so the GPU reads these vertices, not stale
-    // ones, when this frame's command buffer is submitted.
     const VkDeviceSize writeOffset = static_cast<VkDeviceSize>(base) * 4 * sizeof(float);
     renderer.FlushHostBuffer(m_Dynamic[frame].buffer, writeOffset, 4 * 4 * sizeof(float));
     m_DynamicVertexOffset += 4;
@@ -197,8 +186,6 @@ void UIRenderer::DrawQuad(
     m_Pipeline->Bind(cmd);
     m_Pipeline->BindTextureSet(cmd, texture.GetDescriptorSet());
 
-    // Corners and UVs are baked into the vertices, so the transform and uv-rect
-    // pass through unchanged.
     UIPush push = {};
     push.projection = m_Projection;
     push.transform = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -219,7 +206,6 @@ glm::vec4 UIRenderer::SpriteUVRect(
 {
     const glm::vec2 uvMin = spritePos / texSize;
     const glm::vec2 uvMax = (spritePos + spriteSize) / texSize;
-    // Textures are flipped vertically on load, so flip V to keep the sprite upright.
     return glm::vec4(uvMin.x, 1.0f - uvMin.y, uvMax.x - uvMin.x, uvMin.y - uvMax.y);
 }
 
@@ -244,23 +230,18 @@ void UIRenderer::DrawSlicedSprite(
     const glm::vec2& position, const glm::vec2& size, const glm::vec4& tint)
 {
     const float srcThird = spriteSize.x / 3.0f;
-    // The caps keep the sprite's aspect at the destination height; floor so the
-    // three pieces meet on integer pixels and don't leave a seam.
     const float capWidth = glm::floor(srcThird * size.y / spriteSize.y);
     const float midWidth = size.x - 2.0f * capWidth;
 
-    // Left cap.
     DrawSprite(texture, spritePos, glm::vec2(srcThird, spriteSize.y),
         position, glm::vec2(capWidth, size.y), tint);
 
-    // Middle third, stretched across the gap between the caps.
     DrawSprite(texture, spritePos + glm::vec2(srcThird, 0.0f), glm::vec2(srcThird, spriteSize.y),
         position + glm::vec2(capWidth, 0.0f), glm::vec2(midWidth, size.y), tint);
 
-    // Right cap: the remaining source width covers any rounding in the thirds.
     DrawSprite(texture, spritePos + glm::vec2(2.0f * srcThird, 0.0f),
         glm::vec2(spriteSize.x - 2.0f * srcThird, spriteSize.y),
         position + glm::vec2(size.x - capWidth, 0.0f), glm::vec2(capWidth, size.y), tint);
 }
 
-} // namespace Krafter
+}
