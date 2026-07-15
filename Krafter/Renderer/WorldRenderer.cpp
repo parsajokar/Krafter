@@ -145,7 +145,12 @@ void WorldRenderer::AnimateLava()
     if (m_LavaFrameCount <= 0) {
         return;
     }
-    const int32_t frame = static_cast<int32_t>(glfwGetTime() * m_LavaFps) % m_LavaFrameCount;
+    // Lava's frame strip is authored to ping-pong (0..N-1 then back N-2..1),
+    // not to loop linearly. Playing it 0..N-1 then snapping to 0 puts two
+    // non-adjacent frames next to each other, which reads as a sudden cut.
+    const int32_t cycle = m_LavaFrameCount > 1 ? 2 * (m_LavaFrameCount - 1) : 1;
+    const int32_t tick = static_cast<int32_t>(glfwGetTime() * m_LavaFps) % cycle;
+    const int32_t frame = tick < m_LavaFrameCount ? tick : cycle - tick;
     if (frame == m_LavaFrame) {
         return;
     }
