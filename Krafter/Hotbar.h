@@ -40,7 +40,9 @@ private:
 
     std::array<Item, k_SlotCount> m_Slots = {
         Item::Tool(ItemKind::k_WoodenAxe),
-        Item::Blocks(Block::k_Torch, 99)
+        Item::Blocks(Block::k_Torch, 99),
+        Item::Blocks(Block::k_Water, 99),
+        Item::Blocks(Block::k_Lava, 99)
     };
 };
 

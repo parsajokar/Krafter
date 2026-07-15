@@ -5,15 +5,25 @@
 
 #include "Krafter/Renderer/WorldRenderer.h"
 #include "Krafter/World/Coords.h"
+#include "Krafter/World/Fluid.h"
 #include "Krafter/World/Lighting.h"
 #include "Krafter/World/Sky.h"
 #include "Krafter/World/World.h"
 
 namespace Krafter {
 
+namespace {
+
+constexpr glm::ivec3 k_Neighbors[6] = {
+    { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, 1, 0 }, { 0, -1, 0 }
+};
+
+}
+
 World::World(int32_t seed)
     : m_Generator(seed)
     , m_FallingSystem(*this)
+    , m_FluidSystem(*this)
     , m_DropSystem(*this)
 {
 }
@@ -24,6 +34,7 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 {
     DrainResults(deltaTime);
     m_FallingSystem.Update(deltaTime);
+    m_FluidSystem.Update(deltaTime);
 
     m_DropSystem.Update(deltaTime, cameraPosition);
 
@@ -198,6 +209,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     const glm::ivec3 localPosition = ToLocalPosition(worldPosition);
     const Block previous = chunk.GetBlock(localPosition);
     chunk.SetBlock(localPosition, block);
+    chunk.SetFluid(localPosition, IsFluid(block) ? k_FluidSource : 0);
 
     std::vector<glm::ivec3> topplingCactus;
     for (int32_t y = worldPosition.y + 1; y < Chunk::k_Height; y++) {
@@ -229,6 +241,17 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
 
     if (IsNaturalTreePart(previous) && !IsNaturalTreePart(block)) {
         ChopFloatingTree(worldPosition);
+    }
+
+    if (IsFluid(block)) {
+        m_FluidSystem.Schedule(worldPosition, block);
+    }
+    for (const glm::ivec3& dir : k_Neighbors) {
+        const glm::ivec3 neighbour = worldPosition + dir;
+        const Block neighbourBlock = GetBlock(neighbour);
+        if (IsFluid(neighbourBlock)) {
+            m_FluidSystem.Schedule(neighbour, neighbourBlock);
+        }
     }
 
     for (int32_t dz = -1; dz <= 1; dz++) {
@@ -474,6 +497,38 @@ void World::DrainResults(float deltaTime)
         }
         it->second.mesh = std::move(result.mesh);
         it->second.state = ChunkState::k_MeshReady;
+        if (!it->second.fluidsActivated) {
+            it->second.fluidsActivated = true;
+            ActivateFluids(result.position, *it->second.chunk);
+        }
+    }
+}
+
+void World::ActivateFluids(const glm::ivec2& chunkPosition, const Chunk& chunk)
+{
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            for (int32_t y = 0; y < Chunk::k_Height; y++) {
+                const Block block = chunk.GetBlock(glm::ivec3(x, y, z));
+                if (!IsFluid(block)) {
+                    continue;
+                }
+                const glm::ivec3 world(
+                    chunkPosition.x * Chunk::k_Width + x, y, chunkPosition.y * Chunk::k_Width + z);
+                bool exposed = GetBlock(world - glm::ivec3(0, 1, 0)) == Block::k_Air;
+                for (const glm::ivec3& side : k_HorizontalNeighbors) {
+                    if (exposed) {
+                        break;
+                    }
+                    if (GetBlock(world + side) == Block::k_Air) {
+                        exposed = true;
+                    }
+                }
+                if (exposed) {
+                    m_FluidSystem.Schedule(world, block);
+                }
+            }
+        }
     }
 }
 
@@ -498,6 +553,19 @@ void World::InvalidateChunk(const glm::ivec2& chunkPosition)
 
     it->second.state = ChunkState::k_TerrainReady;
     m_PendingLight.erase(chunkPosition);
+    m_PendingMesh.erase(chunkPosition);
+}
+
+void World::RemeshChunk(const glm::ivec2& chunkPosition)
+{
+    auto it = m_Chunks.find(chunkPosition);
+    if (it == m_Chunks.end()) {
+        return;
+    }
+
+    if (it->second.state == ChunkState::k_MeshReady) {
+        it->second.state = ChunkState::k_LightReady;
+    }
     m_PendingMesh.erase(chunkPosition);
 }
 

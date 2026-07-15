@@ -9,6 +9,7 @@
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Chunk.h"
 #include "Krafter/World/Coords.h"
+#include "Krafter/World/Fluid.h"
 #include "Krafter/World/TerrainGenerator.h"
 
 namespace Krafter {
@@ -684,6 +685,40 @@ void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
     const std::vector<Lake> lakes = GatherLakes(position);
     for (const Lake& lake : lakes) {
         CarveLake(chunk, position, lake);
+    }
+
+    static constexpr glm::ivec3 neighbors[6] = {
+        { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+    };
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            for (int32_t y = 1; y < Chunk::k_Height; y++) {
+                const glm::ivec3 cell(x, y, z);
+                const Block block = chunk.GetBlock(cell);
+                if (!IsFluid(block)) {
+                    continue;
+                }
+                if (block == Block::k_Lava) {
+                    bool touchesWater = false;
+                    for (const glm::ivec3& dir : neighbors) {
+                        const glm::ivec3 n(x + dir.x, y + dir.y, z + dir.z);
+                        if (n.x < 0 || n.x >= Chunk::k_Width || n.z < 0 || n.z >= Chunk::k_Width
+                            || n.y < 0 || n.y >= Chunk::k_Height) {
+                            continue;
+                        }
+                        if (chunk.GetBlock(n) == Block::k_Water) {
+                            touchesWater = true;
+                            break;
+                        }
+                    }
+                    if (touchesWater) {
+                        chunk.SetBlock(cell, Block::k_Stone);
+                        continue;
+                    }
+                }
+                chunk.SetFluid(cell, k_FluidSource);
+            }
+        }
     }
 
     const std::vector<Tree> trees = GatherTrees(position);

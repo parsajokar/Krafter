@@ -47,12 +47,35 @@ int32_t LoadFluidStrip(const char* path, std::vector<uint8_t>& outFrames)
     int32_t channels = 0;
     uint8_t* data = stbi_load(path, &width, &height, &channels, 4);
     int32_t frameCount = 0;
-    if (data && width == k_WaterTileSize && height >= k_WaterTileSize) {
-        frameCount = height / k_WaterTileSize;
-        const size_t bytes = static_cast<size_t>(frameCount) * k_WaterTileSize * k_WaterTileSize * 4;
-        outFrames.assign(data, data + bytes);
-        for (size_t i = 3; i < outFrames.size(); i += 4) {
-            outFrames[i] = 255;
+    if (data && (width == k_WaterTileSize || width == 2 * k_WaterTileSize) && height >= width) {
+        const int32_t frameSize = width;
+        const int32_t scale = frameSize / k_WaterTileSize;
+        frameCount = height / frameSize;
+        const size_t tilePixels = static_cast<size_t>(k_WaterTileSize) * k_WaterTileSize;
+        outFrames.assign(static_cast<size_t>(frameCount) * tilePixels * 4, 0);
+        for (int32_t f = 0; f < frameCount; f++) {
+            for (int32_t ty = 0; ty < k_WaterTileSize; ty++) {
+                for (int32_t tx = 0; tx < k_WaterTileSize; tx++) {
+                    uint32_t r = 0, g = 0, b = 0;
+                    for (int32_t sy = 0; sy < scale; sy++) {
+                        for (int32_t sx = 0; sx < scale; sx++) {
+                            const int32_t px = tx * scale + sx;
+                            const int32_t py = f * frameSize + ty * scale + sy;
+                            const uint8_t* p = data + (static_cast<size_t>(py) * width + px) * 4;
+                            r += p[0];
+                            g += p[1];
+                            b += p[2];
+                        }
+                    }
+                    const int32_t n = scale * scale;
+                    uint8_t* o = outFrames.data()
+                        + (static_cast<size_t>(f) * tilePixels + ty * k_WaterTileSize + tx) * 4;
+                    o[0] = static_cast<uint8_t>(r / n);
+                    o[1] = static_cast<uint8_t>(g / n);
+                    o[2] = static_cast<uint8_t>(b / n);
+                    o[3] = 255;
+                }
+            }
         }
     } else {
         std::cerr << "[FILE] Could not load animated strip " << path << std::endl;
@@ -125,39 +148,38 @@ void WorldRenderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm
     chunkMesh.DrawTransparent(cmd);
 }
 
-void WorldRenderer::AnimateWater()
+void WorldRenderer::AnimateTile(
+    const std::vector<uint8_t>& frames, int32_t frameCount, int32_t& lastFrame,
+    float fps, int32_t tileX, bool pingpong)
 {
-    if (m_WaterFrameCount <= 0) {
+    if (frameCount <= 0) {
         return;
     }
-    const int32_t frame = static_cast<int32_t>(glfwGetTime() * m_WaterFps) % m_WaterFrameCount;
-    if (frame == m_WaterFrame) {
+    int32_t frame;
+    if (pingpong) {
+        const int32_t cycle = frameCount > 1 ? 2 * (frameCount - 1) : 1;
+        const int32_t tick = static_cast<int32_t>(glfwGetTime() * fps) % cycle;
+        frame = tick < frameCount ? tick : cycle - tick;
+    } else {
+        frame = static_cast<int32_t>(glfwGetTime() * fps) % frameCount;
+    }
+    if (frame == lastFrame) {
         return;
     }
-    m_WaterFrame = frame;
+    lastFrame = frame;
 
     const size_t offset = static_cast<size_t>(frame) * k_WaterTileSize * k_WaterTileSize * 4;
-    m_Texture->UpdateRegion(k_WaterTileX, k_WaterTileY, k_WaterTileSize, k_WaterTileSize, m_WaterFrames.data() + offset);
+    m_Texture->UpdateRegion(tileX, k_WaterTileY, k_WaterTileSize, k_WaterTileSize, frames.data() + offset);
+}
+
+void WorldRenderer::AnimateWater()
+{
+    AnimateTile(m_WaterFrames, m_WaterFrameCount, m_WaterFrame, m_WaterFps, k_WaterTileX, false);
 }
 
 void WorldRenderer::AnimateLava()
 {
-    if (m_LavaFrameCount <= 0) {
-        return;
-    }
-    // Lava's frame strip is authored to ping-pong (0..N-1 then back N-2..1),
-    // not to loop linearly. Playing it 0..N-1 then snapping to 0 puts two
-    // non-adjacent frames next to each other, which reads as a sudden cut.
-    const int32_t cycle = m_LavaFrameCount > 1 ? 2 * (m_LavaFrameCount - 1) : 1;
-    const int32_t tick = static_cast<int32_t>(glfwGetTime() * m_LavaFps) % cycle;
-    const int32_t frame = tick < m_LavaFrameCount ? tick : cycle - tick;
-    if (frame == m_LavaFrame) {
-        return;
-    }
-    m_LavaFrame = frame;
-
-    const size_t offset = static_cast<size_t>(frame) * k_WaterTileSize * k_WaterTileSize * 4;
-    m_Texture->UpdateRegion(k_LavaTileX, k_LavaTileY, k_WaterTileSize, k_WaterTileSize, m_LavaFrames.data() + offset);
+    AnimateTile(m_LavaFrames, m_LavaFrameCount, m_LavaFrame, m_LavaFps, k_LavaTileX, true);
 }
 
 void WorldRenderer::RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection)
@@ -231,8 +253,8 @@ WorldRenderer::WorldRenderer()
 
     m_Texture = std::make_unique<Texture2D>("assets/textures/blocks.png");
 
-    m_WaterFrameCount = LoadFluidStrip("assets/textures/water_still.png", m_WaterFrames);
-    m_LavaFrameCount = LoadFluidStrip("assets/textures/lava_still.png", m_LavaFrames);
+    m_WaterFrameCount = LoadFluidStrip("assets/textures/water.png", m_WaterFrames);
+    m_LavaFrameCount = LoadFluidStrip("assets/textures/lava.png", m_LavaFrames);
 
     PipelineConfig config;
     config.vertPath = "assets/shaders/default.vert.spv";

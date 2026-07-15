@@ -17,6 +17,7 @@
 #include "Krafter/World/Chunk.h"
 #include "Krafter/World/DropSystem.h"
 #include "Krafter/World/FallingBlockSystem.h"
+#include "Krafter/World/FluidSystem.h"
 #include "Krafter/World/TerrainGenerator.h"
 
 namespace Krafter {
@@ -26,6 +27,7 @@ class Sky;
 
 class World {
     friend class FallingBlockSystem;
+    friend class FluidSystem;
 
 public:
     World(int32_t seed);
@@ -68,6 +70,7 @@ private:
         std::shared_ptr<Chunk> chunk;
         std::unique_ptr<ChunkMesh> mesh;
         ChunkState state;
+        bool fluidsActivated = false;
 
         ChunkRecord(std::shared_ptr<Chunk> chunk, ChunkState state)
             : chunk(std::move(chunk))
@@ -109,6 +112,9 @@ private:
     void ChopFloatingTree(const glm::ivec3& brokenPosition);
 
     void InvalidateChunk(const glm::ivec2& chunkPosition);
+    void RemeshChunk(const glm::ivec2& chunkPosition);
+
+    void ActivateFluids(const glm::ivec2& chunkPosition, const Chunk& chunk);
 
     bool HasAllTerrainNeighbours(const glm::ivec2& chunkPosition) const;
     bool HasAllLitNeighbours(const glm::ivec2& chunkPosition) const;
@@ -129,6 +135,7 @@ private:
 
     TerrainGenerator m_Generator;
     FallingBlockSystem m_FallingSystem;
+    FluidSystem m_FluidSystem;
     DropSystem m_DropSystem;
 
     ResultQueue<TerrainResult> m_TerrainResults;

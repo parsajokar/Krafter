@@ -109,7 +109,7 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_AcaciaPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_Stone, .opaque = true, .breakSeconds = 1.5f, .drop = Block::k_Stone, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Bedrock, .opaque = true, .harvest = ToolType::k_None },
-    { .id = Block::k_Lava, .opaque = true, .harvest = ToolType::k_None, .emission = 15 },
+    { .id = Block::k_Lava, .harvest = ToolType::k_None, .emission = 15 },
     { .id = Block::k_Torch, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
 } };
 

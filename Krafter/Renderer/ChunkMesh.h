@@ -55,6 +55,8 @@ public:
     void DrawTransparent(VkCommandBuffer cmd) const;
 
 private:
+    static constexpr float k_NoFlow = 1000.0f;
+
     struct Part {
         GpuBuffer vertexBuffer;
         GpuBuffer indexBuffer;
@@ -69,12 +71,15 @@ private:
         const std::array<glm::vec2, 2>& uvCoordsList,
         const glm::vec3& normal, float waterDepth, const glm::vec3& tint,
         const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
-        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
+        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+        const std::array<glm::vec2, 4>* explicitUvs = nullptr);
     static void AddFaceToData(
         const glm::vec3& position,
         Block block, BlockFace face, float topInset, float waterDepth, const glm::vec3& tint,
         const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
-        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
+        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+        const glm::vec2* tileOverride = nullptr, float flowAngle = k_NoFlow,
+        const float* cornerHeights = nullptr);
     static void AddOverlayFace(
         const glm::vec3& position, BlockFace face,
         const glm::vec2& tile, const glm::vec3& tint,
