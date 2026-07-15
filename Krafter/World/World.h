@@ -70,7 +70,6 @@ private:
         std::shared_ptr<Chunk> chunk;
         std::unique_ptr<ChunkMesh> mesh;
         ChunkState state;
-        bool fluidsActivated = false;
 
         ChunkRecord(std::shared_ptr<Chunk> chunk, ChunkState state)
             : chunk(std::move(chunk))
@@ -113,8 +112,6 @@ private:
 
     void InvalidateChunk(const glm::ivec2& chunkPosition);
     void RemeshChunk(const glm::ivec2& chunkPosition);
-
-    void ActivateFluids(const glm::ivec2& chunkPosition, const Chunk& chunk);
 
     bool HasAllTerrainNeighbours(const glm::ivec2& chunkPosition) const;
     bool HasAllLitNeighbours(const glm::ivec2& chunkPosition) const;

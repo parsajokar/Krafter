@@ -369,7 +369,8 @@ void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
 
     if (IsPlant(block)) {
         const glm::ivec3 below(worldPosition.x, worldPosition.y - 1, worldPosition.z);
-        if (below.y < 0 || !IsOpaque(GetBlock(below)) || GetBlock(worldPosition) != Block::k_Air) {
+        const Block target = GetBlock(worldPosition);
+        if (below.y < 0 || !IsOpaque(GetBlock(below)) || (target != Block::k_Air && !IsFluid(target))) {
             return;
         }
     }
@@ -497,38 +498,6 @@ void World::DrainResults(float deltaTime)
         }
         it->second.mesh = std::move(result.mesh);
         it->second.state = ChunkState::k_MeshReady;
-        if (!it->second.fluidsActivated) {
-            it->second.fluidsActivated = true;
-            ActivateFluids(result.position, *it->second.chunk);
-        }
-    }
-}
-
-void World::ActivateFluids(const glm::ivec2& chunkPosition, const Chunk& chunk)
-{
-    for (int32_t x = 0; x < Chunk::k_Width; x++) {
-        for (int32_t z = 0; z < Chunk::k_Width; z++) {
-            for (int32_t y = 0; y < Chunk::k_Height; y++) {
-                const Block block = chunk.GetBlock(glm::ivec3(x, y, z));
-                if (!IsFluid(block)) {
-                    continue;
-                }
-                const glm::ivec3 world(
-                    chunkPosition.x * Chunk::k_Width + x, y, chunkPosition.y * Chunk::k_Width + z);
-                bool exposed = GetBlock(world - glm::ivec3(0, 1, 0)) == Block::k_Air;
-                for (const glm::ivec3& side : k_HorizontalNeighbors) {
-                    if (exposed) {
-                        break;
-                    }
-                    if (GetBlock(world + side) == Block::k_Air) {
-                        exposed = true;
-                    }
-                }
-                if (exposed) {
-                    m_FluidSystem.Schedule(world, block);
-                }
-            }
-        }
     }
 }
 
