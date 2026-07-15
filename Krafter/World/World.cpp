@@ -5,15 +5,25 @@
 
 #include "Krafter/Renderer/WorldRenderer.h"
 #include "Krafter/World/Coords.h"
+#include "Krafter/World/Fluid.h"
 #include "Krafter/World/Lighting.h"
 #include "Krafter/World/Sky.h"
 #include "Krafter/World/World.h"
 
 namespace Krafter {
 
+namespace {
+
+constexpr glm::ivec3 k_Neighbors[6] = {
+    { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, 1, 0 }, { 0, -1, 0 }
+};
+
+}
+
 World::World(int32_t seed)
     : m_Generator(seed)
     , m_FallingSystem(*this)
+    , m_FluidSystem(*this)
     , m_DropSystem(*this)
 {
 }
@@ -24,6 +34,7 @@ void World::Update(const glm::vec3& cameraPosition, float deltaTime)
 {
     DrainResults(deltaTime);
     m_FallingSystem.Update(deltaTime);
+    m_FluidSystem.Update(deltaTime);
 
     m_DropSystem.Update(deltaTime, cameraPosition);
 
@@ -198,6 +209,7 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     const glm::ivec3 localPosition = ToLocalPosition(worldPosition);
     const Block previous = chunk.GetBlock(localPosition);
     chunk.SetBlock(localPosition, block);
+    chunk.SetFluid(localPosition, IsFluid(block) ? k_FluidSource : 0);
 
     std::vector<glm::ivec3> topplingCactus;
     for (int32_t y = worldPosition.y + 1; y < Chunk::k_Height; y++) {
@@ -229,6 +241,17 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
 
     if (IsNaturalTreePart(previous) && !IsNaturalTreePart(block)) {
         ChopFloatingTree(worldPosition);
+    }
+
+    if (IsFluid(block)) {
+        m_FluidSystem.Schedule(worldPosition, block);
+    }
+    for (const glm::ivec3& dir : k_Neighbors) {
+        const glm::ivec3 neighbour = worldPosition + dir;
+        const Block neighbourBlock = GetBlock(neighbour);
+        if (IsFluid(neighbourBlock)) {
+            m_FluidSystem.Schedule(neighbour, neighbourBlock);
+        }
     }
 
     for (int32_t dz = -1; dz <= 1; dz++) {
@@ -346,7 +369,8 @@ void World::PlaceBlock(const glm::ivec3& worldPosition, Block block)
 
     if (IsPlant(block)) {
         const glm::ivec3 below(worldPosition.x, worldPosition.y - 1, worldPosition.z);
-        if (below.y < 0 || !IsOpaque(GetBlock(below)) || GetBlock(worldPosition) != Block::k_Air) {
+        const Block target = GetBlock(worldPosition);
+        if (below.y < 0 || !IsOpaque(GetBlock(below)) || (target != Block::k_Air && !IsFluid(target))) {
             return;
         }
     }
@@ -498,6 +522,19 @@ void World::InvalidateChunk(const glm::ivec2& chunkPosition)
 
     it->second.state = ChunkState::k_TerrainReady;
     m_PendingLight.erase(chunkPosition);
+    m_PendingMesh.erase(chunkPosition);
+}
+
+void World::RemeshChunk(const glm::ivec2& chunkPosition)
+{
+    auto it = m_Chunks.find(chunkPosition);
+    if (it == m_Chunks.end()) {
+        return;
+    }
+
+    if (it->second.state == ChunkState::k_MeshReady) {
+        it->second.state = ChunkState::k_LightReady;
+    }
     m_PendingMesh.erase(chunkPosition);
 }
 

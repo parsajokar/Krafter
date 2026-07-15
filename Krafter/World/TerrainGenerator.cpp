@@ -9,6 +9,7 @@
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Chunk.h"
 #include "Krafter/World/Coords.h"
+#include "Krafter/World/Fluid.h"
 #include "Krafter/World/TerrainGenerator.h"
 
 namespace Krafter {
@@ -18,6 +19,10 @@ namespace {
 constexpr int32_t k_AquiferBase = 48;
 constexpr int32_t k_AquiferSwing = 22;
 constexpr float k_AquiferWetCutoff = 0.2f;
+constexpr int32_t k_AquiferGrid = 24;
+constexpr int32_t k_AquiferQuantize = 4;
+constexpr float k_AquiferBarrier = 3.0f;
+constexpr int32_t k_AquiferTop = k_AquiferBase + k_AquiferSwing + 6;
 
 constexpr int32_t k_LavaLevel = 10;
 
@@ -40,6 +45,15 @@ constexpr float k_GrassPlantChance = 0.2f;
 constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
 constexpr int32_t k_MaxCactusHeight = 3;
+
+float GridJitter(int32_t x, int32_t z, uint32_t salt, uint32_t seed)
+{
+    uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(z) * 2246822519u
+        + salt * 3266489917u + seed * 2166136261u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    h ^= h >> 16;
+    return h * (1.0f / 4294967296.0f);
+}
 
 }
 
@@ -88,15 +102,64 @@ float TerrainGenerator::Hash01(int32_t x, int32_t z, uint32_t salt) const
     return Hash(x, z, salt) * (1.0f / 4294967296.0f);
 }
 
-int32_t TerrainGenerator::AquiferLevel(int32_t worldX, int32_t worldZ, int32_t surface, int32_t surfaceMargin) const
+int32_t TerrainGenerator::AquiferCellLevel(int32_t gx, int32_t gz, float cx, float cz) const
 {
-    const float fx = static_cast<float>(worldX);
-    const float fz = static_cast<float>(worldZ);
-    if (m_AquiferMaskNoise.GetNoise(fx, fz) < k_AquiferWetCutoff) {
+    if (m_AquiferMaskNoise.GetNoise(cx, cz) < k_AquiferWetCutoff) {
         return std::numeric_limits<int32_t>::min();
     }
-    const int32_t level = k_AquiferBase + static_cast<int32_t>(m_AquiferLevelNoise.GetNoise(fx, fz) * k_AquiferSwing);
-    return std::min(level, surface - surfaceMargin - 1);
+    const int32_t raw = k_AquiferBase
+        + static_cast<int32_t>(m_AquiferLevelNoise.GetNoise(cx, cz) * k_AquiferSwing);
+    return (raw / k_AquiferQuantize) * k_AquiferQuantize;
+}
+
+Block TerrainGenerator::AquiferBlock(int32_t worldX, int32_t y, int32_t worldZ,
+    int32_t surface, int32_t surfaceMargin) const
+{
+    if (y > surface - surfaceMargin - 1) {
+        return Block::k_Air;
+    }
+
+    const int32_t cgx = FloorDiv(worldX, k_AquiferGrid);
+    const int32_t cgz = FloorDiv(worldZ, k_AquiferGrid);
+
+    float best1 = std::numeric_limits<float>::max();
+    float best2 = std::numeric_limits<float>::max();
+    int32_t level1 = std::numeric_limits<int32_t>::min();
+    int32_t level2 = std::numeric_limits<int32_t>::min();
+
+    for (int32_t dz = -1; dz <= 1; dz++) {
+        for (int32_t dx = -1; dx <= 1; dx++) {
+            const int32_t gx = cgx + dx;
+            const int32_t gz = cgz + dz;
+            const float cx = (static_cast<float>(gx) + GridJitter(gx, gz, 1u, m_Seed))
+                * static_cast<float>(k_AquiferGrid);
+            const float cz = (static_cast<float>(gz) + GridJitter(gx, gz, 2u, m_Seed))
+                * static_cast<float>(k_AquiferGrid);
+            const float ex = cx - static_cast<float>(worldX);
+            const float ez = cz - static_cast<float>(worldZ);
+            const float d = ex * ex + ez * ez;
+            const int32_t level = AquiferCellLevel(gx, gz, cx, cz);
+            if (d < best1) {
+                best2 = best1;
+                level2 = level1;
+                best1 = d;
+                level1 = level;
+            } else if (d < best2) {
+                best2 = d;
+                level2 = level;
+            }
+        }
+    }
+
+    if (level1 == std::numeric_limits<int32_t>::min() || y > level1) {
+        return Block::k_Air;
+    }
+    if (level2 == std::numeric_limits<int32_t>::min() || y > level2) {
+        if (std::sqrt(best2) - std::sqrt(best1) < k_AquiferBarrier) {
+            return Block::k_Stone;
+        }
+    }
+    return Block::k_Water;
 }
 
 bool TerrainGenerator::Lake::Contains(int32_t x, int32_t y, int32_t z) const
@@ -613,8 +676,6 @@ void TerrainGenerator::CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition)
             } else {
                 ceiling = std::min(surface, Chunk::k_SeaLevel) - k_SurfaceMargin;
             }
-            const int32_t waterTable = AquiferLevel(worldX, worldZ, surface, k_SurfaceMargin);
-
             for (int32_t y = 1; y <= ceiling; y++) {
                 const Block here = chunk.GetBlock(glm::ivec3(x, y, z));
                 if (here != Block::k_Stone && here != Block::k_Dirt && here != Block::k_Sand) {
@@ -630,9 +691,15 @@ void TerrainGenerator::CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition)
                 const bool cavern = m_CavernNoise.GetNoise(fx, fy, fz) > k_CavernThreshold;
 
                 if (tunnel || cavern) {
-                    chunk.SetBlock(glm::ivec3(x, y, z),
-                        y <= k_LavaLevel ? Block::k_Lava
-                                         : (y <= waterTable ? Block::k_Water : Block::k_Air));
+                    Block fill;
+                    if (y <= k_LavaLevel) {
+                        fill = Block::k_Lava;
+                    } else if (y <= k_AquiferTop) {
+                        fill = AquiferBlock(worldX, y, worldZ, surface, k_SurfaceMargin);
+                    } else {
+                        fill = Block::k_Air;
+                    }
+                    chunk.SetBlock(glm::ivec3(x, y, z), fill);
                 }
             }
 
@@ -684,6 +751,40 @@ void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
     const std::vector<Lake> lakes = GatherLakes(position);
     for (const Lake& lake : lakes) {
         CarveLake(chunk, position, lake);
+    }
+
+    static constexpr glm::ivec3 neighbors[6] = {
+        { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+    };
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            for (int32_t y = 1; y < Chunk::k_Height; y++) {
+                const glm::ivec3 cell(x, y, z);
+                const Block block = chunk.GetBlock(cell);
+                if (!IsFluid(block)) {
+                    continue;
+                }
+                if (block == Block::k_Lava) {
+                    bool touchesWater = false;
+                    for (const glm::ivec3& dir : neighbors) {
+                        const glm::ivec3 n(x + dir.x, y + dir.y, z + dir.z);
+                        if (n.x < 0 || n.x >= Chunk::k_Width || n.z < 0 || n.z >= Chunk::k_Width
+                            || n.y < 0 || n.y >= Chunk::k_Height) {
+                            continue;
+                        }
+                        if (chunk.GetBlock(n) == Block::k_Water) {
+                            touchesWater = true;
+                            break;
+                        }
+                    }
+                    if (touchesWater) {
+                        chunk.SetBlock(cell, Block::k_Stone);
+                        continue;
+                    }
+                }
+                chunk.SetFluid(cell, k_FluidSource);
+            }
+        }
     }
 
     const std::vector<Tree> trees = GatherTrees(position);

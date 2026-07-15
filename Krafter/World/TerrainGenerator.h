@@ -45,7 +45,8 @@ private:
     uint32_t Hash(int32_t x, int32_t z, uint32_t salt) const;
     float Hash01(int32_t x, int32_t z, uint32_t salt) const;
 
-    int32_t AquiferLevel(int32_t worldX, int32_t worldZ, int32_t surface, int32_t surfaceMargin) const;
+    int32_t AquiferCellLevel(int32_t gx, int32_t gz, float cx, float cz) const;
+    Block AquiferBlock(int32_t worldX, int32_t y, int32_t worldZ, int32_t surface, int32_t surfaceMargin) const;
 
     bool BuildLake(int32_t cellX, int32_t cellZ, Lake& lake) const;
     bool LakeContained(const Lake& lake) const;

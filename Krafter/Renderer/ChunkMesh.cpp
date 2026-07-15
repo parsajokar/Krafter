@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 #include "vulkan/vulkan.h"
@@ -8,6 +9,7 @@
 #include "Krafter/Renderer/ChunkMesh.h"
 #include "Krafter/World/Biome.h"
 #include "Krafter/World/Coords.h"
+#include "Krafter/World/Fluid.h"
 
 namespace Krafter {
 
@@ -83,6 +85,15 @@ ChunkMeshData ChunkMesh::Compute(
         glm::ivec3 query;
         const Chunk* target = resolve(cell, query);
         return target ? target->GetBlock(query) : Block::k_Air;
+    };
+
+    auto fluidAt = [&](const glm::ivec3& cell) -> uint8_t {
+        if (cell.y < 0 || cell.y >= Chunk::k_Height) {
+            return 0;
+        }
+        glm::ivec3 query;
+        const Chunk* target = resolve(cell, query);
+        return target ? target->GetFluid(query) : 0;
     };
 
     auto isSolid = [&](const glm::ivec3& cell) -> bool {
@@ -195,13 +206,44 @@ ChunkMeshData ChunkMesh::Compute(
                     continue;
                 }
 
+                const bool isFluid = IsFluid(self);
                 const bool transparent = self == Block::k_Water;
                 ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
 
-                const bool surfaceWater = transparent && blockAt(glm::ivec3(x, y + 1, z)) != Block::k_Water;
-                const float topInset = surfaceWater ? 4.0f / 16.0f : 0.0f;
+                float topInset = 0.0f;
+                float depth = 0.0f;
+                float cornerHeights[4] = {};
+                if (isFluid) {
+                    const uint8_t fluidByte = center.GetFluid(glm::ivec3(x, y, z));
+                    const bool fluidAbove = blockAt(glm::ivec3(x, y + 1, z)) == self;
+                    topInset = fluidAbove ? 0.0f : 1.0f - FluidHeight(fluidByte);
+                    if (transparent) {
+                        depth = waterDepth(x, y, z);
+                    }
 
-                const float depth = transparent ? waterDepth(x, y, z) : 0.0f;
+                    for (int32_t rx = 0; rx <= 1; rx++) {
+                        for (int32_t rz = 0; rz <= 1; rz++) {
+                            float sum = 0.0f;
+                            int32_t count = 0;
+                            bool full = false;
+                            for (int32_t ox = rx - 1; ox <= rx; ox++) {
+                                for (int32_t oz = rz - 1; oz <= rz; oz++) {
+                                    const glm::ivec3 c(x + ox, y, z + oz);
+                                    if (blockAt(c) != self) {
+                                        continue;
+                                    }
+                                    if (blockAt(glm::ivec3(c.x, y + 1, c.z)) == self) {
+                                        full = true;
+                                    }
+                                    sum += FluidHeight(fluidAt(c));
+                                    count++;
+                                }
+                            }
+                            cornerHeights[rx * 2 + rz] = full ? static_cast<float>(y) + 1.0f
+                                : static_cast<float>(y) + (count > 0 ? sum / count : FluidHeight(fluidByte));
+                        }
+                    }
+                }
 
                 glm::vec3 grassTint(1.0f);
                 glm::vec3 leafTint(1.0f);
@@ -219,11 +261,7 @@ ChunkMeshData ChunkMesh::Compute(
                         continue;
                     }
                     const Block neighbor = blockAt(airCell);
-                    if (transparent && faces[k] == BlockFace::k_Top) {
-                        if (neighbor == Block::k_Water) {
-                            continue;
-                        }
-                    } else if (hidesFace(self, neighbor)) {
+                    if (hidesFace(self, neighbor)) {
                         continue;
                     }
 
@@ -254,7 +292,7 @@ ChunkMeshData ChunkMesh::Compute(
                     } else if (IsLeaves(self)) {
                         tint = leafTint;
                     }
-                    AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, vertexBlockLight, buffer.vertices, buffer.elements);
+                    AddFaceToData(worldPos, self, faces[k], topInset, depth, tint, vertexLight, vertexBlockLight, buffer.vertices, buffer.elements, nullptr, k_NoFlow, isFluid ? cornerHeights : nullptr);
 
                     const bool grassSide = self == Block::k_Grass
                         && faces[k] != BlockFace::k_Top && faces[k] != BlockFace::k_Bottom;
@@ -351,23 +389,26 @@ void ChunkMesh::AddFaceToData(
     const std::array<glm::vec2, 2>& uvCoordsList,
     const glm::vec3& normal, float waterDepth, const glm::vec3& tint,
     const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
-    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
+    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+    const std::array<glm::vec2, 4>* explicitUvs)
 {
     const uint32_t offset = static_cast<uint32_t>(vertexBufferData.size() / k_VertexStride);
 
-    const std::array<glm::vec2, 4> uvs = {
-        glm::vec2(uvCoordsList[0].x, uvCoordsList[0].y),
-        glm::vec2(uvCoordsList[1].x, uvCoordsList[0].y),
-        glm::vec2(uvCoordsList[1].x, uvCoordsList[1].y),
-        glm::vec2(uvCoordsList[0].x, uvCoordsList[1].y)
-    };
+    const std::array<glm::vec2, 4> uvs = explicitUvs ? *explicitUvs
+                                                     : std::array<glm::vec2, 4> {
+                                                           glm::vec2(uvCoordsList[0].x, uvCoordsList[0].y),
+                                                           glm::vec2(uvCoordsList[1].x, uvCoordsList[0].y),
+                                                           glm::vec2(uvCoordsList[1].x, uvCoordsList[1].y),
+                                                           glm::vec2(uvCoordsList[0].x, uvCoordsList[1].y)
+                                                       };
 
     for (size_t i = 0; i < 4; i++) {
+        const glm::vec2& uv = uvs[i];
         vertexBufferData.push_back(positionList[i].x);
         vertexBufferData.push_back(positionList[i].y);
         vertexBufferData.push_back(positionList[i].z);
-        vertexBufferData.push_back(uvs[i].x);
-        vertexBufferData.push_back(uvs[i].y);
+        vertexBufferData.push_back(uv.x);
+        vertexBufferData.push_back(uv.y);
         vertexBufferData.push_back(normal.x);
         vertexBufferData.push_back(normal.y);
         vertexBufferData.push_back(normal.z);
@@ -402,7 +443,8 @@ void ChunkMesh::AddFaceToData(
     const glm::vec3& position,
     const Block block, BlockFace face, float topInset, float waterDepth, const glm::vec3& tint,
     const std::array<float, 4>& vertexLight, const std::array<float, 4>& vertexBlockLight,
-    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
+    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+    const glm::vec2* tileOverride, float flowAngle, const float* cornerHeights)
 {
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
     glm::vec2 uvCoords = atlas.side;
@@ -410,6 +452,9 @@ void ChunkMesh::AddFaceToData(
         uvCoords = atlas.top;
     } else if (face == BlockFace::k_Bottom) {
         uvCoords = atlas.bottom;
+    }
+    if (tileOverride) {
+        uvCoords = *tileOverride;
     }
 
     const FaceQuad quad = FaceGeometryOf(position, face);
@@ -424,7 +469,15 @@ void ChunkMesh::AddFaceToData(
         }
     }
 
-    if (topInset > 0.0f) {
+    if (cornerHeights) {
+        for (glm::vec3& vertex : positionList) {
+            if (vertex.y > position.y + 0.5f) {
+                const int32_t rx = static_cast<int32_t>(std::lround(vertex.x - position.x));
+                const int32_t rz = static_cast<int32_t>(std::lround(vertex.z - position.z));
+                vertex.y = cornerHeights[rx * 2 + rz];
+            }
+        }
+    } else if (topInset > 0.0f) {
         for (glm::vec3& vertex : positionList) {
             if (vertex.y > position.y + 0.5f) {
                 vertex.y -= topInset;
@@ -434,7 +487,20 @@ void ChunkMesh::AddFaceToData(
 
     const std::array<glm::vec2, 2> uvCoordsList = { uvCoords, uvCoords + glm::vec2(BlockAtlas::k_Step) };
 
-    AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
+    if (flowAngle != k_NoFlow) {
+        const glm::vec2 center = uvCoords + glm::vec2(BlockAtlas::k_Step * 0.5f);
+        const float c = std::cos(flowAngle);
+        const float s = std::sin(flowAngle);
+        constexpr float scale = 0.70710678f * BlockAtlas::k_Step;
+        const glm::vec2 base[4] = { { -0.5f, -0.5f }, { 0.5f, -0.5f }, { 0.5f, 0.5f }, { -0.5f, 0.5f } };
+        std::array<glm::vec2, 4> uvs;
+        for (size_t i = 0; i < 4; i++) {
+            uvs[i] = center + glm::vec2(base[i].x * c - base[i].y * s, base[i].x * s + base[i].y * c) * scale;
+        }
+        AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData, &uvs);
+    } else {
+        AddFaceToData(positionList, uvCoordsList, quad.normal, waterDepth, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
+    }
 }
 
 void ChunkMesh::AddOverlayFace(

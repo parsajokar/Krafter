@@ -51,6 +51,8 @@ target_sources(
     Krafter/World/DropSystem.cpp
     Krafter/World/FallingBlockSystem.h
     Krafter/World/FallingBlockSystem.cpp
+    Krafter/World/FluidSystem.h
+    Krafter/World/FluidSystem.cpp
     Krafter/World/Block.h
     Krafter/World/Block.cpp
     Krafter/World/Biome.h

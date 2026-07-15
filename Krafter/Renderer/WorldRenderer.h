@@ -87,6 +87,9 @@ private:
 
     ChunkPush MakeChunkPush(const glm::mat4& viewProjection, const Sky& sky, float alphaScale, float isWater) const;
 
+    void AnimateTile(const std::vector<uint8_t>& frames, int32_t frameCount, int32_t& lastFrame,
+        float fps, int32_t tileX, bool pingpong);
+
     float m_WaterOpacity = 0.95f;
     float m_WaterFps = 12.0f;
     float m_LavaFps = 8.0f;

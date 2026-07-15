@@ -28,8 +28,8 @@ const vec3 k_CaveAmbient = vec3(0.05);
 const vec3 k_BlockLightColor = vec3(1.0, 0.8, 0.5);
 
 // Water fades from clear in the shallows to fully tinted at this depth (blocks).
-const float k_WaterMaxDepth = 8.0;
-const float k_WaterShallowClarity = 0.2;
+const float k_WaterMaxDepth = 4.0;
+const float k_WaterShallowClarity = 0.55;
 
 void main()
 {
