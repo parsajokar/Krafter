@@ -23,7 +23,7 @@ class InventoryLayer : public UIScreen {
 public:
     InventoryLayer(
         Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
-        Inventory& inventory, Hotbar& hotbar, std::function<void()> onClose);
+        Inventory& inventory, Hotbar& hotbar, bool nearWorkbench, std::function<void()> onClose);
 
 private:
     void OnUpdate() override;
@@ -63,6 +63,8 @@ private:
 
     Inventory& m_Inventory;
     Hotbar& m_Hotbar;
+
+    bool m_NearWorkbench;
 
     Texture2D m_BlockTexture;
     Texture2D m_ItemTexture;

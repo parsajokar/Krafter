@@ -102,7 +102,7 @@ void BlockAtlas::LoadAtlases()
         .side = glm::vec2(7.0f / 16.0f, 1.0f / 16.0f)
     };
 
-    s_BlockAtlases[Block::k_Rose] = {
+    s_BlockAtlases[Block::k_Poppy] = {
         .side = glm::vec2(4.0f / 16.0f, 3.0f / 16.0f)
     };
 
@@ -210,6 +210,13 @@ void BlockAtlas::LoadAtlases()
         .top = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f),
         .side = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f),
         .bottom = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Workbench] = {
+        .top = glm::vec2(0.0f / 16.0f, 15.0f / 16.0f),
+        .side = glm::vec2(2.0f / 16.0f, 15.0f / 16.0f),
+        .bottom = glm::vec2(3.0f / 16.0f, 15.0f / 16.0f),
+        .front = glm::vec2(1.0f / 16.0f, 15.0f / 16.0f)
     };
 }
 

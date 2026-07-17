@@ -8,6 +8,7 @@ enum class ItemKind {
     k_WoodenAxe,
     k_WoodenPickaxe,
     k_WoodenShovel,
+    k_WoodenSword,
 };
 
 inline constexpr ToolType ToolTypeOf(ItemKind kind)
@@ -19,6 +20,8 @@ inline constexpr ToolType ToolTypeOf(ItemKind kind)
         return ToolType::k_Pickaxe;
     case ItemKind::k_WoodenShovel:
         return ToolType::k_Shovel;
+    case ItemKind::k_WoodenSword:
+        return ToolType::k_None;
     }
     return ToolType::k_None;
 }

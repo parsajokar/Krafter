@@ -713,7 +713,7 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
                 Block plant;
                 if (pick < k_FlowerFraction) {
                     const uint32_t f = Hash(worldX, worldZ, 304u) % 3u;
-                    plant = f == 0 ? Block::k_Rose : f == 1 ? Block::k_Dandelion : Block::k_Allium;
+                    plant = f == 0 ? Block::k_Poppy : f == 1 ? Block::k_Dandelion : Block::k_Allium;
                 } else if (pick < k_FlowerFraction + 0.2f) {
                     plant = Block::k_Fern;
                 } else {

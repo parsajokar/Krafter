@@ -52,6 +52,8 @@ public:
         m_Player.SuspendForInventory();
     }
 
+    bool NearWorkbench() const;
+
 private:
     void OnDetach() override;
     void OnUpdate() override;
