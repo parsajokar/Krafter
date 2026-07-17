@@ -148,6 +148,20 @@ void WorldRenderer::RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm
     chunkMesh.DrawTransparent(cmd);
 }
 
+void WorldRenderer::RenderChunkTranslucent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky)
+{
+    if (chunkMesh.GetTranslucentElementCount() == 0) {
+        return;
+    }
+    VkCommandBuffer cmd = Renderer::Get().GetCommandBuffer();
+    m_TranslucentPipeline->Bind(cmd);
+    m_TranslucentPipeline->BindTextureSet(cmd, m_Texture->GetDescriptorSet());
+    // isWater = 0 so opacity comes straight from the texture's alpha.
+    ChunkPush push = MakeChunkPush(viewProjection, sky, 1.0f, 0.0f);
+    m_TranslucentPipeline->PushConstants(cmd, &push, sizeof(push));
+    chunkMesh.DrawTranslucent(cmd);
+}
+
 void WorldRenderer::AnimateTile(
     const std::vector<uint8_t>& frames, int32_t frameCount, int32_t& lastFrame,
     float fps, int32_t tileX, bool pingpong)
@@ -277,6 +291,11 @@ WorldRenderer::WorldRenderer()
 
     config.depthWrite = false;
     m_TransparentPipeline = std::make_unique<Pipeline>(config);
+
+    // Translucent solids (ice): blended like water but a normal back-face-culled
+    // cube, and shaded as opaque geometry (no water depth fade).
+    config.cullMode = VK_CULL_MODE_BACK_BIT;
+    m_TranslucentPipeline = std::make_unique<Pipeline>(config);
 
     Renderer& renderer = Renderer::Get();
 

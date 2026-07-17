@@ -21,6 +21,7 @@ struct ChunkMeshData {
     ChunkMeshBuffer opaque;
     ChunkMeshBuffer cross;
     ChunkMeshBuffer transparent;
+    ChunkMeshBuffer translucent;
 };
 
 class ChunkMesh {
@@ -50,9 +51,15 @@ public:
         return m_Transparent.elementCount;
     }
 
+    inline uint32_t GetTranslucentElementCount() const
+    {
+        return m_Translucent.elementCount;
+    }
+
     void DrawOpaque(VkCommandBuffer cmd) const;
     void DrawCross(VkCommandBuffer cmd) const;
     void DrawTransparent(VkCommandBuffer cmd) const;
+    void DrawTranslucent(VkCommandBuffer cmd) const;
 
 private:
     static constexpr float k_NoFlow = 1000.0f;
@@ -88,11 +95,13 @@ private:
 
     static void AddCrossToData(
         const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light, float blockLight,
-        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData);
+        std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+        const glm::ivec3& growth = glm::ivec3(0, 1, 0));
 
     Part m_Opaque;
     Part m_Cross;
     Part m_Transparent;
+    Part m_Translucent;
 };
 
 }

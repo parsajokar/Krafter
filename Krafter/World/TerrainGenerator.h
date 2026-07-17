@@ -42,6 +42,11 @@ private:
         Block leaves = Block::k_OakLeaves;
     };
 
+    struct GemCluster {
+        glm::ivec3 center = glm::ivec3(0);
+        int32_t radius = 0;
+    };
+
     uint32_t Hash(int32_t x, int32_t z, uint32_t salt) const;
     float Hash01(int32_t x, int32_t z, uint32_t salt) const;
 
@@ -68,6 +73,14 @@ private:
 
     void CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition) const;
 
+    Block OreFor(int32_t worldX, int32_t y, int32_t worldZ) const;
+    void ScatterOres(Chunk& chunk, const glm::ivec2& chunkPosition) const;
+
+    bool BuildGemCluster(int32_t cellX, int32_t cellZ, GemCluster& cluster) const;
+    std::vector<GemCluster> GatherGemClusters(const glm::ivec2& chunkPosition) const;
+    void CarveGemCluster(Chunk& chunk, const glm::ivec2& chunkPosition, const GemCluster& cluster) const;
+    void ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosition) const;
+
     uint32_t m_Seed = 0;
 
     FastNoiseLite m_CaveNoiseA;
@@ -76,6 +89,10 @@ private:
     FastNoiseLite m_AquiferLevelNoise;
     FastNoiseLite m_AquiferMaskNoise;
     FastNoiseLite m_EntranceNoise;
+
+    FastNoiseLite m_CoalNoise;
+    FastNoiseLite m_CopperNoise;
+    FastNoiseLite m_IronNoise;
 };
 
 }

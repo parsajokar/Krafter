@@ -46,6 +46,19 @@ constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
 constexpr int32_t k_MaxCactusHeight = 3;
 
+// Lone gems that stud ordinary cave walls very sparsely.
+constexpr float k_GemChance = 0.0006f;
+
+// Rare underground geode pockets that are entirely lined with one gem type.
+// TEMP TEST VALUES: grid shrunk + chance raised so geodes are easy to find.
+// Revert to grid 320 / chance 0.05f once confirmed.
+constexpr int32_t k_GemClusterGrid = 80;
+constexpr float k_GemClusterChance = 0.6f;
+constexpr int32_t k_GemClusterMinY = 22;
+constexpr int32_t k_GemClusterMaxY = 46;
+constexpr int32_t k_GemClusterMinR = 4;
+constexpr int32_t k_GemClusterMaxR = 6;
+
 float GridJitter(int32_t x, int32_t z, uint32_t salt, uint32_t seed)
 {
     uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(z) * 2246822519u
@@ -87,6 +100,18 @@ TerrainGenerator::TerrainGenerator(int32_t seed)
     m_EntranceNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     m_EntranceNoise.SetSeed(4517 + static_cast<int>(m_Seed));
     m_EntranceNoise.SetFrequency(0.02f);
+
+    m_CoalNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_CoalNoise.SetSeed(2237 + static_cast<int>(m_Seed));
+    m_CoalNoise.SetFrequency(0.11f);
+
+    m_CopperNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_CopperNoise.SetSeed(6373 + static_cast<int>(m_Seed));
+    m_CopperNoise.SetFrequency(0.11f);
+
+    m_IronNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_IronNoise.SetSeed(9491 + static_cast<int>(m_Seed));
+    m_IronNoise.SetFrequency(0.12f);
 }
 
 uint32_t TerrainGenerator::Hash(int32_t x, int32_t z, uint32_t salt) const
@@ -711,6 +736,229 @@ void TerrainGenerator::CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition)
     }
 }
 
+Block TerrainGenerator::OreFor(int32_t worldX, int32_t y, int32_t worldZ) const
+{
+    if (y < 4) {
+        return Block::k_Air;
+    }
+
+    const float fx = static_cast<float>(worldX);
+    const float fy = static_cast<float>(y);
+    const float fz = static_cast<float>(worldZ);
+
+    // Deepest and rarest first so overlaps keep the more valuable ore.
+    if (y <= 60 && m_IronNoise.GetNoise(fx, fy, fz) > 0.60f) {
+        return Block::k_IronOre;
+    }
+    if (y <= 100 && m_CopperNoise.GetNoise(fx, fy, fz) > 0.58f) {
+        return Block::k_CopperOre;
+    }
+    if (m_CoalNoise.GetNoise(fx, fy, fz) > 0.55f) {
+        return Block::k_CoalOre;
+    }
+    return Block::k_Air;
+}
+
+void TerrainGenerator::ScatterOres(Chunk& chunk, const glm::ivec2& chunkPosition) const
+{
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
+            const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
+
+            for (int32_t y = 1; y < Chunk::k_Height; y++) {
+                if (chunk.GetBlock(glm::ivec3(x, y, z)) != Block::k_Stone) {
+                    continue;
+                }
+                const Block ore = OreFor(worldX, y, worldZ);
+                if (ore != Block::k_Air) {
+                    chunk.SetBlock(glm::ivec3(x, y, z), ore);
+                }
+            }
+        }
+    }
+}
+
+bool TerrainGenerator::BuildGemCluster(int32_t cellX, int32_t cellZ, GemCluster& cluster) const
+{
+    if (Hash01(cellX, cellZ, 900u) >= k_GemClusterChance) {
+        return false;
+    }
+
+    const int32_t cx = cellX * k_GemClusterGrid
+        + static_cast<int32_t>(Hash01(cellX, cellZ, 901u) * k_GemClusterGrid);
+    const int32_t cz = cellZ * k_GemClusterGrid
+        + static_cast<int32_t>(Hash01(cellX, cellZ, 902u) * k_GemClusterGrid);
+    const int32_t cy = k_GemClusterMinY
+        + static_cast<int32_t>(Hash01(cellX, cellZ, 903u) * (k_GemClusterMaxY - k_GemClusterMinY + 1));
+
+    cluster.center = glm::ivec3(cx, cy, cz);
+    cluster.radius = k_GemClusterMinR
+        + static_cast<int32_t>(Hash(cellX, cellZ, 904u) % (k_GemClusterMaxR - k_GemClusterMinR + 1));
+    return true;
+}
+
+std::vector<TerrainGenerator::GemCluster> TerrainGenerator::GatherGemClusters(const glm::ivec2& chunkPosition) const
+{
+    std::vector<GemCluster> clusters;
+
+    const int32_t minX = chunkPosition.x * Chunk::k_Width - k_GemClusterMaxR;
+    const int32_t maxX = chunkPosition.x * Chunk::k_Width + Chunk::k_Width - 1 + k_GemClusterMaxR;
+    const int32_t minZ = chunkPosition.y * Chunk::k_Width - k_GemClusterMaxR;
+    const int32_t maxZ = chunkPosition.y * Chunk::k_Width + Chunk::k_Width - 1 + k_GemClusterMaxR;
+
+    for (int32_t cz = FloorDiv(minZ, k_GemClusterGrid); cz <= FloorDiv(maxZ, k_GemClusterGrid); cz++) {
+        for (int32_t cx = FloorDiv(minX, k_GemClusterGrid); cx <= FloorDiv(maxX, k_GemClusterGrid); cx++) {
+            GemCluster cluster;
+            if (BuildGemCluster(cx, cz, cluster)) {
+                clusters.push_back(cluster);
+            }
+        }
+    }
+
+    return clusters;
+}
+
+void TerrainGenerator::CarveGemCluster(Chunk& chunk, const glm::ivec2& chunkPosition, const GemCluster& cluster) const
+{
+    // Hollow out the interior and wrap it in an ice shell that the gems line.
+    const int32_t r = cluster.radius;
+    const float hollowSq = (r - 1.0f) * (r - 1.0f);
+    const float outerSq = static_cast<float>(r * r);
+
+    for (int32_t dy = -r; dy <= r; dy++) {
+        const int32_t y = cluster.center.y + dy;
+        if (y < 1 || y >= Chunk::k_Height) {
+            continue;
+        }
+        for (int32_t dz = -r; dz <= r; dz++) {
+            for (int32_t dx = -r; dx <= r; dx++) {
+                const float d2 = static_cast<float>(dx * dx + dy * dy + dz * dz);
+                if (d2 > outerSq) {
+                    continue;
+                }
+                const int32_t lx = cluster.center.x + dx - chunkPosition.x * Chunk::k_Width;
+                const int32_t lz = cluster.center.z + dz - chunkPosition.y * Chunk::k_Width;
+                if (lx < 0 || lx >= Chunk::k_Width || lz < 0 || lz >= Chunk::k_Width) {
+                    continue;
+                }
+                const glm::ivec3 cell(lx, y, lz);
+                const Block cur = chunk.GetBlock(cell);
+                if (cur != Block::k_Stone && !IsOre(cur)) {
+                    continue;
+                }
+                if (d2 <= hollowSq) {
+                    chunk.SetBlock(cell, Block::k_Air);
+                } else {
+                    // Shell is a mix of solid hard ice and translucent ice.
+                    const Block shell = Hash01(cluster.center.x + dx, cluster.center.z + dz,
+                                            908u + static_cast<uint32_t>(cluster.center.y + dy))
+                            < 0.5f
+                        ? Block::k_HardIce
+                        : Block::k_Ice;
+                    chunk.SetBlock(cell, shell);
+                }
+            }
+        }
+    }
+}
+
+void TerrainGenerator::ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosition) const
+{
+    static constexpr glm::ivec3 neighbors[6] = {
+        { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+    };
+
+    // Rare geode pockets: carve them first so their walls exist for the gem pass.
+    const std::vector<GemCluster> clusters = GatherGemClusters(chunkPosition);
+    for (const GemCluster& cluster : clusters) {
+        CarveGemCluster(chunk, chunkPosition, cluster);
+    }
+
+    auto insideCluster = [&](int32_t wx, int32_t y, int32_t wz) -> bool {
+        for (const GemCluster& cluster : clusters) {
+            const int32_t dx = wx - cluster.center.x;
+            const int32_t dy = y - cluster.center.y;
+            const int32_t dz = wz - cluster.center.z;
+            const float reach = cluster.radius + 0.5f;
+            if (static_cast<float>(dx * dx + dy * dy + dz * dz) <= reach * reach) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto randomGem = [&](int32_t wx, int32_t y, int32_t wz) -> Block {
+        const uint32_t t = Hash(wx, wz, 950u + static_cast<uint32_t>(y)) % 4u;
+        return t == 0 ? Block::k_Topaz
+            : t == 1  ? Block::k_Emerald
+            : t == 2  ? Block::k_Amethyst
+                      : Block::k_Diamond;
+    };
+
+    for (int32_t x = 0; x < Chunk::k_Width; x++) {
+        for (int32_t z = 0; z < Chunk::k_Width; z++) {
+            const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
+            const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
+
+            const int32_t surface = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t top = std::min(surface - 3, Chunk::k_Height - 2);
+
+            for (int32_t y = 5; y <= top; y++) {
+                if (chunk.GetBlock(glm::ivec3(x, y, z)) != Block::k_Air) {
+                    continue;
+                }
+
+                bool touchesStone = false;
+                bool touchesSolid = false;
+                for (const glm::ivec3& dir : neighbors) {
+                    const glm::ivec3 n(x + dir.x, y + dir.y, z + dir.z);
+                    if (n.x < 0 || n.x >= Chunk::k_Width || n.z < 0 || n.z >= Chunk::k_Width
+                        || n.y < 0 || n.y >= Chunk::k_Height) {
+                        continue;
+                    }
+                    const Block nb = chunk.GetBlock(n);
+                    if (nb == Block::k_Stone) {
+                        touchesStone = true;
+                    }
+                    if (IsOpaque(nb)) {
+                        touchesSolid = true;
+                    }
+                }
+
+                // Inside a geode: line every wall with a random gem per block.
+                if (insideCluster(worldX, y, worldZ)) {
+                    if (touchesSolid) {
+                        chunk.SetBlock(glm::ivec3(x, y, z), randomGem(worldX, y, worldZ));
+                    }
+                    continue;
+                }
+
+                // Otherwise, very sparse lone gems on ordinary cave walls.
+                if (!touchesStone) {
+                    continue;
+                }
+                if (Hash01(worldX, worldZ, 500u + static_cast<uint32_t>(y)) >= k_GemChance) {
+                    continue;
+                }
+
+                const float pick = Hash01(worldX, worldZ, 700u + static_cast<uint32_t>(y));
+                Block gem;
+                if (y <= 20) {
+                    gem = pick < 0.5f ? Block::k_Diamond : Block::k_Amethyst;
+                } else if (y <= 40) {
+                    gem = pick < 0.5f ? Block::k_Amethyst : Block::k_Emerald;
+                } else if (y <= 70) {
+                    gem = pick < 0.5f ? Block::k_Emerald : Block::k_Topaz;
+                } else {
+                    gem = Block::k_Topaz;
+                }
+                chunk.SetBlock(glm::ivec3(x, y, z), gem);
+            }
+        }
+    }
+}
+
 void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
 {
     for (int32_t x = 0; x < Chunk::k_Width; x++) {
@@ -747,6 +995,9 @@ void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
     }
 
     CarveCaves(chunk, position);
+
+    ScatterOres(chunk, position);
+    ScatterCaveGems(chunk, position);
 
     const std::vector<Lake> lakes = GatherLakes(position);
     for (const Lake& lake : lakes) {

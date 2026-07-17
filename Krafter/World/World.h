@@ -110,6 +110,10 @@ private:
 
     void ChopFloatingTree(const glm::ivec3& brokenPosition);
 
+    // Gems cling to a solid surface; break and drop any adjacent gem that just
+    // lost its last opaque neighbour.
+    void BreakUnsupportedGems(const glm::ivec3& changedPosition);
+
     void InvalidateChunk(const glm::ivec2& chunkPosition);
     void RemeshChunk(const glm::ivec2& chunkPosition);
 
