@@ -52,6 +52,10 @@ inline const std::vector<Recipe>& Recipes()
         { { { Item(Block::k_BirchLog), 1 } }, Item(Block::k_BirchPlanks), 1 },
         { { { Item(Block::k_AcaciaLog), 1 } }, Item(Block::k_AcaciaPlanks), 1 },
 
+        { { { Item(Block::k_OakPlanks), 1, IngredientMatch::k_AnyPlanks },
+              { Item::Material(ItemKind::k_Coal), 1 } },
+            Item(Block::k_Torch), 3 },
+
         { { { Item(Block::k_OakPlanks), 24, IngredientMatch::k_AnyPlanks } },
             Item(Block::k_Workbench), 1 },
 
