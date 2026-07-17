@@ -8,12 +8,24 @@ inline constexpr ToolType ToolTypeOf(ItemKind kind)
 {
     switch (kind) {
     case ItemKind::k_WoodenAxe:
+    case ItemKind::k_StoneAxe:
+    case ItemKind::k_CopperAxe:
+    case ItemKind::k_IronAxe:
         return ToolType::k_Axe;
     case ItemKind::k_WoodenPickaxe:
+    case ItemKind::k_StonePickaxe:
+    case ItemKind::k_CopperPickaxe:
+    case ItemKind::k_IronPickaxe:
         return ToolType::k_Pickaxe;
     case ItemKind::k_WoodenShovel:
+    case ItemKind::k_StoneShovel:
+    case ItemKind::k_CopperShovel:
+    case ItemKind::k_IronShovel:
         return ToolType::k_Shovel;
     case ItemKind::k_WoodenSword:
+    case ItemKind::k_StoneSword:
+    case ItemKind::k_CopperSword:
+    case ItemKind::k_IronSword:
     case ItemKind::k_Coal:
     case ItemKind::k_CopperIngot:
     case ItemKind::k_IronIngot:
@@ -34,6 +46,30 @@ inline constexpr glm::vec2 ItemCell(ItemKind kind)
         return glm::vec2(2.0f, 0.0f);
     case ItemKind::k_WoodenSword:
         return glm::vec2(3.0f, 0.0f);
+    case ItemKind::k_StoneAxe:
+        return glm::vec2(0.0f, 1.0f);
+    case ItemKind::k_StonePickaxe:
+        return glm::vec2(1.0f, 1.0f);
+    case ItemKind::k_StoneShovel:
+        return glm::vec2(2.0f, 1.0f);
+    case ItemKind::k_StoneSword:
+        return glm::vec2(3.0f, 1.0f);
+    case ItemKind::k_CopperAxe:
+        return glm::vec2(0.0f, 2.0f);
+    case ItemKind::k_CopperPickaxe:
+        return glm::vec2(1.0f, 2.0f);
+    case ItemKind::k_CopperShovel:
+        return glm::vec2(2.0f, 2.0f);
+    case ItemKind::k_CopperSword:
+        return glm::vec2(3.0f, 2.0f);
+    case ItemKind::k_IronAxe:
+        return glm::vec2(0.0f, 3.0f);
+    case ItemKind::k_IronPickaxe:
+        return glm::vec2(1.0f, 3.0f);
+    case ItemKind::k_IronShovel:
+        return glm::vec2(2.0f, 3.0f);
+    case ItemKind::k_IronSword:
+        return glm::vec2(3.0f, 3.0f);
     case ItemKind::k_Coal:
         return glm::vec2(0.0f, 15.0f);
     case ItemKind::k_CopperIngot:

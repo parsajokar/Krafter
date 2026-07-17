@@ -66,7 +66,21 @@ const char* ItemKindName(ItemKind kind)
     case ItemKind::k_WoodenPickaxe: return "Wooden Pickaxe";
     case ItemKind::k_WoodenShovel: return "Wooden Shovel";
     case ItemKind::k_WoodenSword: return "Wooden Sword";
+    case ItemKind::k_StoneAxe: return "Stone Axe";
+    case ItemKind::k_StonePickaxe: return "Stone Pickaxe";
+    case ItemKind::k_StoneShovel: return "Stone Shovel";
+    case ItemKind::k_StoneSword: return "Stone Sword";
+    case ItemKind::k_CopperAxe: return "Copper Axe";
+    case ItemKind::k_CopperPickaxe: return "Copper Pickaxe";
+    case ItemKind::k_CopperShovel: return "Copper Shovel";
+    case ItemKind::k_CopperSword: return "Copper Sword";
+    case ItemKind::k_IronAxe: return "Iron Axe";
+    case ItemKind::k_IronPickaxe: return "Iron Pickaxe";
+    case ItemKind::k_IronShovel: return "Iron Shovel";
+    case ItemKind::k_IronSword: return "Iron Sword";
     case ItemKind::k_Coal: return "Coal";
+    case ItemKind::k_CopperIngot: return "Copper Ingot";
+    case ItemKind::k_IronIngot: return "Iron Ingot";
     }
     return "Unknown";
 }
@@ -475,7 +489,11 @@ void Player::RenderImGui()
         }
         for (const ItemKind kind :
             { ItemKind::k_WoodenAxe, ItemKind::k_WoodenPickaxe, ItemKind::k_WoodenShovel,
-                ItemKind::k_WoodenSword, ItemKind::k_Coal }) {
+                ItemKind::k_WoodenSword, ItemKind::k_StoneAxe, ItemKind::k_StonePickaxe,
+                ItemKind::k_StoneShovel, ItemKind::k_StoneSword, ItemKind::k_CopperAxe,
+                ItemKind::k_CopperPickaxe, ItemKind::k_CopperShovel, ItemKind::k_CopperSword,
+                ItemKind::k_IronAxe, ItemKind::k_IronPickaxe, ItemKind::k_IronShovel,
+                ItemKind::k_IronSword, ItemKind::k_Coal }) {
             if (ImGui::Selectable(ItemKindName(kind))) {
                 CollectDrop(Item::Material(kind, quantity));
             }
