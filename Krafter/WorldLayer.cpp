@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <utility>
 
 #include "imgui.h"
@@ -7,9 +8,39 @@
 #include "Krafter/Core/Renderer.h"
 #include "Krafter/Core/Window.h"
 #include "Krafter/World/Biome.h"
+#include "Krafter/World/Chunk.h"
 #include "Krafter/WorldLayer.h"
 
 namespace Krafter {
+
+namespace {
+
+glm::vec3 FindLandSpawn()
+{
+    constexpr int32_t k_MaxRadius = 2048;
+    constexpr int32_t k_Step = 8;
+    for (int32_t r = 0; r <= k_MaxRadius; r += k_Step) {
+        for (int32_t dz = -r; dz <= r; dz += k_Step) {
+            for (int32_t dx = -r; dx <= r; dx += k_Step) {
+                if (r != 0 && std::abs(dx) != r && std::abs(dz) != r) {
+                    continue;
+                }
+                const float x = static_cast<float>(dx);
+                const float z = static_cast<float>(dz);
+                if (Biome::At(x, z) == BiomeType::k_Ocean) {
+                    continue;
+                }
+                const int32_t surface = Biome::SurfaceHeight(x, z);
+                if (surface > Chunk::k_SeaLevel + 1) {
+                    return glm::vec3(x + 0.5f, static_cast<float>(surface) + 3.0f, z + 0.5f);
+                }
+            }
+        }
+    }
+    return glm::vec3(0.5f, 100.0f, 0.5f);
+}
+
+}
 
 WorldLayer::WorldLayer(
     Window& window, Renderer& renderer, int32_t seed, GameMode mode,
@@ -20,7 +51,7 @@ WorldLayer::WorldLayer(
     , m_OnPause(std::move(onPause))
     , m_OnToggleInventory(std::move(onToggleInventory))
     , m_World(seed)
-    , m_Player(window, m_World, glm::vec3(0.0f, 100.0f, 0.0f), glm::radians(80.0f), mode)
+    , m_Player(window, m_World, FindLandSpawn(), glm::radians(80.0f), mode)
 {
 }
 
