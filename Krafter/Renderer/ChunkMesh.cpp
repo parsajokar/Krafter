@@ -199,8 +199,9 @@ ChunkMeshData ChunkMesh::Compute(
 
                 if (IsPlant(self) || IsGem(self)) {
                     glm::vec3 tint(1.0f);
-                    if (self != Block::k_DeadBush && self != Block::k_Torch
-                        && self != Block::k_CactusFlower && !IsGem(self)) {
+                    // Only grassy foliage takes the biome colour; flowers, gems,
+                    // torches, etc. keep their own colours.
+                    if (self == Block::k_ShortGrass || self == Block::k_Fern) {
                         const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
                         const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
                         tint = Biome::Get(Biome::At(worldX, worldZ)).grassColor;

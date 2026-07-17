@@ -45,6 +45,9 @@ enum class Block {
     k_HardIce,
     k_Ice,
     k_CactusFlower,
+    k_Rose,
+    k_Dandelion,
+    k_Allium,
 
     k_Count // must stay last: sizes k_BlockInfo and counts the kinds above
 };
@@ -135,6 +138,9 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_HardIce, .opaque = true, .breakSeconds = 0.5f, .drop = Block::k_HardIce, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Ice, .opaque = true, .translucent = true, .breakSeconds = 0.4f, .drop = Block::k_Ice, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_CactusFlower, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_CactusFlower, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_Rose, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Rose, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_Dandelion, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Dandelion, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_Allium, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Allium, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
 } };
 
 constexpr bool BlockInfoTableInOrder()

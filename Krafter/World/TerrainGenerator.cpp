@@ -46,6 +46,8 @@ constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
 constexpr int32_t k_MaxCactusHeight = 3;
 constexpr float k_CactusFlowerChance = 0.25f;
+// Fraction of grass-plant rolls that become a flower instead of grass/fern.
+constexpr float k_FlowerFraction = 0.1f;
 
 // Lone gems that stud ordinary cave walls very sparsely.
 constexpr float k_GemChance = 0.0006f;
@@ -647,7 +649,16 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
                 if (roll >= k_GrassPlantChance) {
                     continue;
                 }
-                const Block plant = Hash01(worldX, worldZ, 301u) < 0.2f ? Block::k_Fern : Block::k_ShortGrass;
+                const float pick = Hash01(worldX, worldZ, 301u);
+                Block plant;
+                if (pick < k_FlowerFraction) {
+                    const uint32_t f = Hash(worldX, worldZ, 304u) % 3u;
+                    plant = f == 0 ? Block::k_Rose : f == 1 ? Block::k_Dandelion : Block::k_Allium;
+                } else if (pick < k_FlowerFraction + 0.2f) {
+                    plant = Block::k_Fern;
+                } else {
+                    plant = Block::k_ShortGrass;
+                }
                 chunk.SetBlock(glm::ivec3(x, py, z), plant);
             } else if (surface == Block::k_Sand && biome == BiomeType::k_Desert) {
                 if (roll < k_CactusChance) {
