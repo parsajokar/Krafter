@@ -49,6 +49,17 @@ constexpr float k_CactusFlowerChance = 0.25f;
 // Fraction of grass-plant rolls that become a flower instead of grass/fern.
 constexpr float k_FlowerFraction = 0.1f;
 
+// "Lion scratch" red-sand claw marks scored across desert sand.
+constexpr int32_t k_ScratchGrid = 72;
+constexpr float k_ScratchChance = 0.4f;
+constexpr float k_ScratchMinLen = 12.0f;
+constexpr float k_ScratchMaxLen = 22.0f;
+constexpr float k_ClawSpacing = 2.5f;
+constexpr float k_ClawHalfWidth = 0.75f;
+constexpr float k_ScratchCurve = 2.0f;
+constexpr int32_t k_ScratchReach = 16;
+constexpr int32_t k_ScratchDepth = 3;
+
 // Lone gems that stud ordinary cave walls very sparsely.
 constexpr float k_GemChance = 0.0006f;
 
@@ -606,6 +617,55 @@ void TerrainGenerator::StampTree(Chunk& chunk, const glm::ivec2& chunkPosition, 
     StampLeafBlob(chunk, chunkPosition, tree, tree.x, tree.z, topLog + 1, 7u);
 }
 
+bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
+{
+    const int32_t loX = FloorDiv(worldX - k_ScratchReach, k_ScratchGrid);
+    const int32_t hiX = FloorDiv(worldX + k_ScratchReach, k_ScratchGrid);
+    const int32_t loZ = FloorDiv(worldZ - k_ScratchReach, k_ScratchGrid);
+    const int32_t hiZ = FloorDiv(worldZ + k_ScratchReach, k_ScratchGrid);
+
+    for (int32_t cz = loZ; cz <= hiZ; cz++) {
+        for (int32_t cx = loX; cx <= hiX; cx++) {
+            if (Hash01(cx, cz, 600u) >= k_ScratchChance) {
+                continue;
+            }
+
+            const float centerX = cx * k_ScratchGrid + Hash01(cx, cz, 601u) * k_ScratchGrid;
+            const float centerZ = cz * k_ScratchGrid + Hash01(cx, cz, 602u) * k_ScratchGrid;
+            if (Biome::At(centerX, centerZ) != BiomeType::k_Desert) {
+                continue;
+            }
+
+            const float angle = Hash01(cx, cz, 603u) * 6.2831853f;
+            const float dirX = std::cos(angle);
+            const float dirZ = std::sin(angle);
+            const int32_t claws = 3 + static_cast<int32_t>(Hash(cx, cz, 604u) % 2u);
+            const float halfLen = 0.5f
+                * (k_ScratchMinLen + Hash01(cx, cz, 605u) * (k_ScratchMaxLen - k_ScratchMinLen));
+
+            const float dx = static_cast<float>(worldX) - centerX;
+            const float dz = static_cast<float>(worldZ) - centerZ;
+            const float along = dx * dirX + dz * dirZ;
+            if (std::abs(along) > halfLen) {
+                continue;
+            }
+            const float perp = -dx * dirZ + dz * dirX;
+
+            // Claws bow together like a real drag and fan out toward the end.
+            const float t = along / halfLen;
+            const float curve = k_ScratchCurve * (1.0f - t * t);
+            const float fan = 1.0f + 0.35f * t;
+            for (int32_t k = 0; k < claws; k++) {
+                const float lane = (static_cast<float>(k) - (claws - 1) * 0.5f) * k_ClawSpacing * fan;
+                if (std::abs(perp - lane - curve) < k_ClawHalfWidth) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 bool TerrainGenerator::ColumnRollsCactus(int32_t worldX, int32_t worldZ) const
 {
     if (Biome::At((float)worldX, (float)worldZ) != BiomeType::k_Desert) {
@@ -1007,6 +1067,14 @@ void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
 
             const bool sandyShore = height <= Chunk::k_SeaLevel + 1;
             chunk.SetBlock(glm::ivec3(x, height, z), sandyShore ? Block::k_Sand : biome.surface);
+
+            if (!sandyShore && type == BiomeType::k_Desert && OnLionScratch(worldX, worldZ)) {
+                for (int32_t y = height; y >= 0 && y > height - k_ScratchDepth; y--) {
+                    if (chunk.GetBlock(glm::ivec3(x, y, z)) == Block::k_Sand) {
+                        chunk.SetBlock(glm::ivec3(x, y, z), Block::k_RedSand);
+                    }
+                }
+            }
 
             for (int32_t y = height + 1; y <= Chunk::k_SeaLevel; y++) {
                 chunk.SetBlock(glm::ivec3(x, y, z), Block::k_Water);

@@ -21,7 +21,7 @@ constexpr int32_t k_WaterTileX = 112;
 constexpr int32_t k_WaterTileY = 0;
 constexpr int32_t k_WaterTileSize = 16;
 
-constexpr int32_t k_LavaTileX = 80;
+constexpr int32_t k_LavaTileX = 128;
 constexpr int32_t k_LavaTileY = 0;
 
 constexpr uint32_t k_VertexStride = 14 * sizeof(float);

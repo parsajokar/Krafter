@@ -48,6 +48,7 @@ enum class Block {
     k_Rose,
     k_Dandelion,
     k_Allium,
+    k_RedSand,
 
     k_Count // must stay last: sizes k_BlockInfo and counts the kinds above
 };
@@ -141,6 +142,7 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_Rose, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Rose, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Dandelion, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Dandelion, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Allium, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Allium, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
+    { .id = Block::k_RedSand, .opaque = true, .drop = Block::k_RedSand, .harvest = ToolType::k_Shovel },
 } };
 
 constexpr bool BlockInfoTableInOrder()

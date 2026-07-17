@@ -151,6 +151,12 @@ void BlockAtlas::LoadAtlases()
     };
 
     s_BlockAtlases[Block::k_Lava] = {
+        .top = glm::vec2(8.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(8.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(8.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_RedSand] = {
         .top = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f),
         .side = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f),
         .bottom = glm::vec2(5.0f / 16.0f, 0.0f / 16.0f)

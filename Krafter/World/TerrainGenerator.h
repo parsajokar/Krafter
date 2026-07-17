@@ -71,6 +71,10 @@ private:
     bool ColumnRollsCactus(int32_t worldX, int32_t worldZ) const;
     void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition) const;
 
+    // True when a desert column falls on one of the rare "lion scratch" claw
+    // marks that streak the sand with red sand.
+    bool OnLionScratch(int32_t worldX, int32_t worldZ) const;
+
     void CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition) const;
 
     Block OreFor(int32_t worldX, int32_t y, int32_t worldZ) const;
