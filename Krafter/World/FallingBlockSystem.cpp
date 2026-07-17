@@ -54,7 +54,7 @@ void FallingBlockSystem::Update(float deltaTime)
                 it->second.chunk->SetBlock(ToLocalPosition(cell), Block::k_Air);
                 touchedChunks.insert(cellChunk);
 
-                m_World.SpawnDrop(glm::vec3(cell) + 0.5f, DropFor(here));
+                m_World.SpawnDrop(glm::vec3(cell) + 0.5f, DropItemFor(here));
             }
         }
 

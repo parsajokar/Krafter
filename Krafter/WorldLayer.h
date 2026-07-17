@@ -53,8 +53,11 @@ public:
     }
 
     bool NearWorkbench() const;
+    bool NearFurnace() const;
 
 private:
+    bool NearBlock(Block block) const;
+
     void OnDetach() override;
     void OnUpdate() override;
     void OnRender() override;

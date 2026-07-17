@@ -12,16 +12,16 @@ DropSystem::DropSystem(const World& world)
 {
 }
 
-void DropSystem::Spawn(const glm::vec3& position, Block block)
+void DropSystem::Spawn(const glm::vec3& position, const Item& item)
 {
-    if (block == Block::k_Air) {
+    if (item.IsEmpty()) {
         return;
     }
 
     const float angle = static_cast<float>(m_Drops.size()) * 2.39996323f;
     const glm::vec3 velocity(
         std::cos(angle) * k_DropPopOut, k_DropPopUp, std::sin(angle) * k_DropPopOut);
-    m_Drops.push_back({ position, velocity, block, 0.0f, angle });
+    m_Drops.push_back({ position, velocity, item, 0.0f, angle });
 }
 
 void DropSystem::Update(float deltaTime, const glm::vec3& cameraPosition)
@@ -39,7 +39,7 @@ void DropSystem::Update(float deltaTime, const glm::vec3& cameraPosition)
 
         if (drop.age >= k_PickupDelay && distSq <= k_AttractRadius * k_AttractRadius) {
             if (distSq <= k_PickupRadius * k_PickupRadius) {
-                m_PickedUp.push_back(drop.block);
+                m_PickedUp.push_back(drop.item);
                 m_Drops[i] = m_Drops.back();
                 m_Drops.pop_back();
                 continue;
@@ -91,8 +91,14 @@ void DropSystem::Render(WorldRenderer& renderer, const glm::mat4& viewProjection
         const glm::vec3 right = glm::normalize(glm::cross(k_WorldUp, forward));
         const glm::vec3 up = glm::cross(forward, right);
 
+        const Item& item = drop.item;
+        const bool fromItemAtlas = item.isItem;
+        const glm::vec2 tile = fromItemAtlas
+            ? ItemCell(item.kind) * BlockAtlas::k_Step
+            : BlockIconTile(item.block);
+
         renderer.RenderItemDrop(
-            center, right * k_DropSize, up * k_DropSize, BlockIconTile(drop.block), viewProjection);
+            center, right * k_DropSize, up * k_DropSize, tile, fromItemAtlas, viewProjection);
     }
 }
 

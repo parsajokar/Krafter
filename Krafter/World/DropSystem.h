@@ -4,7 +4,7 @@
 
 #include "glm/glm.hpp"
 
-#include "Krafter/World/Block.h"
+#include "Krafter/Item.h"
 
 namespace Krafter {
 
@@ -15,13 +15,13 @@ class DropSystem {
 public:
     explicit DropSystem(const World& world);
 
-    void Spawn(const glm::vec3& position, Block block);
+    void Spawn(const glm::vec3& position, const Item& item);
 
     void Update(float deltaTime, const glm::vec3& cameraPosition);
 
     void Render(WorldRenderer& renderer, const glm::mat4& viewProjection) const;
 
-    std::vector<Block> TakePickedUp()
+    std::vector<Item> TakePickedUp()
     {
         return std::move(m_PickedUp);
     }
@@ -30,7 +30,7 @@ private:
     struct ItemDrop {
         glm::vec3 position;
         glm::vec3 velocity;
-        Block block;
+        Item item;
         float age;
         float phase;
     };
@@ -54,7 +54,7 @@ private:
     const World& m_World;
 
     std::vector<ItemDrop> m_Drops;
-    std::vector<Block> m_PickedUp;
+    std::vector<Item> m_PickedUp;
     float m_Time = 0.0f;
     glm::vec3 m_LastCameraPosition = glm::vec3(0.0f);
 };

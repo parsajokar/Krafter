@@ -375,7 +375,7 @@ void World::BreakUnsupportedGems(const glm::ivec3& changedPosition)
             }
         }
         if (!supported) {
-            SpawnDrop(glm::vec3(gemPos) + 0.5f, DropFor(gem));
+            SpawnDrop(glm::vec3(gemPos) + 0.5f, DropItemFor(gem));
             SetBlock(gemPos, Block::k_Air);
         }
     }

@@ -236,11 +236,12 @@ void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float prog
 
 void WorldRenderer::RenderItemDrop(
     const glm::vec3& center, const glm::vec3& right, const glm::vec3& up,
-    const glm::vec2& tileOrigin, const glm::mat4& viewProjection)
+    const glm::vec2& tileOrigin, bool fromItemAtlas, const glm::mat4& viewProjection)
 {
     VkCommandBuffer cmd = Renderer::Get().GetCommandBuffer();
     m_ItemPipeline->Bind(cmd);
-    m_ItemPipeline->BindTextureSet(cmd, m_Texture->GetDescriptorSet());
+    m_ItemPipeline->BindTextureSet(
+        cmd, (fromItemAtlas ? m_ItemTexture : m_Texture)->GetDescriptorSet());
 
     ItemPush push = {};
     push.viewProjection = viewProjection;
@@ -266,6 +267,7 @@ WorldRenderer::WorldRenderer()
     BlockAtlas::LoadAtlases();
 
     m_Texture = std::make_unique<Texture2D>("assets/textures/blocks.png");
+    m_ItemTexture = std::make_unique<Texture2D>("assets/textures/items.png");
 
     m_WaterFrameCount = LoadFluidStrip("assets/textures/water.png", m_WaterFrames);
     m_LavaFrameCount = LoadFluidStrip("assets/textures/lava.png", m_LavaFrames);

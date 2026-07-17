@@ -107,7 +107,7 @@ void GameApplication::OpenInventory()
         m_Inventory = new InventoryLayer(
             GetWindow(), m_UIRenderer, m_UITexture, m_Font,
             m_World->GetInventory(), m_World->GetHotbar(), m_World->NearWorkbench(),
-            [this]() { CloseInventory(); });
+            m_World->NearFurnace(), [this]() { CloseInventory(); });
         PushOverlay(m_Inventory);
     });
 }

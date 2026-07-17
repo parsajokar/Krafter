@@ -8,6 +8,71 @@
 
 namespace Krafter {
 
+namespace {
+
+const char* BlockName(Block block)
+{
+    switch (block) {
+    case Block::k_Air: return "Air";
+    case Block::k_Dirt: return "Dirt";
+    case Block::k_Grass: return "Grass";
+    case Block::k_Sand: return "Sand";
+    case Block::k_Water: return "Water";
+    case Block::k_OakLog: return "Oak Log";
+    case Block::k_OakLeaves: return "Oak Leaves";
+    case Block::k_BirchLog: return "Birch Log";
+    case Block::k_BirchLeaves: return "Birch Leaves";
+    case Block::k_AcaciaLog: return "Acacia Log";
+    case Block::k_AcaciaLeaves: return "Acacia Leaves";
+    case Block::k_OakWood: return "Oak Wood";
+    case Block::k_BirchWood: return "Birch Wood";
+    case Block::k_AcaciaWood: return "Acacia Wood";
+    case Block::k_ShortGrass: return "Short Grass";
+    case Block::k_Fern: return "Fern";
+    case Block::k_DeadBush: return "Dead Bush";
+    case Block::k_Cactus: return "Cactus";
+    case Block::k_OakPlanks: return "Oak Planks";
+    case Block::k_BirchPlanks: return "Birch Planks";
+    case Block::k_AcaciaPlanks: return "Acacia Planks";
+    case Block::k_Stone: return "Stone";
+    case Block::k_Bedrock: return "Bedrock";
+    case Block::k_Lava: return "Lava";
+    case Block::k_Torch: return "Torch";
+    case Block::k_IronOre: return "Iron Ore";
+    case Block::k_CopperOre: return "Copper Ore";
+    case Block::k_CoalOre: return "Coal Ore";
+    case Block::k_Topaz: return "Topaz";
+    case Block::k_Emerald: return "Emerald";
+    case Block::k_Amethyst: return "Amethyst";
+    case Block::k_Diamond: return "Diamond";
+    case Block::k_HardIce: return "Hard Ice";
+    case Block::k_Ice: return "Ice";
+    case Block::k_CactusFlower: return "Cactus Flower";
+    case Block::k_Poppy: return "Poppy";
+    case Block::k_Dandelion: return "Dandelion";
+    case Block::k_Allium: return "Allium";
+    case Block::k_RedSand: return "Red Sand";
+    case Block::k_Workbench: return "Workbench";
+    case Block::k_Furnace: return "Furnace";
+    case Block::k_Count: break;
+    }
+    return "Unknown";
+}
+
+const char* ItemKindName(ItemKind kind)
+{
+    switch (kind) {
+    case ItemKind::k_WoodenAxe: return "Wooden Axe";
+    case ItemKind::k_WoodenPickaxe: return "Wooden Pickaxe";
+    case ItemKind::k_WoodenShovel: return "Wooden Shovel";
+    case ItemKind::k_WoodenSword: return "Wooden Sword";
+    case ItemKind::k_Coal: return "Coal";
+    }
+    return "Unknown";
+}
+
+}
+
 Player::Player(Window& window, World& world, const glm::vec3& position, float fov, GameMode mode)
     : m_Window(window)
     , m_World(world)
@@ -22,7 +87,7 @@ Player::Player(Window& window, World& world, const glm::vec3& position, float fo
 
 void Player::Update()
 {
-    for (const Block drop : m_World.TakeDrops()) {
+    for (const Item& drop : m_World.TakeDrops()) {
         CollectDrop(drop);
     }
 
@@ -180,30 +245,30 @@ void Player::UpdateBreaking()
     if (m_BreakProgress >= BreakSeconds(m_World.GetBlock(m_BreakBlock))) {
         const Block broken = m_World.GetBlock(m_BreakBlock);
         m_World.SetBlock(m_BreakBlock, Block::k_Air);
-        m_World.SpawnDrop(glm::vec3(m_BreakBlock) + 0.5f, DropFor(broken));
+        m_World.SpawnDrop(glm::vec3(m_BreakBlock) + 0.5f, DropItemFor(broken));
         m_IsBreaking = false;
         m_BreakProgress = 0.0f;
     }
 }
 
-void Player::CollectDrop(Block drop)
+void Player::CollectDrop(const Item& drop)
 {
-    if (drop == Block::k_Air) {
+    if (drop.IsEmpty()) {
         return;
     }
 
     for (int slot = 0; slot < Hotbar::k_SlotCount; ++slot) {
         Item item = m_Hotbar.GetItem(slot);
-        if (item.IsBlock() && item.block == drop && item.count < Item::k_MaxStack) {
-            item.count++;
+        if (item == drop && item.count < Item::k_MaxStack) {
+            item.count += drop.count;
             m_Hotbar.SetItem(slot, item);
             return;
         }
     }
     for (int slot = 0; slot < Inventory::k_SlotCount; ++slot) {
         Item item = m_Inventory.GetItem(slot);
-        if (item.IsBlock() && item.block == drop && item.count < Item::k_MaxStack) {
-            item.count++;
+        if (item == drop && item.count < Item::k_MaxStack) {
+            item.count += drop.count;
             m_Inventory.SetItem(slot, item);
             return;
         }
@@ -394,6 +459,30 @@ void Player::RenderImGui()
 
     const glm::vec3 position = m_Camera.GetPosition();
     ImGui::Text("Position: %.2f, %.2f, %.2f", position.x, position.y, position.z);
+
+    if (ImGui::TreeNode("Give Item")) {
+        static int quantity = 1;
+        ImGui::SliderInt("Quantity", &quantity, 1, Item::k_MaxStack);
+
+        ImGui::BeginChild("give_list", ImVec2(0.0f, 220.0f), true);
+        for (int b = 1; b < static_cast<int>(Block::k_Count); ++b) {
+            const Block block = static_cast<Block>(b);
+            if (ImGui::Selectable(BlockName(block))) {
+                Item item(block);
+                item.count = quantity;
+                CollectDrop(item);
+            }
+        }
+        for (const ItemKind kind :
+            { ItemKind::k_WoodenAxe, ItemKind::k_WoodenPickaxe, ItemKind::k_WoodenShovel,
+                ItemKind::k_WoodenSword, ItemKind::k_Coal }) {
+            if (ImGui::Selectable(ItemKindName(kind))) {
+                CollectDrop(Item::Material(kind, quantity));
+            }
+        }
+        ImGui::EndChild();
+        ImGui::TreePop();
+    }
 }
 
 void Player::SetControlled(bool controlled)

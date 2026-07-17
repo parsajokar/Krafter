@@ -492,7 +492,8 @@ void ChunkMesh::AddFaceToData(
         uvCoords = atlas.top;
     } else if (face == BlockFace::k_Bottom) {
         uvCoords = atlas.bottom;
-    } else if (block == Block::k_Workbench && face == BlockFace::k_Front) {
+    } else if (face == BlockFace::k_Front
+        && (block == Block::k_Workbench || block == Block::k_Furnace)) {
         uvCoords = atlas.front;
     }
     if (tileOverride) {

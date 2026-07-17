@@ -4,13 +4,6 @@
 
 namespace Krafter {
 
-enum class ItemKind {
-    k_WoodenAxe,
-    k_WoodenPickaxe,
-    k_WoodenShovel,
-    k_WoodenSword,
-};
-
 inline constexpr ToolType ToolTypeOf(ItemKind kind)
 {
     switch (kind) {
@@ -21,9 +14,34 @@ inline constexpr ToolType ToolTypeOf(ItemKind kind)
     case ItemKind::k_WoodenShovel:
         return ToolType::k_Shovel;
     case ItemKind::k_WoodenSword:
+    case ItemKind::k_Coal:
+    case ItemKind::k_CopperIngot:
+    case ItemKind::k_IronIngot:
         return ToolType::k_None;
     }
     return ToolType::k_None;
+}
+
+// Tile in the items atlas (column, row from the top), matching items.png.
+inline constexpr glm::vec2 ItemCell(ItemKind kind)
+{
+    switch (kind) {
+    case ItemKind::k_WoodenAxe:
+        return glm::vec2(0.0f, 0.0f);
+    case ItemKind::k_WoodenPickaxe:
+        return glm::vec2(1.0f, 0.0f);
+    case ItemKind::k_WoodenShovel:
+        return glm::vec2(2.0f, 0.0f);
+    case ItemKind::k_WoodenSword:
+        return glm::vec2(3.0f, 0.0f);
+    case ItemKind::k_Coal:
+        return glm::vec2(0.0f, 15.0f);
+    case ItemKind::k_CopperIngot:
+        return glm::vec2(1.0f, 15.0f);
+    case ItemKind::k_IronIngot:
+        return glm::vec2(2.0f, 15.0f);
+    }
+    return glm::vec2(0.0f, 0.0f);
 }
 
 struct Item {
@@ -47,6 +65,15 @@ struct Item {
         item.isItem = true;
         item.kind = kind;
         item.count = 1;
+        return item;
+    }
+
+    static constexpr Item Material(ItemKind kind, int count = 1)
+    {
+        Item item;
+        item.isItem = true;
+        item.kind = kind;
+        item.count = count;
         return item;
     }
 
@@ -85,6 +112,15 @@ inline bool CanBreakWith(const Item& item, Block target)
         return IsPlant(target);
     }
     return CanHarvestWith(target, ToolTypeOf(item.kind));
+}
+
+inline Item DropItemFor(Block broken)
+{
+    const BlockInfo& info = BlockInfoOf(broken);
+    if (info.dropsItem) {
+        return Item::Material(info.dropItem);
+    }
+    return Item(info.drop);
 }
 
 }

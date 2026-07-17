@@ -49,12 +49,12 @@ public:
 
     bool RaycastBlock(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, glm::ivec3& outHit, glm::ivec3& outBefore) const;
 
-    void SpawnDrop(const glm::vec3& position, Block block)
+    void SpawnDrop(const glm::vec3& position, const Item& item)
     {
-        m_DropSystem.Spawn(position, block);
+        m_DropSystem.Spawn(position, item);
     }
 
-    std::vector<Block> TakeDrops()
+    std::vector<Item> TakeDrops()
     {
         return m_DropSystem.TakePickedUp();
     }

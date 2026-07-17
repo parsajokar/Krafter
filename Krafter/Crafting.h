@@ -15,6 +15,7 @@ enum class IngredientMatch {
 enum class CraftingStation {
     k_Hand,
     k_Workbench,
+    k_Furnace,
 };
 
 struct Ingredient {
@@ -54,6 +55,9 @@ inline const std::vector<Recipe>& Recipes()
         { { { Item(Block::k_OakPlanks), 24, IngredientMatch::k_AnyPlanks } },
             Item(Block::k_Workbench), 1 },
 
+        { { { Item(Block::k_Stone), 48 } },
+            Item(Block::k_Furnace), 1, CraftingStation::k_Workbench },
+
         { { { Item(Block::k_OakPlanks), 48, IngredientMatch::k_AnyPlanks } },
             Item::Tool(ItemKind::k_WoodenAxe), 1, CraftingStation::k_Workbench },
         { { { Item(Block::k_OakPlanks), 48, IngredientMatch::k_AnyPlanks } },
@@ -62,6 +66,11 @@ inline const std::vector<Recipe>& Recipes()
             Item::Tool(ItemKind::k_WoodenShovel), 1, CraftingStation::k_Workbench },
         { { { Item(Block::k_OakPlanks), 36, IngredientMatch::k_AnyPlanks } },
             Item::Tool(ItemKind::k_WoodenSword), 1, CraftingStation::k_Workbench },
+
+        { { { Item(Block::k_CopperOre), 3 }, { Item::Material(ItemKind::k_Coal), 1 } },
+            Item::Material(ItemKind::k_CopperIngot), 1, CraftingStation::k_Furnace },
+        { { { Item(Block::k_IronOre), 3 }, { Item::Material(ItemKind::k_Coal), 1 } },
+            Item::Material(ItemKind::k_IronIngot), 1, CraftingStation::k_Furnace },
     };
     return recipes;
 }

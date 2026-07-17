@@ -41,7 +41,7 @@ public:
 
     void RenderItemDrop(
         const glm::vec3& center, const glm::vec3& right, const glm::vec3& up,
-        const glm::vec2& tileOrigin, const glm::mat4& viewProjection);
+        const glm::vec2& tileOrigin, bool fromItemAtlas, const glm::mat4& viewProjection);
 
     void RenderImGui();
 
@@ -96,6 +96,7 @@ private:
     float m_LavaFps = 8.0f;
 
     std::unique_ptr<Texture2D> m_Texture;
+    std::unique_ptr<Texture2D> m_ItemTexture;
 
     std::unique_ptr<Pipeline> m_OpaquePipeline;
     std::unique_ptr<Pipeline> m_CrossPipeline;

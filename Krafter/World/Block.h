@@ -50,6 +50,7 @@ enum class Block {
     k_Allium,
     k_RedSand,
     k_Workbench,
+    k_Furnace,
 
     k_Count // must stay last: sizes k_BlockInfo and counts the kinds above
 };
@@ -76,6 +77,16 @@ inline constexpr bool HasTool(ToolType set, ToolType tool)
     return tool != ToolType::k_None && (set & tool) != ToolType::k_None;
 }
 
+enum class ItemKind {
+    k_WoodenAxe,
+    k_WoodenPickaxe,
+    k_WoodenShovel,
+    k_WoodenSword,
+    k_Coal,
+    k_CopperIngot,
+    k_IronIngot,
+};
+
 enum class BlockCategory {
     k_None,
     k_Log,
@@ -99,6 +110,8 @@ struct BlockInfo {
 
     float breakSeconds = 0.75f;
     Block drop = Block::k_Air;
+    bool dropsItem = false;
+    ItemKind dropItem = ItemKind::k_Coal;
     ToolType harvest = ToolType::k_None;
 
     uint8_t emission = 0;
@@ -132,7 +145,7 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_Torch, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
     { .id = Block::k_IronOre, .opaque = true, .breakSeconds = 2.2f, .drop = Block::k_IronOre, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_CopperOre, .opaque = true, .breakSeconds = 2.0f, .drop = Block::k_CopperOre, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_CoalOre, .opaque = true, .breakSeconds = 1.8f, .drop = Block::k_CoalOre, .harvest = ToolType::k_Pickaxe },
+    { .id = Block::k_CoalOre, .opaque = true, .breakSeconds = 1.8f, .dropsItem = true, .dropItem = ItemKind::k_Coal, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Topaz, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Topaz, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Emerald, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Emerald, .harvest = ToolType::k_Pickaxe },
     { .id = Block::k_Amethyst, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Amethyst, .harvest = ToolType::k_Pickaxe },
@@ -145,6 +158,7 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_Allium, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Allium, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_RedSand, .opaque = true, .drop = Block::k_RedSand, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Workbench, .opaque = true, .breakSeconds = 1.2f, .drop = Block::k_Workbench, .harvest = ToolType::k_Axe },
+    { .id = Block::k_Furnace, .opaque = true, .breakSeconds = 1.5f, .drop = Block::k_Furnace, .harvest = ToolType::k_Pickaxe, .emission = 8 },
 } };
 
 constexpr bool BlockInfoTableInOrder()
@@ -243,6 +257,12 @@ private:
 inline glm::vec2 BlockIconTile(Block block)
 {
     const BlockAtlas& atlas = BlockAtlas::GetAtlasOf(block);
+    if (block == Block::k_Furnace) {
+        return atlas.front;
+    }
+    if (block == Block::k_Workbench) {
+        return atlas.top;
+    }
     return IsLog(block) ? atlas.top : atlas.side;
 }
 

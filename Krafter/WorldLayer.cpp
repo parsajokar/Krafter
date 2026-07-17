@@ -24,20 +24,30 @@ WorldLayer::WorldLayer(
 {
 }
 
-bool WorldLayer::NearWorkbench() const
+bool WorldLayer::NearBlock(Block block) const
 {
     constexpr int k_Reach = 4;
     const glm::ivec3 center = glm::ivec3(glm::floor(m_Player.GetPosition()));
     for (int dx = -k_Reach; dx <= k_Reach; ++dx) {
         for (int dy = -k_Reach; dy <= k_Reach; ++dy) {
             for (int dz = -k_Reach; dz <= k_Reach; ++dz) {
-                if (m_World.GetBlock(center + glm::ivec3(dx, dy, dz)) == Block::k_Workbench) {
+                if (m_World.GetBlock(center + glm::ivec3(dx, dy, dz)) == block) {
                     return true;
                 }
             }
         }
     }
     return false;
+}
+
+bool WorldLayer::NearWorkbench() const
+{
+    return NearBlock(Block::k_Workbench);
+}
+
+bool WorldLayer::NearFurnace() const
+{
+    return NearBlock(Block::k_Furnace);
 }
 
 void WorldLayer::OnDetach()

@@ -79,7 +79,7 @@ private:
 
     void UpdateBreaking();
 
-    void CollectDrop(Block drop);
+    void CollectDrop(const Item& drop);
 
     void PlaceTargetBlock();
 

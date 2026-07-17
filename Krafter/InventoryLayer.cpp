@@ -99,12 +99,14 @@ void DrawUpArrow(UIRenderer& renderer, const glm::vec2& tip, const glm::vec4& co
 
 InventoryLayer::InventoryLayer(
     Window& window, UIRenderer& renderer, Texture2D& uiTexture, Font& font,
-    Inventory& inventory, Hotbar& hotbar, bool nearWorkbench, std::function<void()> onClose)
+    Inventory& inventory, Hotbar& hotbar, bool nearWorkbench, bool nearFurnace,
+    std::function<void()> onClose)
     : UIScreen("Inventory", window, renderer, uiTexture, font)
     , m_OnClose(std::move(onClose))
     , m_Inventory(inventory)
     , m_Hotbar(hotbar)
     , m_NearWorkbench(nearWorkbench)
+    , m_NearFurnace(nearFurnace)
     , m_BlockTexture("assets/textures/blocks.png")
     , m_ItemTexture("assets/textures/items.png")
 {
@@ -185,6 +187,9 @@ std::vector<const Recipe*> InventoryLayer::AvailableRecipes() const
     std::vector<const Recipe*> available;
     for (const Recipe& recipe : Recipes()) {
         if (recipe.station == CraftingStation::k_Workbench && !m_NearWorkbench) {
+            continue;
+        }
+        if (recipe.station == CraftingStation::k_Furnace && !m_NearFurnace) {
             continue;
         }
         for (const Ingredient& ingredient : recipe.inputs) {

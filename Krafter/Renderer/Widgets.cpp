@@ -30,21 +30,6 @@ constexpr float k_ItemTile = 16.0f;
 
 constexpr float k_ToolScale = 1.5f;
 
-glm::vec2 ItemCell(ItemKind kind)
-{
-    switch (kind) {
-    case ItemKind::k_WoodenAxe:
-        return glm::vec2(0.0f, 0.0f);
-    case ItemKind::k_WoodenPickaxe:
-        return glm::vec2(1.0f, 0.0f);
-    case ItemKind::k_WoodenShovel:
-        return glm::vec2(2.0f, 0.0f);
-    case ItemKind::k_WoodenSword:
-        return glm::vec2(3.0f, 0.0f);
-    }
-    return glm::vec2(0.0f, 0.0f);
-}
-
 }
 
 bool RectContains(const glm::vec4& rect, const glm::vec2& point)
