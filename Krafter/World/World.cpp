@@ -143,6 +143,11 @@ void World::Render(WorldRenderer& renderer, const glm::mat4& viewProjection, con
     renderer.SetDepthMask(false);
     for (const auto& [position, record] : m_Chunks) {
         if (record.mesh) {
+            renderer.RenderChunkTranslucent(*record.mesh, viewProjection, sky);
+        }
+    }
+    for (const auto& [position, record] : m_Chunks) {
+        if (record.mesh) {
             renderer.RenderChunkTransparent(*record.mesh, viewProjection, sky);
         }
     }
@@ -242,6 +247,8 @@ void World::SetBlock(const glm::ivec3& worldPosition, Block block)
     if (IsNaturalTreePart(previous) && !IsNaturalTreePart(block)) {
         ChopFloatingTree(worldPosition);
     }
+
+    BreakUnsupportedGems(worldPosition);
 
     if (IsFluid(block)) {
         m_FluidSystem.Schedule(worldPosition, block);
@@ -346,6 +353,32 @@ void World::ChopFloatingTree(const glm::ivec3& brokenPosition)
     }
 
     m_FallingSystem.Schedule(floating, brokenPosition);
+}
+
+void World::BreakUnsupportedGems(const glm::ivec3& changedPosition)
+{
+    for (const glm::ivec3& dir : k_Neighbors) {
+        const glm::ivec3 gemPos = changedPosition + dir;
+        if (gemPos.y < 0 || gemPos.y >= Chunk::k_Height) {
+            continue;
+        }
+        const Block gem = GetBlock(gemPos);
+        if (!IsGem(gem)) {
+            continue;
+        }
+
+        bool supported = false;
+        for (const glm::ivec3& side : k_Neighbors) {
+            if (IsOpaque(GetBlock(gemPos + side))) {
+                supported = true;
+                break;
+            }
+        }
+        if (!supported) {
+            SpawnDrop(glm::vec3(gemPos) + 0.5f, DropFor(gem));
+            SetBlock(gemPos, Block::k_Air);
+        }
+    }
 }
 
 void World::BreakCactusColumn(const glm::ivec3& worldPosition)

@@ -25,6 +25,7 @@ public:
     void RenderChunkOpaque(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void RenderChunkCross(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
     void RenderChunkTransparent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
+    void RenderChunkTranslucent(const ChunkMesh& chunkMesh, const glm::mat4& viewProjection, const Sky& sky);
 
     void SetDepthMask(bool enabled) { }
     void SetBlend(bool enabled) { }
@@ -99,6 +100,7 @@ private:
     std::unique_ptr<Pipeline> m_OpaquePipeline;
     std::unique_ptr<Pipeline> m_CrossPipeline;
     std::unique_ptr<Pipeline> m_TransparentPipeline;
+    std::unique_ptr<Pipeline> m_TranslucentPipeline;
 
     std::unique_ptr<Pipeline> m_OutlinePipeline;
     GpuBuffer m_OutlineVertexBuffer;

@@ -40,7 +40,7 @@ void ComputeSkyLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
             return true;
         }
         const Block block = chunk->GetBlock(glm::ivec3(FloorMod(x, k_Width), y, FloorMod(z, k_Width)));
-        return IsOpaque(block) && !IsCutout(block);
+        return IsOpaque(block) && !IsCutout(block) && !IsTranslucent(block);
     };
 
     std::vector<uint8_t> solid(k_Span * k_Span * k_Height);
@@ -154,7 +154,7 @@ void ComputeBlockLight(Chunk& center, const std::array<const Chunk*, 9>& grid)
         for (int32_t z = k_Lo; z <= k_Hi; z++) {
             for (int32_t y = 0; y < k_Height; y++) {
                 const Block block = blockAt(x, y, z);
-                solid[Index(x, y, z)] = (IsOpaque(block) && !IsCutout(block)) ? 1 : 0;
+                solid[Index(x, y, z)] = (IsOpaque(block) && !IsCutout(block) && !IsTranslucent(block)) ? 1 : 0;
                 const uint8_t emission = LightEmission(block);
                 if (emission > 0) {
                     light[Index(x, y, z)] = emission;

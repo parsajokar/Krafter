@@ -108,6 +108,11 @@ ChunkMeshData ChunkMesh::Compute(
         if (IsCutout(neighbor)) {
             return !IsOpaque(self);
         }
+        // Translucent blocks (ice) don't fully occlude, so a neighbour's face is
+        // only hidden when it is the same block (no seams between ice of one kind).
+        if (IsTranslucent(neighbor)) {
+            return neighbor == self;
+        }
         if (IsOpaque(neighbor)) {
             return true;
         }
@@ -192,9 +197,9 @@ ChunkMeshData ChunkMesh::Compute(
                     y,
                     chunkPosition.y * Chunk::k_Width + z);
 
-                if (IsPlant(self)) {
+                if (IsPlant(self) || IsGem(self)) {
                     glm::vec3 tint(1.0f);
-                    if (self != Block::k_DeadBush && self != Block::k_Torch) {
+                    if (self != Block::k_DeadBush && self != Block::k_Torch && !IsGem(self)) {
                         const float worldX = static_cast<float>(chunkPosition.x * Chunk::k_Width + x);
                         const float worldZ = static_cast<float>(chunkPosition.y * Chunk::k_Width + z);
                         tint = Biome::Get(Biome::At(worldX, worldZ)).grassColor;
@@ -202,13 +207,36 @@ ChunkMeshData ChunkMesh::Compute(
                     const float light = skyLightOf(glm::ivec3(x, y, z));
                     const float blockLight = blockLightOf(glm::ivec3(x, y, z));
                     const glm::vec2 tile = BlockAtlas::GetAtlasOf(self).side;
-                    AddCrossToData(worldPos, tile, tint, light, blockLight, data.cross.vertices, data.cross.elements);
+
+                    // Gems grow out of whichever surface they cling to; other
+                    // plants always stand upright.
+                    glm::ivec3 growth(0, 1, 0);
+                    if (IsGem(self)) {
+                        const glm::ivec3 cell(x, y, z);
+                        if (isSolid(cell + glm::ivec3(0, -1, 0))) {
+                            growth = glm::ivec3(0, 1, 0);
+                        } else if (isSolid(cell + glm::ivec3(0, 1, 0))) {
+                            growth = glm::ivec3(0, -1, 0);
+                        } else if (isSolid(cell + glm::ivec3(-1, 0, 0))) {
+                            growth = glm::ivec3(1, 0, 0);
+                        } else if (isSolid(cell + glm::ivec3(1, 0, 0))) {
+                            growth = glm::ivec3(-1, 0, 0);
+                        } else if (isSolid(cell + glm::ivec3(0, 0, -1))) {
+                            growth = glm::ivec3(0, 0, 1);
+                        } else if (isSolid(cell + glm::ivec3(0, 0, 1))) {
+                            growth = glm::ivec3(0, 0, -1);
+                        }
+                    }
+                    AddCrossToData(worldPos, tile, tint, light, blockLight, data.cross.vertices, data.cross.elements, growth);
                     continue;
                 }
 
                 const bool isFluid = IsFluid(self);
                 const bool transparent = self == Block::k_Water;
-                ChunkMeshBuffer& buffer = transparent ? data.transparent : data.opaque;
+                const bool translucent = IsTranslucent(self);
+                ChunkMeshBuffer& buffer = translucent ? data.translucent
+                    : transparent                     ? data.transparent
+                                                      : data.opaque;
 
                 float topInset = 0.0f;
                 float depth = 0.0f;
@@ -339,10 +367,12 @@ ChunkMesh::ChunkMesh(const ChunkMeshData& data)
     Upload(m_Opaque, data.opaque);
     Upload(m_Cross, data.cross);
     Upload(m_Transparent, data.transparent);
+    Upload(m_Translucent, data.translucent);
 }
 
 ChunkMesh::~ChunkMesh()
 {
+    Release(m_Translucent);
     Release(m_Transparent);
     Release(m_Cross);
     Release(m_Opaque);
@@ -382,6 +412,14 @@ void ChunkMesh::DrawTransparent(VkCommandBuffer cmd) const
         return;
     }
     DrawPart(cmd, m_Transparent.vertexBuffer, m_Transparent.indexBuffer, m_Transparent.elementCount);
+}
+
+void ChunkMesh::DrawTranslucent(VkCommandBuffer cmd) const
+{
+    if (m_Translucent.elementCount == 0) {
+        return;
+    }
+    DrawPart(cmd, m_Translucent.vertexBuffer, m_Translucent.indexBuffer, m_Translucent.elementCount);
 }
 
 void ChunkMesh::AddFaceToData(
@@ -521,22 +559,44 @@ void ChunkMesh::AddOverlayFace(
 
 void ChunkMesh::AddCrossToData(
     const glm::vec3& position, const glm::vec2& tile, const glm::vec3& tint, float light, float blockLight,
-    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData)
+    std::vector<float>& vertexBufferData, std::vector<uint32_t>& elementBufferData,
+    const glm::ivec3& growth)
 {
     const std::array<float, 4> vertexLight = { light, light, light, light };
     const std::array<float, 4> vertexBlockLight = { blockLight, blockLight, blockLight, blockLight };
-    const glm::vec3 normal(0.0f, 1.0f, 0.0f);
     const std::array<glm::vec2, 2> uvCoordsList = { tile, tile + glm::vec2(BlockAtlas::k_Step) };
 
+    // The crystal grows from its base (touching the attachment surface) toward
+    // its tip. gAxis runs base->tip; uAxis/wAxis are the two blade directions.
+    const glm::vec3 gAxis(growth);
+    glm::vec3 uAxis;
+    glm::vec3 wAxis;
+    if (growth.y != 0) {
+        uAxis = glm::vec3(1, 0, 0);
+        wAxis = glm::vec3(0, 0, 1);
+    } else if (growth.x != 0) {
+        uAxis = glm::vec3(0, 1, 0);
+        wAxis = glm::vec3(0, 0, 1);
+    } else {
+        uAxis = glm::vec3(1, 0, 0);
+        wAxis = glm::vec3(0, 1, 0);
+    }
+
+    const glm::vec3 center = position + glm::vec3(0.5f);
+    const glm::vec3 normal = gAxis;
+    auto vertex = [&](float g, float u, float w) {
+        return center + g * gAxis + u * uAxis + w * wAxis;
+    };
+
     const std::array<glm::vec3, 4> plane1 = {
-        position + glm::vec3(0, 0, 0), position + glm::vec3(1, 0, 1),
-        position + glm::vec3(1, 1, 1), position + glm::vec3(0, 1, 0)
+        vertex(-0.5f, -0.5f, -0.5f), vertex(-0.5f, 0.5f, 0.5f),
+        vertex(0.5f, 0.5f, 0.5f), vertex(0.5f, -0.5f, -0.5f)
     };
     AddFaceToData(plane1, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 
     const std::array<glm::vec3, 4> plane2 = {
-        position + glm::vec3(1, 0, 0), position + glm::vec3(0, 0, 1),
-        position + glm::vec3(0, 1, 1), position + glm::vec3(1, 1, 0)
+        vertex(-0.5f, 0.5f, -0.5f), vertex(-0.5f, -0.5f, 0.5f),
+        vertex(0.5f, -0.5f, 0.5f), vertex(0.5f, 0.5f, -0.5f)
     };
     AddFaceToData(plane2, uvCoordsList, normal, 0.0f, tint, vertexLight, vertexBlockLight, vertexBufferData, elementBufferData);
 }

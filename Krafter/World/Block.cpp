@@ -143,6 +143,52 @@ void BlockAtlas::LoadAtlases()
     s_BlockAtlases[Block::k_Torch] = {
         .side = glm::vec2(6.0f / 16.0f, 0.0f / 16.0f)
     };
+
+    s_BlockAtlases[Block::k_IronOre] = {
+        .top = glm::vec2(11.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(11.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(11.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_CopperOre] = {
+        .top = glm::vec2(12.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(12.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(12.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_CoalOre] = {
+        .top = glm::vec2(13.0f / 16.0f, 0.0f / 16.0f),
+        .side = glm::vec2(13.0f / 16.0f, 0.0f / 16.0f),
+        .bottom = glm::vec2(13.0f / 16.0f, 0.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Topaz] = {
+        .side = glm::vec2(12.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Emerald] = {
+        .side = glm::vec2(13.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Amethyst] = {
+        .side = glm::vec2(14.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Diamond] = {
+        .side = glm::vec2(15.0f / 16.0f, 1.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_HardIce] = {
+        .top = glm::vec2(15.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(15.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(15.0f / 16.0f, 2.0f / 16.0f)
+    };
+
+    s_BlockAtlases[Block::k_Ice] = {
+        .top = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f),
+        .side = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f),
+        .bottom = glm::vec2(14.0f / 16.0f, 2.0f / 16.0f)
+    };
 }
 
 const BlockAtlas& BlockAtlas::GetAtlasOf(Block block)
