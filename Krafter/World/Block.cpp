@@ -98,10 +98,14 @@ void BlockAtlas::LoadAtlases()
         .side = glm::vec2(6.0f / 16.0f, 2.0f / 16.0f)
     };
 
+    s_BlockAtlases[Block::k_CactusFlower] = {
+        .side = glm::vec2(7.0f / 16.0f, 1.0f / 16.0f)
+    };
+
     s_BlockAtlases[Block::k_Cactus] = {
         .top = glm::vec2(5.0f / 16.0f, 1.0f / 16.0f),
         .side = glm::vec2(6.0f / 16.0f, 1.0f / 16.0f),
-        .bottom = glm::vec2(7.0f / 16.0f, 1.0f / 16.0f)
+        .bottom = glm::vec2(5.0f / 16.0f, 1.0f / 16.0f)
     };
 
     s_BlockAtlases[Block::k_OakPlanks] = {

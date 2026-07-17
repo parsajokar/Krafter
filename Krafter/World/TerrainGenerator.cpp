@@ -45,6 +45,7 @@ constexpr float k_GrassPlantChance = 0.2f;
 constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
 constexpr int32_t k_MaxCactusHeight = 3;
+constexpr float k_CactusFlowerChance = 0.25f;
 
 // Lone gems that stud ordinary cave walls very sparsely.
 constexpr float k_GemChance = 0.0006f;
@@ -661,12 +662,20 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
                     }
                     if (clear) {
                         const int32_t height = 1 + static_cast<int32_t>(Hash(worldX, worldZ, 302u) % k_MaxCactusHeight);
+                        int32_t topY = -1;
                         for (int32_t h = 0; h < height; h++) {
                             const int32_t cy = py + h;
                             if (cy >= Chunk::k_Height || chunk.GetBlock(glm::ivec3(x, cy, z)) != Block::k_Air) {
                                 break;
                             }
                             chunk.SetBlock(glm::ivec3(x, cy, z), Block::k_Cactus);
+                            topY = cy;
+                        }
+                        const int32_t fy = topY + 1;
+                        if (topY >= 0 && fy < Chunk::k_Height
+                            && chunk.GetBlock(glm::ivec3(x, fy, z)) == Block::k_Air
+                            && Hash01(worldX, worldZ, 303u) < k_CactusFlowerChance) {
+                            chunk.SetBlock(glm::ivec3(x, fy, z), Block::k_CactusFlower);
                         }
                     }
                 } else if (roll < k_CactusChance + k_DeadBushChance) {
