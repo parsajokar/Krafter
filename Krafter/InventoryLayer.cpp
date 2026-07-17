@@ -30,7 +30,7 @@ constexpr float k_CraftLabelGap = 4.0f;
 constexpr std::string_view k_CraftLabel = "Crafting";
 constexpr float k_CraftLabelScale = 1.0f;
 
-constexpr std::string_view k_EmptyCraftText = "Collect materials to craft new stuff!";
+constexpr std::string_view k_EmptyCraftText = "Gather materials. Some recipes need a station!";
 constexpr float k_EmptyCraftScale = 1.0f;
 constexpr glm::vec4 k_EmptyCraftColor = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);
 
@@ -58,8 +58,9 @@ constexpr float k_CraftFadeWidth = 1.5f * k_Stride;
 constexpr float k_RecipeClickFade = 0.5f;
 
 constexpr float k_IngredientGap = 8.0f;
-constexpr float k_ArrowHeight = 18.0f;
-constexpr float k_ArrowWidth = 20.0f;
+constexpr float k_ArrowHeight = 32.0f;
+constexpr glm::vec2 k_ArrowSprite = glm::vec2(16.0f, 16.0f);
+constexpr float k_ArrowSpriteX = 59.0f;
 constexpr glm::vec4 k_ArrowColor = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f);
 constexpr float k_IngredientArea
     = k_IngredientGap + k_ArrowHeight + k_IngredientGap + k_SlotSize;
@@ -79,20 +80,15 @@ constexpr float k_PanelHeight = k_CraftBarTop + k_SlotSize + k_IngredientArea;
 constexpr int k_GridSlots = Inventory::k_SlotCount;
 constexpr int k_TotalSlots = k_GridSlots + Hotbar::k_SlotCount;
 
-void DrawUpArrow(UIRenderer& renderer, const glm::vec2& tip, const glm::vec4& color)
+void DrawUpArrow(
+    UIRenderer& renderer, const Texture2D& uiTexture,
+    const glm::vec2& tip, const glm::vec4& color)
 {
-    constexpr int k_HeadRows = 5;
-    const float headHeight = k_ArrowHeight * 0.55f;
-    const float rowHeight = std::ceil(headHeight / k_HeadRows);
-    for (int i = 0; i < k_HeadRows; ++i) {
-        const float t = static_cast<float>(i + 1) / k_HeadRows;
-        const float width = glm::floor(k_ArrowWidth * t);
-        const glm::vec2 pos = glm::floor(glm::vec2(tip.x - width * 0.5f, tip.y + i * rowHeight));
-        renderer.DrawQuad(pos, glm::vec2(width, rowHeight), color);
-    }
-    const float shaftWidth = glm::floor(k_ArrowWidth * 0.34f);
-    const glm::vec2 shaftPos = glm::floor(glm::vec2(tip.x - shaftWidth * 0.5f, tip.y + headHeight));
-    renderer.DrawQuad(shaftPos, glm::vec2(shaftWidth, k_ArrowHeight - headHeight), color);
+    const glm::vec2 spritePos = glm::vec2(
+        k_ArrowSpriteX, uiTexture.GetSize().y - k_ArrowSprite.y);
+    const glm::vec2 size = glm::vec2(k_ArrowHeight);
+    const glm::vec2 pos = glm::floor(glm::vec2(tip.x - size.x * 0.5f, tip.y));
+    renderer.DrawSprite(uiTexture, spritePos, k_ArrowSprite, pos, size, color);
 }
 
 }
@@ -423,7 +419,7 @@ void InventoryLayer::OnRender()
         const float frameCenterX = frame.x + k_SlotSize * 0.5f;
         const glm::vec2 arrowTip = glm::vec2(
             frameCenterX, frame.y + k_SlotSize + k_IngredientGap);
-        DrawUpArrow(m_Renderer, arrowTip, k_ArrowColor);
+        DrawUpArrow(m_Renderer, m_UITexture, arrowTip, k_ArrowColor);
 
         const int count = static_cast<int>(selected.inputs.size());
         const float rowWidth = count * k_Stride - k_Spacing * k_Scale;
