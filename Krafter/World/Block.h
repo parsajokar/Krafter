@@ -77,6 +77,16 @@ inline constexpr bool HasTool(ToolType set, ToolType tool)
     return tool != ToolType::k_None && (set & tool) != ToolType::k_None;
 }
 
+// Break-power tiers. A block breaks only if the tool's power >= the block's
+// minPower, which gates the wood -> stone -> copper -> iron progression.
+namespace BreakPower {
+constexpr uint32_t k_None = 0;
+constexpr uint32_t k_Wood = 1;
+constexpr uint32_t k_Stone = 2;
+constexpr uint32_t k_Copper = 3;
+constexpr uint32_t k_Iron = 4;
+}
+
 enum class ItemKind {
     k_WoodenAxe,
     k_WoodenPickaxe,
@@ -97,6 +107,8 @@ enum class ItemKind {
     k_Coal,
     k_CopperIngot,
     k_IronIngot,
+
+    k_Count // must stay last: sizes k_ItemInfo and counts the kinds above
 };
 
 enum class BlockCategory {
@@ -125,6 +137,7 @@ struct BlockInfo {
     bool dropsItem = false;
     ItemKind dropItem = ItemKind::k_Coal;
     ToolType harvest = ToolType::k_None;
+    uint32_t minPower = BreakPower::k_None;
 
     uint8_t emission = 0;
 };
@@ -135,35 +148,35 @@ inline constexpr std::array<BlockInfo, static_cast<size_t>(Block::k_Count)> k_Bl
     { .id = Block::k_Grass, .opaque = true, .drop = Block::k_Dirt, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Sand, .opaque = true, .drop = Block::k_Sand, .harvest = ToolType::k_Shovel },
     { .id = Block::k_Water },
-    { .id = Block::k_OakLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 5.0f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_OakLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 5.0f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_BirchLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaLog, .opaque = true, .category = BlockCategory::k_Log, .breakSeconds = 5.0f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_AcaciaLeaves, .opaque = true, .cutout = true, .category = BlockCategory::k_Leaves, .breakSeconds = 0.3f, .harvest = ToolType::k_Axe },
-    { .id = Block::k_OakWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_BirchWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
-    { .id = Block::k_AcaciaWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 1.2f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_OakWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 5.0f, .drop = Block::k_OakLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_BirchWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 5.0f, .drop = Block::k_BirchLog, .harvest = ToolType::k_Axe },
+    { .id = Block::k_AcaciaWood, .opaque = true, .category = BlockCategory::k_Wood, .breakSeconds = 5.0f, .drop = Block::k_AcaciaLog, .harvest = ToolType::k_Axe },
     { .id = Block::k_ShortGrass, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Fern, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_DeadBush, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
-    { .id = Block::k_Cactus, .opaque = true, .cutout = true, .breakSeconds = 0.5f, .drop = Block::k_Cactus, .harvest = ToolType::k_Axe },
+    { .id = Block::k_Cactus, .opaque = true, .cutout = true, .breakSeconds = 5.0f, .drop = Block::k_Cactus, .harvest = ToolType::k_Axe },
     { .id = Block::k_OakPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_OakPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_BirchPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_BirchPlanks, .harvest = ToolType::k_Axe },
     { .id = Block::k_AcaciaPlanks, .opaque = true, .category = BlockCategory::k_Planks, .breakSeconds = 1.2f, .drop = Block::k_AcaciaPlanks, .harvest = ToolType::k_Axe },
-    { .id = Block::k_Stone, .opaque = true, .breakSeconds = 1.5f, .drop = Block::k_Stone, .harvest = ToolType::k_Pickaxe },
+    { .id = Block::k_Stone, .opaque = true, .breakSeconds = 4.0f, .drop = Block::k_Stone, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Wood },
     { .id = Block::k_Bedrock, .opaque = true, .harvest = ToolType::k_None },
     { .id = Block::k_Lava, .harvest = ToolType::k_None, .emission = 15 },
     { .id = Block::k_Torch, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Torch, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel, .emission = 14 },
-    { .id = Block::k_IronOre, .opaque = true, .breakSeconds = 2.2f, .drop = Block::k_IronOre, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_CopperOre, .opaque = true, .breakSeconds = 2.0f, .drop = Block::k_CopperOre, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_CoalOre, .opaque = true, .breakSeconds = 1.8f, .dropsItem = true, .dropItem = ItemKind::k_Coal, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_Topaz, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Topaz, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_Emerald, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Emerald, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_Amethyst, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Amethyst, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_Diamond, .category = BlockCategory::k_Gem, .breakSeconds = 0.6f, .drop = Block::k_Diamond, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_HardIce, .opaque = true, .breakSeconds = 0.5f, .drop = Block::k_HardIce, .harvest = ToolType::k_Pickaxe },
-    { .id = Block::k_Ice, .opaque = true, .translucent = true, .breakSeconds = 0.4f, .drop = Block::k_Ice, .harvest = ToolType::k_Pickaxe },
+    { .id = Block::k_IronOre, .opaque = true, .breakSeconds = 7.0f, .drop = Block::k_IronOre, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Copper },
+    { .id = Block::k_CopperOre, .opaque = true, .breakSeconds = 6.5f, .drop = Block::k_CopperOre, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Stone },
+    { .id = Block::k_CoalOre, .opaque = true, .breakSeconds = 6.0f, .dropsItem = true, .dropItem = ItemKind::k_Coal, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Wood },
+    { .id = Block::k_Topaz, .category = BlockCategory::k_Gem, .breakSeconds = 20.0f, .drop = Block::k_Topaz, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Iron },
+    { .id = Block::k_Emerald, .category = BlockCategory::k_Gem, .breakSeconds = 20.0f, .drop = Block::k_Emerald, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Iron },
+    { .id = Block::k_Amethyst, .category = BlockCategory::k_Gem, .breakSeconds = 20.0f, .drop = Block::k_Amethyst, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Iron },
+    { .id = Block::k_Diamond, .category = BlockCategory::k_Gem, .breakSeconds = 20.0f, .drop = Block::k_Diamond, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Iron },
+    { .id = Block::k_HardIce, .opaque = true, .breakSeconds = 0.5f, .drop = Block::k_HardIce, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Wood },
+    { .id = Block::k_Ice, .opaque = true, .translucent = true, .breakSeconds = 0.4f, .drop = Block::k_Ice, .harvest = ToolType::k_Pickaxe, .minPower = BreakPower::k_Wood },
     { .id = Block::k_CactusFlower, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_CactusFlower, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Poppy, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Poppy, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
     { .id = Block::k_Dandelion, .category = BlockCategory::k_Plant, .breakSeconds = 0.0f, .drop = Block::k_Dandelion, .harvest = ToolType::k_Axe | ToolType::k_Pickaxe | ToolType::k_Shovel },
@@ -232,6 +245,8 @@ inline constexpr float BreakSeconds(Block block) { return BlockInfoOf(block).bre
 inline constexpr Block DropFor(Block block) { return BlockInfoOf(block).drop; }
 
 inline constexpr ToolType HarvestTools(Block block) { return BlockInfoOf(block).harvest; }
+
+inline constexpr uint32_t MinBreakPower(Block block) { return BlockInfoOf(block).minPower; }
 
 inline constexpr uint8_t LightEmission(Block block) { return BlockInfoOf(block).emission; }
 

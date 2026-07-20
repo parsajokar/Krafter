@@ -59,32 +59,6 @@ const char* BlockName(Block block)
     return "Unknown";
 }
 
-const char* ItemKindName(ItemKind kind)
-{
-    switch (kind) {
-    case ItemKind::k_WoodenAxe: return "Wooden Axe";
-    case ItemKind::k_WoodenPickaxe: return "Wooden Pickaxe";
-    case ItemKind::k_WoodenShovel: return "Wooden Shovel";
-    case ItemKind::k_WoodenSword: return "Wooden Sword";
-    case ItemKind::k_StoneAxe: return "Stone Axe";
-    case ItemKind::k_StonePickaxe: return "Stone Pickaxe";
-    case ItemKind::k_StoneShovel: return "Stone Shovel";
-    case ItemKind::k_StoneSword: return "Stone Sword";
-    case ItemKind::k_CopperAxe: return "Copper Axe";
-    case ItemKind::k_CopperPickaxe: return "Copper Pickaxe";
-    case ItemKind::k_CopperShovel: return "Copper Shovel";
-    case ItemKind::k_CopperSword: return "Copper Sword";
-    case ItemKind::k_IronAxe: return "Iron Axe";
-    case ItemKind::k_IronPickaxe: return "Iron Pickaxe";
-    case ItemKind::k_IronShovel: return "Iron Shovel";
-    case ItemKind::k_IronSword: return "Iron Sword";
-    case ItemKind::k_Coal: return "Coal";
-    case ItemKind::k_CopperIngot: return "Copper Ingot";
-    case ItemKind::k_IronIngot: return "Iron Ingot";
-    }
-    return "Unknown";
-}
-
 }
 
 Player::Player(Window& window, World& world, const glm::vec3& position, float fov, GameMode mode)
@@ -256,7 +230,7 @@ void Player::UpdateBreaking()
 
     m_BreakProgress += m_Window.GetDelta();
 
-    if (m_BreakProgress >= BreakSeconds(m_World.GetBlock(m_BreakBlock))) {
+    if (m_BreakProgress >= BreakTimeWith(m_World.GetBlock(m_BreakBlock), m_Hotbar.GetSelectedItem())) {
         const Block broken = m_World.GetBlock(m_BreakBlock);
         m_World.SetBlock(m_BreakBlock, Block::k_Air);
         m_World.SpawnDrop(glm::vec3(m_BreakBlock) + 0.5f, DropItemFor(broken));
@@ -304,7 +278,7 @@ void Player::CollectDrop(const Item& drop)
 
 float Player::GetBreakProgress() const
 {
-    const float breakTime = BreakSeconds(m_World.GetBlock(m_BreakBlock));
+    const float breakTime = BreakTimeWith(m_World.GetBlock(m_BreakBlock), m_Hotbar.GetSelectedItem());
     if (breakTime <= 0.0f) {
         return 1.0f;
     }
@@ -494,7 +468,7 @@ void Player::RenderImGui()
                 ItemKind::k_CopperPickaxe, ItemKind::k_CopperShovel, ItemKind::k_CopperSword,
                 ItemKind::k_IronAxe, ItemKind::k_IronPickaxe, ItemKind::k_IronShovel,
                 ItemKind::k_IronSword, ItemKind::k_Coal }) {
-            if (ImGui::Selectable(ItemKindName(kind))) {
+            if (ImGui::Selectable(ItemKindName(kind).c_str())) {
                 CollectDrop(Item::Material(kind, quantity));
             }
         }

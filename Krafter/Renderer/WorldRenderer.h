@@ -37,7 +37,7 @@ public:
 
     void RenderBlockOutline(const glm::ivec3& blockPosition, const glm::mat4& viewProjection);
 
-    void RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection);
+    void RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection, bool cross = false);
 
     void RenderItemDrop(
         const glm::vec3& center, const glm::vec3& right, const glm::vec3& up,
@@ -114,6 +114,9 @@ private:
     GpuBuffer m_BreakVertexBuffer;
     GpuBuffer m_BreakIndexBuffer;
     uint32_t m_BreakIndexCount = 0;
+    GpuBuffer m_BreakCrossVertexBuffer;
+    GpuBuffer m_BreakCrossIndexBuffer;
+    uint32_t m_BreakCrossIndexCount = 0;
 
     std::unique_ptr<Pipeline> m_ItemPipeline;
     GpuBuffer m_ItemVertexBuffer;

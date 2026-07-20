@@ -106,8 +106,10 @@ void WorldLayer::OnRender()
     }
 
     if (m_Player.IsBreaking()) {
+        const Block breaking = m_World.GetBlock(m_Player.GetBreakBlock());
         m_WorldRenderer.RenderBlockBreak(
-            m_Player.GetBreakBlock(), m_Player.GetBreakProgress(), m_Player.GetViewProjection());
+            m_Player.GetBreakBlock(), m_Player.GetBreakProgress(), m_Player.GetViewProjection(),
+            IsPlant(breaking) || IsGem(breaking));
     }
 }
 

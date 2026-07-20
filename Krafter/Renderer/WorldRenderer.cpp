@@ -209,7 +209,7 @@ void WorldRenderer::RenderBlockOutline(const glm::ivec3& blockPosition, const gl
     DrawIndexed(cmd, m_OutlineVertexBuffer, m_OutlineIndexBuffer, m_OutlineIndexCount);
 }
 
-void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection)
+void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float progress, const glm::mat4& viewProjection, bool cross)
 {
     if (m_BreakFrameCount <= 0) {
         return;
@@ -231,7 +231,11 @@ void WorldRenderer::RenderBlockBreak(const glm::ivec3& blockPosition, float prog
     push.frameSpan = span;
     m_BreakPipeline->PushConstants(cmd, &push, sizeof(push));
 
-    DrawIndexed(cmd, m_BreakVertexBuffer, m_BreakIndexBuffer, m_BreakIndexCount);
+    if (cross) {
+        DrawIndexed(cmd, m_BreakCrossVertexBuffer, m_BreakCrossIndexBuffer, m_BreakCrossIndexCount);
+    } else {
+        DrawIndexed(cmd, m_BreakVertexBuffer, m_BreakIndexBuffer, m_BreakIndexCount);
+    }
 }
 
 void WorldRenderer::RenderItemDrop(
@@ -362,6 +366,33 @@ WorldRenderer::WorldRenderer()
     m_BreakIndexBuffer = renderer.CreateDeviceLocalBuffer(
         breakIndices, sizeof(breakIndices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
+    // Two diagonal quads forming an X, matching the cross geometry of plants/gems
+    // (see ChunkMesh::AddCrossToData) so their break overlay is cross-shaped too.
+    // clang-format off
+    const float breakCrossVertices[] = {
+        0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+    };
+    // clang-format on
+    uint32_t breakCrossIndices[12];
+    for (uint32_t quad = 0; quad < 2; quad++) {
+        const uint32_t v = quad * 4;
+        const uint32_t i = quad * 6;
+        breakCrossIndices[i + 0] = v + 0;
+        breakCrossIndices[i + 1] = v + 1;
+        breakCrossIndices[i + 2] = v + 2;
+        breakCrossIndices[i + 3] = v + 0;
+        breakCrossIndices[i + 4] = v + 2;
+        breakCrossIndices[i + 5] = v + 3;
+    }
+    m_BreakCrossIndexCount = static_cast<uint32_t>(std::size(breakCrossIndices));
+    m_BreakCrossVertexBuffer = renderer.CreateDeviceLocalBuffer(
+        breakCrossVertices, sizeof(breakCrossVertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    m_BreakCrossIndexBuffer = renderer.CreateDeviceLocalBuffer(
+        breakCrossIndices, sizeof(breakCrossIndices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
     m_BreakTexture = std::make_unique<Texture2D>("assets/textures/destroy.png");
     const glm::ivec2& breakSize = m_BreakTexture->GetSize();
     if (breakSize.x > 0) {
@@ -421,6 +452,8 @@ WorldRenderer::~WorldRenderer()
     renderer.DestroyBuffer(m_OutlineIndexBuffer);
     renderer.DestroyBuffer(m_BreakVertexBuffer);
     renderer.DestroyBuffer(m_BreakIndexBuffer);
+    renderer.DestroyBuffer(m_BreakCrossVertexBuffer);
+    renderer.DestroyBuffer(m_BreakCrossIndexBuffer);
     renderer.DestroyBuffer(m_ItemVertexBuffer);
     renderer.DestroyBuffer(m_ItemIndexBuffer);
 }
