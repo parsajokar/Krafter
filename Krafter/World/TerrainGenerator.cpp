@@ -49,15 +49,17 @@ constexpr float k_CactusFlowerChance = 0.25f;
 // Fraction of grass-plant rolls that become a flower instead of grass/fern.
 constexpr float k_FlowerFraction = 0.1f;
 
-// "Lion scratch" red-sand claw marks scored across desert sand.
-constexpr int32_t k_ScratchGrid = 72;
+// "Lion scratch" red-sand gouge scored across desert sand: a single thick,
+// long drag that tapers to a thin point at each end.
+constexpr int32_t k_ScratchGrid = 220;
 constexpr float k_ScratchChance = 0.4f;
-constexpr float k_ScratchMinLen = 12.0f;
-constexpr float k_ScratchMaxLen = 22.0f;
-constexpr float k_ClawSpacing = 2.5f;
-constexpr float k_ClawHalfWidth = 0.75f;
-constexpr float k_ScratchCurve = 2.0f;
-constexpr int32_t k_ScratchReach = 16;
+constexpr float k_ScratchMinLen = 90.0f;
+constexpr float k_ScratchMaxLen = 150.0f;
+constexpr float k_ScratchHalfWidth = 9.0f;
+constexpr float k_ScratchCurve = 6.0f;
+constexpr float k_ScratchPoint = 2.2f;       // >1 sharpens the tips
+constexpr float k_ScratchEdgeJitter = 4.0f;  // ragged, aliased edge
+constexpr int32_t k_ScratchReach = 80;
 constexpr int32_t k_ScratchDepth = 3;
 
 // Lone gems that stud ordinary cave walls very sparsely.
@@ -639,7 +641,6 @@ bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
             const float angle = Hash01(cx, cz, 603u) * 6.2831853f;
             const float dirX = std::cos(angle);
             const float dirZ = std::sin(angle);
-            const int32_t claws = 3 + static_cast<int32_t>(Hash(cx, cz, 604u) % 2u);
             const float halfLen = 0.5f
                 * (k_ScratchMinLen + Hash01(cx, cz, 605u) * (k_ScratchMaxLen - k_ScratchMinLen));
 
@@ -651,15 +652,16 @@ bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
             }
             const float perp = -dx * dirZ + dz * dirX;
 
-            // Claws bow together like a real drag and fan out toward the end.
+            // A single gouge that bows gently and swells in the middle, tapering
+            // to sharp points at each end. A high exponent pinches the tips, and
+            // per-block jitter roughens the boundary into a ragged, aliased edge.
             const float t = along / halfLen;
             const float curve = k_ScratchCurve * (1.0f - t * t);
-            const float fan = 1.0f + 0.35f * t;
-            for (int32_t k = 0; k < claws; k++) {
-                const float lane = (static_cast<float>(k) - (claws - 1) * 0.5f) * k_ClawSpacing * fan;
-                if (std::abs(perp - lane - curve) < k_ClawHalfWidth) {
-                    return true;
-                }
+            const float taper = std::pow(std::max(0.0f, 1.0f - t * t), k_ScratchPoint);
+            const float jitter = (Hash01(worldX, worldZ, 606u) - 0.5f) * k_ScratchEdgeJitter * taper;
+            const float halfWidth = k_ScratchHalfWidth * taper + jitter;
+            if (std::abs(perp - curve) < halfWidth) {
+                return true;
             }
         }
     }
