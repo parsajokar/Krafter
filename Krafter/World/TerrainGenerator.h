@@ -7,6 +7,7 @@
 
 #include "FastNoiseLite.h"
 
+#include "Krafter/World/Biome.h"
 #include "Krafter/World/Block.h"
 
 namespace Krafter {
@@ -18,6 +19,11 @@ public:
     explicit TerrainGenerator(int32_t seed);
 
     void Generate(Chunk& chunk, const glm::ivec2& position) const;
+
+    const Climate& GetClimate() const
+    {
+        return m_Climate;
+    }
 
 private:
     struct Ellipsoid {
@@ -50,7 +56,7 @@ private:
     uint32_t Hash(int32_t x, int32_t z, uint32_t salt) const;
     float Hash01(int32_t x, int32_t z, uint32_t salt) const;
 
-    int32_t AquiferCellLevel(int32_t gx, int32_t gz, float cx, float cz) const;
+    int32_t AquiferCellLevel(float cx, float cz) const;
     Block AquiferBlock(int32_t worldX, int32_t y, int32_t worldZ, int32_t surface, int32_t surfaceMargin) const;
 
     bool BuildLake(int32_t cellX, int32_t cellZ, Lake& lake) const;
@@ -71,8 +77,6 @@ private:
     bool ColumnRollsCactus(int32_t worldX, int32_t worldZ) const;
     void ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPosition) const;
 
-    // True when a desert column falls on one of the rare "lion scratch" claw
-    // marks that streak the sand with red sand.
     bool OnLionScratch(int32_t worldX, int32_t worldZ) const;
 
     void CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition) const;
@@ -86,6 +90,7 @@ private:
     void ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosition) const;
 
     uint32_t m_Seed = 0;
+    Climate m_Climate;
 
     FastNoiseLite m_CaveNoiseA;
     FastNoiseLite m_CaveNoiseB;

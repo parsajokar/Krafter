@@ -3,7 +3,7 @@
 #include "Krafter/World/Coords.h"
 #include "Krafter/World/Fluid.h"
 #include "Krafter/World/FluidSystem.h"
-#include "Krafter/World/World.h"
+#include "Krafter/World/WorldAccess.h"
 
 namespace Krafter {
 
@@ -17,36 +17,9 @@ constexpr glm::ivec3 k_Neighbors[6] = {
 
 }
 
-FluidSystem::FluidSystem(World& world)
+FluidSystem::FluidSystem(WorldAccess& world)
     : m_World(world)
 {
-}
-
-Chunk* FluidSystem::ChunkAt(const glm::ivec3& cell) const
-{
-    auto it = m_World.m_Chunks.find(ToChunkPosition(cell));
-    if (it == m_World.m_Chunks.end()) {
-        return nullptr;
-    }
-    return it->second.chunk.get();
-}
-
-Block FluidSystem::BlockAt(const glm::ivec3& cell) const
-{
-    if (cell.y < 0 || cell.y >= Chunk::k_Height) {
-        return Block::k_Air;
-    }
-    Chunk* chunk = ChunkAt(cell);
-    return chunk ? chunk->GetBlock(ToLocalPosition(cell)) : Block::k_Air;
-}
-
-uint8_t FluidSystem::FluidAt(const glm::ivec3& cell) const
-{
-    if (cell.y < 0 || cell.y >= Chunk::k_Height) {
-        return 0;
-    }
-    Chunk* chunk = ChunkAt(cell);
-    return chunk ? chunk->GetFluid(ToLocalPosition(cell)) : 0;
 }
 
 void FluidSystem::Schedule(const glm::ivec3& cell, Block fluid)
@@ -84,71 +57,32 @@ void FluidSystem::Tick(Block fluid, std::unordered_set<glm::ivec3>& pending)
     std::unordered_set<glm::ivec3> snapshot;
     snapshot.swap(pending);
 
-    std::unordered_set<glm::ivec2> remesh;
-    std::unordered_set<glm::ivec2> relight;
-
     for (const glm::ivec3& cell : snapshot) {
-        const glm::ivec2 chunkPos = ToChunkPosition(cell);
-        auto it = m_World.m_Chunks.find(chunkPos);
-        if (it == m_World.m_Chunks.end() || !it->second.chunk) {
+        if (!m_World.IsLoadedAround(cell)) {
+            if (m_World.IsLoadedOrKept(cell)) {
+                pending.insert(cell);
+            }
             continue;
         }
-        if (!m_World.CanEdit(chunkPos)) {
-            pending.insert(cell);
-            continue;
-        }
-        Evaluate(cell, fluid, pending, remesh, relight);
-    }
-
-    const bool lava = fluid == Block::k_Lava;
-    for (const glm::ivec2& chunkPos : remesh) {
-        if (lava || relight.count(chunkPos)) {
-            m_World.InvalidateChunk(chunkPos);
-        } else {
-            m_World.RemeshChunk(chunkPos);
-        }
-    }
-    for (const glm::ivec2& chunkPos : relight) {
-        if (!remesh.count(chunkPos)) {
-            m_World.InvalidateChunk(chunkPos);
-        }
+        Evaluate(cell, fluid, pending);
     }
 }
 
-void FluidSystem::Evaluate(const glm::ivec3& cell, Block fluid,
-    std::unordered_set<glm::ivec3>& pending,
-    std::unordered_set<glm::ivec2>& remesh, std::unordered_set<glm::ivec2>& relight)
+void FluidSystem::Evaluate(const glm::ivec3& cell, Block fluid, std::unordered_set<glm::ivec3>& pending)
 {
-    Chunk* chunk = ChunkAt(cell);
-    const glm::ivec3 local = ToLocalPosition(cell);
-    if (chunk->GetBlock(local) != fluid) {
+    auto blockAt = [&](const glm::ivec3& c) { return m_World.GetBlock(c); };
+    auto fluidAt = [&](const glm::ivec3& c) { return m_World.GetFluid(c); };
+
+    if (blockAt(cell) != fluid) {
         return;
     }
 
-    auto markTouched = [&](std::unordered_set<glm::ivec2>& set, const glm::ivec3& c) {
-        const glm::ivec2 cp = ToChunkPosition(c);
-        set.insert(cp);
-        const glm::ivec3 lc = ToLocalPosition(c);
-        if (lc.x == 0) {
-            set.insert(cp + glm::ivec2(-1, 0));
-        }
-        if (lc.x == Chunk::k_Width - 1) {
-            set.insert(cp + glm::ivec2(1, 0));
-        }
-        if (lc.z == 0) {
-            set.insert(cp + glm::ivec2(0, -1));
-        }
-        if (lc.z == Chunk::k_Width - 1) {
-            set.insert(cp + glm::ivec2(0, 1));
-        }
-    };
-
     auto feedAt = [&](const glm::ivec3& c) -> int32_t {
-        if (BlockAt(c) != fluid) {
+        if (blockAt(c) != fluid) {
             return 0;
         }
-        const uint8_t f = FluidAt(c);
-        if (FluidIsSource(f) || BlockAt(c + k_Up) == fluid) {
+        const uint8_t f = fluidAt(c);
+        if (FluidIsSource(f) || blockAt(c + k_Up) == fluid) {
             return k_FluidFull;
         }
         return FluidLevel(f);
@@ -160,48 +94,38 @@ void FluidSystem::Evaluate(const glm::ivec3& cell, Block fluid,
             if (n.y < 0 || n.y >= Chunk::k_Height) {
                 continue;
             }
-            const Block b = BlockAt(n);
+            const Block b = blockAt(n);
             if (b == Block::k_Air || b == fluid) {
                 pending.insert(n);
             }
         }
     };
     auto setLevel = [&](const glm::ivec3& c, uint8_t value) {
-        Chunk* target = ChunkAt(c);
-        const glm::ivec3 lc = ToLocalPosition(c);
         if (value == 0) {
-            target->SetBlock(lc, Block::k_Air);
-            target->SetFluid(lc, 0);
+            m_World.SetBlock(c, Block::k_Air);
         } else {
-            target->SetBlock(lc, fluid);
-            target->SetFluid(lc, value);
+            m_World.SetFluid(c, fluid, value);
         }
-        markTouched(remesh, c);
         scheduleAround(c);
     };
 
     const Block other = fluid == Block::k_Water ? Block::k_Lava : Block::k_Water;
     for (const glm::ivec3& dir : k_Neighbors) {
         const glm::ivec3 n = cell + dir;
-        if (BlockAt(n) != other) {
+        if (blockAt(n) != other) {
             continue;
         }
         if (fluid == Block::k_Lava) {
-            chunk->SetBlock(local, Block::k_Stone);
-            chunk->SetFluid(local, 0);
-            markTouched(relight, cell);
+            m_World.SetBlock(cell, Block::k_Stone);
             scheduleAround(cell);
             return;
         }
-        Chunk* neighbourChunk = ChunkAt(n);
-        neighbourChunk->SetBlock(ToLocalPosition(n), Block::k_Stone);
-        neighbourChunk->SetFluid(ToLocalPosition(n), 0);
-        markTouched(relight, n);
+        m_World.SetBlock(n, Block::k_Stone);
     }
 
-    const uint8_t self = chunk->GetFluid(local);
+    const uint8_t self = fluidAt(cell);
     const bool source = FluidIsSource(self);
-    const bool fedFromAbove = BlockAt(cell + k_Up) == fluid;
+    const bool fedFromAbove = blockAt(cell + k_Up) == fluid;
     const int32_t decrement = fluid == Block::k_Lava ? 2 : 1;
 
     int32_t level = FluidLevel(self);
@@ -218,18 +142,17 @@ void FluidSystem::Evaluate(const glm::ivec3& cell, Block fluid,
         }
         if (desired != level) {
             level = desired;
-            chunk->SetFluid(local, static_cast<uint8_t>(level));
-            markTouched(remesh, cell);
+            m_World.SetFluid(cell, fluid, static_cast<uint8_t>(level));
             scheduleAround(cell);
         }
     }
 
     const glm::ivec3 below = cell - k_Up;
     if (below.y >= 0) {
-        const Block belowBlock = BlockAt(below);
+        const Block belowBlock = blockAt(below);
         const bool canFall = belowBlock == Block::k_Air
-            || (belowBlock == fluid && !FluidIsSource(FluidAt(below))
-                && FluidLevel(FluidAt(below)) < k_FluidFull);
+            || (belowBlock == fluid && !FluidIsSource(fluidAt(below))
+                && FluidLevel(fluidAt(below)) < k_FluidFull);
         if (canFall) {
             setLevel(below, k_FluidFull);
             return;
@@ -241,10 +164,10 @@ void FluidSystem::Evaluate(const glm::ivec3& cell, Block fluid,
     if (spread >= 1) {
         for (const glm::ivec3& side : k_HorizontalNeighbors) {
             const glm::ivec3 n = cell + side;
-            const Block b = BlockAt(n);
+            const Block b = blockAt(n);
             const bool canReceive = b == Block::k_Air
-                || (b == fluid && !FluidIsSource(FluidAt(n))
-                    && FluidLevel(FluidAt(n)) < spread);
+                || (b == fluid && !FluidIsSource(fluidAt(n))
+                    && FluidLevel(fluidAt(n)) < spread);
             if (canReceive) {
                 setLevel(n, static_cast<uint8_t>(spread));
             }

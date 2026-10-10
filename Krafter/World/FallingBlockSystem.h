@@ -9,11 +9,11 @@
 
 namespace Krafter {
 
-class World;
+class WorldAccess;
 
 class FallingBlockSystem {
 public:
-    explicit FallingBlockSystem(World& world);
+    explicit FallingBlockSystem(WorldAccess& world);
 
     void Schedule(const std::vector<glm::ivec3>& cells, const glm::ivec3& origin);
 
@@ -32,7 +32,7 @@ private:
 
     static constexpr float k_FallStep = 0.05f;
 
-    World& m_World;
+    WorldAccess& m_World;
 
     std::vector<FallingBlock> m_FallingBlocks;
     std::unordered_set<glm::ivec3> m_Falling;

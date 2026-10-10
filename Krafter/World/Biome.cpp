@@ -1,6 +1,3 @@
-#include <iostream>
-#include <stdexcept>
-
 #include <cmath>
 
 #include "FastNoiseLite.h"
@@ -11,14 +8,6 @@
 namespace Krafter {
 
 namespace {
-
-FastNoiseLite s_TemperatureNoise;
-FastNoiseLite s_HumidityNoise;
-FastNoiseLite s_ContinentNoise;
-FastNoiseLite s_DetailNoise;
-
-FastNoiseLite s_ErosionNoise;
-FastNoiseLite s_WeirdnessNoise;
 
 float SmoothRamp(float value, float start, float end)
 {
@@ -62,68 +51,66 @@ float PeaksValleys(float w)
 
 }
 
-void Biome::Configure(int32_t seed)
+Climate::Climate(int32_t seed)
 {
-    s_TemperatureNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_TemperatureNoise.SetSeed(1337 + seed);
-    s_TemperatureNoise.SetFrequency(0.0009f);
-    s_TemperatureNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-    s_TemperatureNoise.SetFractalOctaves(3);
-    s_TemperatureNoise.SetFractalGain(0.35f);
+    m_TemperatureNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_TemperatureNoise.SetSeed(1337 + seed);
+    m_TemperatureNoise.SetFrequency(0.0009f);
+    m_TemperatureNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    m_TemperatureNoise.SetFractalOctaves(3);
+    m_TemperatureNoise.SetFractalGain(0.35f);
 
-    s_HumidityNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_HumidityNoise.SetSeed(4242 + seed);
-    s_HumidityNoise.SetFrequency(0.0011f);
-    s_HumidityNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-    s_HumidityNoise.SetFractalOctaves(3);
-    s_HumidityNoise.SetFractalGain(0.35f);
+    m_HumidityNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_HumidityNoise.SetSeed(4242 + seed);
+    m_HumidityNoise.SetFrequency(0.0011f);
+    m_HumidityNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    m_HumidityNoise.SetFractalOctaves(3);
+    m_HumidityNoise.SetFractalGain(0.35f);
 
-    s_ContinentNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_ContinentNoise.SetSeed(2024 + seed);
-    s_ContinentNoise.SetFrequency(0.0008f);
+    m_ContinentNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_ContinentNoise.SetSeed(2024 + seed);
+    m_ContinentNoise.SetFrequency(0.0008f);
 
-    s_DetailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_DetailNoise.SetSeed(1337 + seed);
-    s_DetailNoise.SetFrequency(0.02f);
+    m_DetailNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_DetailNoise.SetSeed(1337 + seed);
+    m_DetailNoise.SetFrequency(0.02f);
 
-    s_ErosionNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_ErosionNoise.SetSeed(5150 + seed);
-    s_ErosionNoise.SetFrequency(0.0012f);
-    s_ErosionNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-    s_ErosionNoise.SetFractalOctaves(3);
-    s_ErosionNoise.SetFractalGain(0.4f);
+    m_ErosionNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_ErosionNoise.SetSeed(5150 + seed);
+    m_ErosionNoise.SetFrequency(0.0012f);
+    m_ErosionNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    m_ErosionNoise.SetFractalOctaves(3);
+    m_ErosionNoise.SetFractalGain(0.4f);
 
-    s_WeirdnessNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    s_WeirdnessNoise.SetSeed(9001 + seed);
-    s_WeirdnessNoise.SetFrequency(0.0028f);
-    s_WeirdnessNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-    s_WeirdnessNoise.SetFractalOctaves(3);
-    s_WeirdnessNoise.SetFractalGain(0.45f);
-
-    LoadBiomes();
+    m_WeirdnessNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    m_WeirdnessNoise.SetSeed(9001 + seed);
+    m_WeirdnessNoise.SetFrequency(0.0028f);
+    m_WeirdnessNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    m_WeirdnessNoise.SetFractalOctaves(3);
+    m_WeirdnessNoise.SetFractalGain(0.45f);
 }
 
-float Biome::Temperature(float worldX, float worldZ)
+float Climate::Temperature(float worldX, float worldZ) const
 {
-    return s_TemperatureNoise.GetNoise(worldX, worldZ);
+    return m_TemperatureNoise.GetNoise(worldX, worldZ);
 }
 
-float Biome::Humidity(float worldX, float worldZ)
+float Climate::Humidity(float worldX, float worldZ) const
 {
-    return s_HumidityNoise.GetNoise(worldX, worldZ);
+    return m_HumidityNoise.GetNoise(worldX, worldZ);
 }
 
-float Biome::Continentalness(float worldX, float worldZ)
+float Climate::Continentalness(float worldX, float worldZ) const
 {
-    return s_ContinentNoise.GetNoise(worldX, worldZ);
+    return m_ContinentNoise.GetNoise(worldX, worldZ);
 }
 
-int32_t Biome::SurfaceHeight(float worldX, float worldZ)
+int32_t Climate::SurfaceHeight(float worldX, float worldZ) const
 {
     const float continentalness = Continentalness(worldX, worldZ);
-    const float erosion = s_ErosionNoise.GetNoise(worldX, worldZ);
-    const float peaksValleys = PeaksValleys(s_WeirdnessNoise.GetNoise(worldX, worldZ));
-    const float detail = s_DetailNoise.GetNoise(worldX, worldZ);
+    const float erosion = m_ErosionNoise.GetNoise(worldX, worldZ);
+    const float peaksValleys = PeaksValleys(m_WeirdnessNoise.GetNoise(worldX, worldZ));
+    const float detail = m_DetailNoise.GetNoise(worldX, worldZ);
 
     const float land = SmoothRamp(continentalness, -0.30f, 0.10f);
 
@@ -141,9 +128,9 @@ int32_t Biome::SurfaceHeight(float worldX, float worldZ)
     return rounded;
 }
 
-BiomeType Biome::At(float worldX, float worldZ)
+BiomeType Climate::BiomeAt(float worldX, float worldZ) const
 {
-    return Select(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
+    return Biome::Select(Temperature(worldX, worldZ), Humidity(worldX, worldZ),
         Continentalness(worldX, worldZ));
 }
 
@@ -160,66 +147,15 @@ const char* Biome::Name(BiomeType type)
         return "Savannah";
     case BiomeType::k_Desert:
         return "Desert";
+    case BiomeType::k_Count:
+        break;
     }
     return "Unknown";
 }
 
-void Biome::LoadBiomes()
-{
-    s_Biomes[BiomeType::k_Ocean] = {
-        .surface = Block::k_Sand,
-        .subsurface = Block::k_Sand,
-        .subsurfaceDepth = 4,
-        .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
-        .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
-    };
-
-    s_Biomes[BiomeType::k_OakForest] = {
-        .surface = Block::k_Grass,
-        .subsurface = Block::k_Dirt,
-        .subsurfaceDepth = 4,
-        .grassColor = glm::vec3(0.569f, 0.741f, 0.349f),
-        .leafColor = glm::vec3(0.471f, 0.671f, 0.302f)
-    };
-
-    s_Biomes[BiomeType::k_BirchForest] = {
-        .surface = Block::k_Grass,
-        .subsurface = Block::k_Dirt,
-        .subsurfaceDepth = 4,
-        .grassColor = glm::vec3(0.624f, 0.769f, 0.412f),
-        .leafColor = glm::vec3(0.553f, 0.722f, 0.376f)
-    };
-
-    s_Biomes[BiomeType::k_Savannah] = {
-        .surface = Block::k_Grass,
-        .subsurface = Block::k_Dirt,
-        .subsurfaceDepth = 4,
-        .grassColor = glm::vec3(0.741f, 0.722f, 0.357f),
-        .leafColor = glm::vec3(0.643f, 0.639f, 0.318f)
-    };
-
-    s_Biomes[BiomeType::k_Desert] = {
-        .surface = Block::k_Sand,
-        .subsurface = Block::k_Sand,
-        .subsurfaceDepth = 4,
-        .grassColor = glm::vec3(0.749f, 0.718f, 0.333f),
-        .leafColor = glm::vec3(0.659f, 0.612f, 0.333f)
-    };
-}
-
-const Biome& Biome::Get(BiomeType type)
-{
-    try {
-        return s_Biomes.at(type);
-    } catch (std::out_of_range e) {
-        std::cerr << "Biome is not defined!" << std::endl;
-        throw e;
-    }
-}
-
 BiomeType Biome::Select(float temperature, float humidity, float continentalness)
 {
-    if (Landness(continentalness) < 0.5f) {
+    if (SmoothRamp(continentalness, -0.3f, 0.0f) < 0.5f) {
         return BiomeType::k_Ocean;
     }
 
@@ -230,11 +166,6 @@ BiomeType Biome::Select(float temperature, float humidity, float continentalness
         return dry ? BiomeType::k_Desert : BiomeType::k_Savannah;
     }
     return dry ? BiomeType::k_BirchForest : BiomeType::k_OakForest;
-}
-
-float Biome::Landness(float continentalness)
-{
-    return SmoothRamp(continentalness, -0.3f, 0.0f);
 }
 
 }

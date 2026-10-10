@@ -3,13 +3,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <unordered_map>
 
 #include "glm/glm.hpp"
 
 namespace Krafter {
 
-enum class Block {
+enum class Block : uint16_t {
     k_Air = 0,
     k_Dirt,
     k_Grass,
@@ -52,7 +51,7 @@ enum class Block {
     k_Workbench,
     k_Furnace,
 
-    k_Count // must stay last: sizes k_BlockInfo and counts the kinds above
+    k_Count
 };
 
 enum class ToolType : uint32_t {
@@ -77,8 +76,6 @@ inline constexpr bool HasTool(ToolType set, ToolType tool)
     return tool != ToolType::k_None && (set & tool) != ToolType::k_None;
 }
 
-// Break-power tiers. A block breaks only if the tool's power >= the block's
-// minPower, which gates the wood -> stone -> copper -> iron progression.
 namespace BreakPower {
 constexpr uint32_t k_None = 0;
 constexpr uint32_t k_Wood = 1;
@@ -108,7 +105,7 @@ enum class ItemKind {
     k_CopperIngot,
     k_IronIngot,
 
-    k_Count // must stay last: sizes k_ItemInfo and counts the kinds above
+    k_Count
 };
 
 enum class BlockCategory {
@@ -126,8 +123,6 @@ struct BlockInfo {
 
     bool opaque = false;
     bool cutout = false;
-    // Solid like an opaque block for gameplay, but rendered with blending so you
-    // can see through it (e.g. ice). Only affects meshing/rendering.
     bool translucent = false;
 
     BlockCategory category = BlockCategory::k_None;
@@ -235,6 +230,11 @@ inline constexpr bool IsCutout(Block block) { return BlockInfoOf(block).cutout; 
 
 inline constexpr bool IsTranslucent(Block block) { return BlockInfoOf(block).translucent; }
 
+inline constexpr bool BlocksLight(Block block)
+{
+    return IsOpaque(block) && !IsCutout(block) && !IsTranslucent(block);
+}
+
 inline constexpr bool IsTargetable(Block block)
 {
     return IsOpaque(block) || IsPlant(block) || IsGem(block);
@@ -264,21 +264,16 @@ enum class BlockFace {
     k_Top
 };
 
-class BlockAtlas {
-public:
-    static void LoadAtlases();
+struct BlockAtlas {
     static const BlockAtlas& GetAtlasOf(Block block);
 
     static constexpr float k_Step = 1.0f / 16.0f;
 
-    glm::vec2 top;
-    glm::vec2 side;
-    glm::vec2 bottom;
-    glm::vec2 front;
-    glm::vec2 sideOverlay;
-
-private:
-    inline static std::unordered_map<Block, BlockAtlas> s_BlockAtlases;
+    glm::vec2 top = glm::vec2(0.0f);
+    glm::vec2 side = glm::vec2(0.0f);
+    glm::vec2 bottom = glm::vec2(0.0f);
+    glm::vec2 front = glm::vec2(0.0f);
+    glm::vec2 sideOverlay = glm::vec2(0.0f);
 };
 
 inline glm::vec2 BlockIconTile(Block block)

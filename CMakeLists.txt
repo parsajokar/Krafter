@@ -7,8 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(Krafter LANGUAGES CXX)
 
-# Libraries
-
 set(CMAKE_FOLDER "Libraries")
 
 set(GLFW_BUILD_DOCS OFF)
@@ -34,89 +32,105 @@ find_package(Vulkan REQUIRED)
 
 unset(CMAKE_FOLDER)
 
-# Krafter
-
 add_executable(Krafter)
 
 target_sources(
     Krafter
     PRIVATE
-    Krafter/World/World.h
-    Krafter/World/World.cpp
+    Krafter/Engine/Application.h
+    Krafter/Engine/Application.cpp
+    Krafter/Engine/Event.h
+    Krafter/Engine/FixedTimestep.h
+    Krafter/Engine/JobSystem.h
+    Krafter/Engine/JobSystem.cpp
+    Krafter/Engine/Layer.h
+    Krafter/Engine/Layer.cpp
+    Krafter/Engine/LayerStack.h
+    Krafter/Engine/LayerStack.cpp
+    Krafter/Engine/ResultQueue.h
+    Krafter/Engine/Window.h
+    Krafter/Engine/Window.cpp
+    Krafter/Engine/Graphics/BufferManager.h
+    Krafter/Engine/Graphics/BufferManager.cpp
+    Krafter/Engine/Graphics/GeometryArena.h
+    Krafter/Engine/Graphics/GeometryArena.cpp
+    Krafter/Engine/Graphics/Image.h
+    Krafter/Engine/Graphics/Image.cpp
+    Krafter/Engine/Graphics/Pipeline.h
+    Krafter/Engine/Graphics/Pipeline.cpp
+    Krafter/Engine/Graphics/Renderer.h
+    Krafter/Engine/Graphics/Renderer.cpp
+    Krafter/Engine/Graphics/Swapchain.h
+    Krafter/Engine/Graphics/Swapchain.cpp
+    Krafter/Engine/Graphics/Texture.h
+    Krafter/Engine/Graphics/Texture.cpp
+    Krafter/Engine/Graphics/TextureManager.h
+    Krafter/Engine/Graphics/TextureManager.cpp
+    Krafter/Engine/Graphics/VulkanContext.h
+    Krafter/Engine/Graphics/VulkanContext.cpp
+    Krafter/Rendering/Camera.h
+    Krafter/Rendering/Camera.cpp
+    Krafter/Rendering/ChunkMesh.h
+    Krafter/Rendering/ChunkMesh.cpp
+    Krafter/Rendering/ChunkRenderer.h
+    Krafter/Rendering/ChunkRenderer.cpp
+    Krafter/Rendering/Font.h
+    Krafter/Rendering/Font.cpp
+    Krafter/Rendering/RenderView.h
+    Krafter/Rendering/UIRenderer.h
+    Krafter/Rendering/UIRenderer.cpp
+    Krafter/Rendering/WorldRenderer.h
+    Krafter/Rendering/WorldRenderer.cpp
+    Krafter/World/Biome.h
+    Krafter/World/Biome.cpp
+    Krafter/World/Block.h
+    Krafter/World/Block.cpp
+    Krafter/World/BlockBehavior.h
+    Krafter/World/BlockBehavior.cpp
     Krafter/World/Chunk.h
     Krafter/World/Chunk.cpp
-    Krafter/World/TerrainGenerator.h
-    Krafter/World/TerrainGenerator.cpp
+    Krafter/World/Coords.h
     Krafter/World/DropSystem.h
     Krafter/World/DropSystem.cpp
     Krafter/World/FallingBlockSystem.h
     Krafter/World/FallingBlockSystem.cpp
+    Krafter/World/Fluid.h
     Krafter/World/FluidSystem.h
     Krafter/World/FluidSystem.cpp
-    Krafter/World/Block.h
-    Krafter/World/Block.cpp
-    Krafter/World/Biome.h
-    Krafter/World/Biome.cpp
+    Krafter/World/Item.h
     Krafter/World/Lighting.h
     Krafter/World/Lighting.cpp
     Krafter/World/Sky.h
     Krafter/World/Sky.cpp
-    Krafter/World/Coords.h
-    Krafter/Renderer/ChunkMesh.h
-    Krafter/Renderer/ChunkMesh.cpp
-    Krafter/Renderer/Texture.h
-    Krafter/Renderer/Texture.cpp
-    Krafter/Renderer/Pipeline.h
-    Krafter/Renderer/Pipeline.cpp
-    Krafter/Renderer/WorldRenderer.h
-    Krafter/Renderer/WorldRenderer.cpp
-    Krafter/Renderer/UIRenderer.h
-    Krafter/Renderer/UIRenderer.cpp
-    Krafter/Renderer/Widgets.h
-    Krafter/Renderer/Widgets.cpp
-    Krafter/Renderer/Font.h
-    Krafter/Renderer/Font.cpp
-    Krafter/WorldLayer.h
-    Krafter/WorldLayer.cpp
-    Krafter/UILayer.h
-    Krafter/UILayer.cpp
-    Krafter/MainMenuLayer.h
-    Krafter/MainMenuLayer.cpp
-    Krafter/PauseMenuLayer.h
-    Krafter/PauseMenuLayer.cpp
-    Krafter/InventoryLayer.h
-    Krafter/InventoryLayer.cpp
-    Krafter/Hotbar.h
-    Krafter/Inventory.h
-    Krafter/GameMode.h
-    Krafter/Game.h
-    Krafter/Game.cpp
-    Krafter/Camera.h
-    Krafter/Camera.cpp
-    Krafter/Player.h
-    Krafter/Player.cpp
-    Krafter/Core/Application.h
-    Krafter/Core/Application.cpp
-    Krafter/Core/Renderer.h
-    Krafter/Core/Renderer.cpp
-    Krafter/Core/VulkanContext.h
-    Krafter/Core/VulkanContext.cpp
-    Krafter/Core/Swapchain.h
-    Krafter/Core/Swapchain.cpp
-    Krafter/Core/BufferManager.h
-    Krafter/Core/BufferManager.cpp
-    Krafter/Core/TextureManager.h
-    Krafter/Core/TextureManager.cpp
-    Krafter/Core/Layer.h
-    Krafter/Core/Layer.cpp
-    Krafter/Core/LayerStack.h
-    Krafter/Core/LayerStack.cpp
-    Krafter/Core/Window.h
-    Krafter/Core/Window.cpp
-    Krafter/Core/Event.h
-    Krafter/Core/JobSystem.h
-    Krafter/Core/JobSystem.cpp
-    Krafter/Core/ResultQueue.h
+    Krafter/World/TerrainGenerator.h
+    Krafter/World/TerrainGenerator.cpp
+    Krafter/World/World.h
+    Krafter/World/World.cpp
+    Krafter/World/WorldAccess.h
+    Krafter/Gameplay/Crafting.h
+    Krafter/Gameplay/Crafting.cpp
+    Krafter/Gameplay/GameMode.h
+    Krafter/Gameplay/Hotbar.h
+    Krafter/Gameplay/Inventory.h
+    Krafter/Gameplay/ItemContainer.h
+    Krafter/Gameplay/ItemContainer.cpp
+    Krafter/Gameplay/Player.h
+    Krafter/Gameplay/Player.cpp
+    Krafter/UI/HudLayer.h
+    Krafter/UI/HudLayer.cpp
+    Krafter/UI/InventoryLayer.h
+    Krafter/UI/InventoryLayer.cpp
+    Krafter/UI/MainMenuLayer.h
+    Krafter/UI/MainMenuLayer.cpp
+    Krafter/UI/PauseMenuLayer.h
+    Krafter/UI/PauseMenuLayer.cpp
+    Krafter/UI/UIScreen.h
+    Krafter/UI/Widgets.h
+    Krafter/UI/Widgets.cpp
+    Krafter/Game/GameApplication.h
+    Krafter/Game/GameApplication.cpp
+    Krafter/Game/WorldLayer.h
+    Krafter/Game/WorldLayer.cpp
     Krafter/Main.cpp
 )
 
@@ -148,16 +162,9 @@ target_compile_definitions(
     Krafter
     PRIVATE
     GLM_ENABLE_EXPERIMENTAL
-    # Vulkan clip space uses a [0, 1] depth range (not OpenGL's [-1, 1]), so GLM's
-    # projection matrices must match. The Y-flip is handled by a negative-height
-    # viewport in the renderer.
     GLM_FORCE_DEPTH_ZERO_TO_ONE
 )
 
-# Shaders: compile each GLSL source to SPIR-V with glslc (from the Vulkan SDK,
-# located by find_package(Vulkan)). The .spv is written next to its source so the
-# app loads it by swapping the extension. The stage is taken from the .vert/.frag
-# infix, since glslc can't infer it from the .glsl extension.
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders)
 file(GLOB SHADER_SOURCES ${SHADER_DIR}/*.vert.glsl ${SHADER_DIR}/*.frag.glsl)
 

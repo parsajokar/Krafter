@@ -46,28 +46,21 @@ constexpr float k_CactusChance = 0.01f;
 constexpr float k_DeadBushChance = 0.02f;
 constexpr int32_t k_MaxCactusHeight = 3;
 constexpr float k_CactusFlowerChance = 0.25f;
-// Fraction of grass-plant rolls that become a flower instead of grass/fern.
 constexpr float k_FlowerFraction = 0.1f;
 
-// "Lion scratch" red-sand gouge scored across desert sand: a single thick,
-// long drag that tapers to a thin point at each end.
 constexpr int32_t k_ScratchGrid = 220;
 constexpr float k_ScratchChance = 0.4f;
 constexpr float k_ScratchMinLen = 90.0f;
 constexpr float k_ScratchMaxLen = 150.0f;
 constexpr float k_ScratchHalfWidth = 9.0f;
 constexpr float k_ScratchCurve = 6.0f;
-constexpr float k_ScratchPoint = 2.2f;       // >1 sharpens the tips
-constexpr float k_ScratchEdgeJitter = 4.0f;  // ragged, aliased edge
+constexpr float k_ScratchPoint = 2.2f;
+constexpr float k_ScratchEdgeJitter = 4.0f;
 constexpr int32_t k_ScratchReach = 80;
 constexpr int32_t k_ScratchDepth = 3;
 
-// Lone gems that stud ordinary cave walls very sparsely.
 constexpr float k_GemChance = 0.0006f;
 
-// Rare underground geode pockets that are entirely lined with one gem type.
-// TEMP TEST VALUES: grid shrunk + chance raised so geodes are easy to find.
-// Revert to grid 320 / chance 0.05f once confirmed.
 constexpr int32_t k_GemClusterGrid = 80;
 constexpr float k_GemClusterChance = 0.6f;
 constexpr int32_t k_GemClusterMinY = 22;
@@ -88,9 +81,8 @@ float GridJitter(int32_t x, int32_t z, uint32_t salt, uint32_t seed)
 
 TerrainGenerator::TerrainGenerator(int32_t seed)
     : m_Seed(static_cast<uint32_t>(seed))
+    , m_Climate(seed)
 {
-    Biome::Configure(seed);
-
     m_CaveNoiseA.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     m_CaveNoiseA.SetSeed(7001 + static_cast<int>(m_Seed));
     m_CaveNoiseA.SetFrequency(0.025f);
@@ -143,7 +135,7 @@ float TerrainGenerator::Hash01(int32_t x, int32_t z, uint32_t salt) const
     return Hash(x, z, salt) * (1.0f / 4294967296.0f);
 }
 
-int32_t TerrainGenerator::AquiferCellLevel(int32_t gx, int32_t gz, float cx, float cz) const
+int32_t TerrainGenerator::AquiferCellLevel(float cx, float cz) const
 {
     if (m_AquiferMaskNoise.GetNoise(cx, cz) < k_AquiferWetCutoff) {
         return std::numeric_limits<int32_t>::min();
@@ -179,7 +171,7 @@ Block TerrainGenerator::AquiferBlock(int32_t worldX, int32_t y, int32_t worldZ,
             const float ex = cx - static_cast<float>(worldX);
             const float ez = cz - static_cast<float>(worldZ);
             const float d = ex * ex + ez * ez;
-            const int32_t level = AquiferCellLevel(gx, gz, cx, cz);
+            const int32_t level = AquiferCellLevel(cx, cz);
             if (d < best1) {
                 best2 = best1;
                 level2 = level1;
@@ -239,7 +231,7 @@ bool TerrainGenerator::BuildLake(int32_t cellX, int32_t cellZ, Lake& lake) const
     const int32_t centerX = cellX * k_LakeCellSize + static_cast<int32_t>(Hash01(cellX, cellZ, 1u) * k_LakeCellSize);
     const int32_t centerZ = cellZ * k_LakeCellSize + static_cast<int32_t>(Hash01(cellX, cellZ, 2u) * k_LakeCellSize);
 
-    const BiomeType biome = Biome::At((float)centerX, (float)centerZ);
+    const BiomeType biome = m_Climate.BiomeAt(static_cast<float>(centerX), static_cast<float>(centerZ));
 
     const float roll = Hash01(cellX, cellZ, 3u);
     int32_t count;
@@ -260,7 +252,7 @@ bool TerrainGenerator::BuildLake(int32_t cellX, int32_t cellZ, Lake& lake) const
         return false;
     }
 
-    lake.cy = Biome::SurfaceHeight((float)centerX, (float)centerZ) - k_LakeSink;
+    lake.cy = m_Climate.SurfaceHeight(static_cast<float>(centerX), static_cast<float>(centerZ)) - k_LakeSink;
 
     if (lake.cy < Chunk::k_SeaLevel + 2) {
         return false;
@@ -314,7 +306,7 @@ bool TerrainGenerator::LakeContained(const Lake& lake) const
                     if (lake.Contains(ax, ay, az)) {
                         continue;
                     }
-                    if (ay > Biome::SurfaceHeight((float)ax, (float)az)) {
+                    if (ay > m_Climate.SurfaceHeight(static_cast<float>(ax), static_cast<float>(az))) {
                         return false;
                     }
                 }
@@ -363,7 +355,7 @@ void TerrainGenerator::CarveLake(Chunk& chunk, const glm::ivec2& chunkPosition, 
                 continue;
             }
 
-            const int32_t ground = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t ground = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
             const float d = std::sqrt(field);
 
             if (d < 1.0f) {
@@ -388,7 +380,7 @@ void TerrainGenerator::CarveLake(Chunk& chunk, const glm::ivec2& chunkPosition, 
                     chunk.SetBlock(glm::ivec3(x, y, z), Block::k_Air);
                 }
                 if (targetTop >= 0 && targetTop < ground) {
-                    const Block surfaceBlock = Biome::Get(Biome::At((float)worldX, (float)worldZ)).surface;
+                    const Block surfaceBlock = Biome::Get(m_Climate.BiomeAt(static_cast<float>(worldX), static_cast<float>(worldZ))).surface;
                     chunk.SetBlock(glm::ivec3(x, targetTop, z), surfaceBlock);
                 }
             }
@@ -424,7 +416,7 @@ bool TerrainGenerator::BuildTree(int32_t cellX, int32_t cellZ, Tree& tree) const
     const int32_t z = cellZ * k_TreeCellSize + k_TreeJitterMargin + static_cast<int32_t>(Hash(cellX, cellZ, 202u) % span);
 
     float chance;
-    switch (Biome::At((float)x, (float)z)) {
+    switch (m_Climate.BiomeAt(static_cast<float>(x), static_cast<float>(z))) {
     case BiomeType::k_OakForest:
         chance = k_TreeChance;
         tree.wood = Block::k_OakWood;
@@ -448,7 +440,7 @@ bool TerrainGenerator::BuildTree(int32_t cellX, int32_t cellZ, Tree& tree) const
         return false;
     }
 
-    const int32_t ground = Biome::SurfaceHeight((float)x, (float)z);
+    const int32_t ground = m_Climate.SurfaceHeight(static_cast<float>(x), static_cast<float>(z));
     if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(x, z)) {
         return false;
     }
@@ -634,7 +626,7 @@ bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
 
             const float centerX = cx * k_ScratchGrid + Hash01(cx, cz, 601u) * k_ScratchGrid;
             const float centerZ = cz * k_ScratchGrid + Hash01(cx, cz, 602u) * k_ScratchGrid;
-            if (Biome::At(centerX, centerZ) != BiomeType::k_Desert) {
+            if (m_Climate.BiomeAt(centerX, centerZ) != BiomeType::k_Desert) {
                 continue;
             }
 
@@ -652,9 +644,6 @@ bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
             }
             const float perp = -dx * dirZ + dz * dirX;
 
-            // A single gouge that bows gently and swells in the middle, tapering
-            // to sharp points at each end. A high exponent pinches the tips, and
-            // per-block jitter roughens the boundary into a ragged, aliased edge.
             const float t = along / halfLen;
             const float curve = k_ScratchCurve * (1.0f - t * t);
             const float taper = std::pow(std::max(0.0f, 1.0f - t * t), k_ScratchPoint);
@@ -670,10 +659,10 @@ bool TerrainGenerator::OnLionScratch(int32_t worldX, int32_t worldZ) const
 
 bool TerrainGenerator::ColumnRollsCactus(int32_t worldX, int32_t worldZ) const
 {
-    if (Biome::At((float)worldX, (float)worldZ) != BiomeType::k_Desert) {
+    if (m_Climate.BiomeAt(static_cast<float>(worldX), static_cast<float>(worldZ)) != BiomeType::k_Desert) {
         return false;
     }
-    const int32_t ground = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+    const int32_t ground = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
     if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(worldX, worldZ)) {
         return false;
     }
@@ -687,11 +676,11 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
             const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
             const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
 
-            const BiomeType biome = Biome::At((float)worldX, (float)worldZ);
+            const BiomeType biome = m_Climate.BiomeAt(static_cast<float>(worldX), static_cast<float>(worldZ));
             if (biome == BiomeType::k_Ocean) {
                 continue;
             }
-            const int32_t ground = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t ground = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
             if (ground <= Chunk::k_SeaLevel + 1 || ColumnInLake(worldX, worldZ)) {
                 continue;
             }
@@ -715,7 +704,8 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
                 Block plant;
                 if (pick < k_FlowerFraction) {
                     const uint32_t f = Hash(worldX, worldZ, 304u) % 3u;
-                    plant = f == 0 ? Block::k_Poppy : f == 1 ? Block::k_Dandelion : Block::k_Allium;
+                    plant = f == 0 ? Block::k_Poppy : f == 1 ? Block::k_Dandelion
+                                                             : Block::k_Allium;
                 } else if (pick < k_FlowerFraction + 0.2f) {
                     plant = Block::k_Fern;
                 } else {
@@ -728,7 +718,7 @@ void TerrainGenerator::ScatterPlants(Chunk& chunk, const glm::ivec2& chunkPositi
                     for (const glm::ivec3& side : k_HorizontalNeighbors) {
                         const int32_t ax = worldX + side.x;
                         const int32_t az = worldZ + side.z;
-                        if (ColumnRollsCactus(ax, az) || Biome::SurfaceHeight((float)ax, (float)az) >= py) {
+                        if (ColumnRollsCactus(ax, az) || m_Climate.SurfaceHeight(static_cast<float>(ax), static_cast<float>(az)) >= py) {
                             clear = false;
                             break;
                         }
@@ -770,11 +760,11 @@ void TerrainGenerator::CarveCaves(Chunk& chunk, const glm::ivec2& chunkPosition)
             const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
             const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
 
-            const int32_t surface = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t surface = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
 
             const bool land = surface > Chunk::k_SeaLevel + 3;
             const bool entrance = land
-                && m_EntranceNoise.GetNoise((float)worldX, (float)worldZ) > k_EntranceThreshold;
+                && m_EntranceNoise.GetNoise(static_cast<float>(worldX), static_cast<float>(worldZ)) > k_EntranceThreshold;
             int32_t ceiling;
             if (entrance) {
                 ceiling = surface;
@@ -828,7 +818,6 @@ Block TerrainGenerator::OreFor(int32_t worldX, int32_t y, int32_t worldZ) const
     const float fy = static_cast<float>(y);
     const float fz = static_cast<float>(worldZ);
 
-    // Deepest and rarest first so overlaps keep the more valuable ore.
     if (y <= 60 && m_IronNoise.GetNoise(fx, fy, fz) > 0.60f) {
         return Block::k_IronOre;
     }
@@ -903,7 +892,6 @@ std::vector<TerrainGenerator::GemCluster> TerrainGenerator::GatherGemClusters(co
 
 void TerrainGenerator::CarveGemCluster(Chunk& chunk, const glm::ivec2& chunkPosition, const GemCluster& cluster) const
 {
-    // Hollow out the interior and wrap it in an ice shell that the gems line.
     const int32_t r = cluster.radius;
     const float hollowSq = (r - 1.0f) * (r - 1.0f);
     const float outerSq = static_cast<float>(r * r);
@@ -932,7 +920,6 @@ void TerrainGenerator::CarveGemCluster(Chunk& chunk, const glm::ivec2& chunkPosi
                 if (d2 <= hollowSq) {
                     chunk.SetBlock(cell, Block::k_Air);
                 } else {
-                    // Shell is a mix of solid hard ice and translucent ice.
                     const Block shell = Hash01(cluster.center.x + dx, cluster.center.z + dz,
                                             908u + static_cast<uint32_t>(cluster.center.y + dy))
                             < 0.5f
@@ -951,7 +938,6 @@ void TerrainGenerator::ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosi
         { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
     };
 
-    // Rare geode pockets: carve them first so their walls exist for the gem pass.
     const std::vector<GemCluster> clusters = GatherGemClusters(chunkPosition);
     for (const GemCluster& cluster : clusters) {
         CarveGemCluster(chunk, chunkPosition, cluster);
@@ -983,7 +969,7 @@ void TerrainGenerator::ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosi
             const int32_t worldX = chunkPosition.x * Chunk::k_Width + x;
             const int32_t worldZ = chunkPosition.y * Chunk::k_Width + z;
 
-            const int32_t surface = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t surface = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
             const int32_t top = std::min(surface - 3, Chunk::k_Height - 2);
 
             for (int32_t y = 5; y <= top; y++) {
@@ -1008,7 +994,6 @@ void TerrainGenerator::ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosi
                     }
                 }
 
-                // Inside a geode: line every wall with a random gem per block.
                 if (insideCluster(worldX, y, worldZ)) {
                     if (touchesSolid) {
                         chunk.SetBlock(glm::ivec3(x, y, z), randomGem(worldX, y, worldZ));
@@ -1016,7 +1001,6 @@ void TerrainGenerator::ScatterCaveGems(Chunk& chunk, const glm::ivec2& chunkPosi
                     continue;
                 }
 
-                // Otherwise, very sparse lone gems on ordinary cave walls.
                 if (!touchesStone) {
                     continue;
                 }
@@ -1048,10 +1032,10 @@ void TerrainGenerator::Generate(Chunk& chunk, const glm::ivec2& position) const
             const int32_t worldX = position.x * Chunk::k_Width + x;
             const int32_t worldZ = position.y * Chunk::k_Width + z;
 
-            const BiomeType type = Biome::At((float)worldX, (float)worldZ);
+            const BiomeType type = m_Climate.BiomeAt(static_cast<float>(worldX), static_cast<float>(worldZ));
             const Biome& biome = Biome::Get(type);
 
-            const int32_t height = Biome::SurfaceHeight((float)worldX, (float)worldZ);
+            const int32_t height = m_Climate.SurfaceHeight(static_cast<float>(worldX), static_cast<float>(worldZ));
 
             for (int32_t y = 0; y < height; y++) {
                 Block block;

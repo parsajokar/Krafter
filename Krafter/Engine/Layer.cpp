@@ -1,0 +1,46 @@
+#include <iostream>
+
+#include "imgui.h"
+
+#include "Krafter/Engine/Layer.h"
+
+namespace Krafter {
+
+Layer::Layer(std::string_view name)
+    : m_Name(name)
+{
+}
+
+void Layer::Attach()
+{
+    OnAttach();
+    std::cout << "[LAYER] " << m_Name << " attached!" << std::endl;
+}
+
+void Layer::Detach()
+{
+    OnDetach();
+    std::cout << "[LAYER] " << m_Name << " detached!" << std::endl;
+}
+
+void Layer::Update()
+{
+    OnUpdate();
+}
+
+void Layer::Render()
+{
+    OnRender();
+}
+
+void Layer::RenderImGui()
+{
+    OnRenderImGui();
+}
+
+void Layer::HandleEvent(Event& event)
+{
+    OnEvent(event);
+}
+
+}

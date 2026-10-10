@@ -22,8 +22,6 @@ void main()
         color *= texture(u_Texture, v_UvCoords);
     }
 
-    // Premultiply so transparent texels are black: with the inverting blend func
-    // they leave the background untouched while opaque texels invert it.
     if (pc.invert == 1) {
         color.rgb *= color.a;
     }

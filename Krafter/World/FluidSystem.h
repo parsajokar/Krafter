@@ -10,12 +10,11 @@
 
 namespace Krafter {
 
-class Chunk;
-class World;
+class WorldAccess;
 
 class FluidSystem {
 public:
-    explicit FluidSystem(World& world);
+    explicit FluidSystem(WorldAccess& world);
 
     void Schedule(const glm::ivec3& cell, Block fluid);
 
@@ -26,15 +25,9 @@ private:
     static constexpr float k_LavaTick = 1.0f;
 
     void Tick(Block fluid, std::unordered_set<glm::ivec3>& pending);
-    void Evaluate(const glm::ivec3& cell, Block fluid,
-        std::unordered_set<glm::ivec3>& pending,
-        std::unordered_set<glm::ivec2>& remesh, std::unordered_set<glm::ivec2>& relight);
+    void Evaluate(const glm::ivec3& cell, Block fluid, std::unordered_set<glm::ivec3>& pending);
 
-    Chunk* ChunkAt(const glm::ivec3& cell) const;
-    Block BlockAt(const glm::ivec3& cell) const;
-    uint8_t FluidAt(const glm::ivec3& cell) const;
-
-    World& m_World;
+    WorldAccess& m_World;
 
     std::unordered_set<glm::ivec3> m_PendingWater;
     std::unordered_set<glm::ivec3> m_PendingLava;

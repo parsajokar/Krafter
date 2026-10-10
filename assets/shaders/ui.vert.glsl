@@ -2,15 +2,15 @@
 
 layout(push_constant) uniform Push {
     mat4 projection;
-    vec4 transform; // xy = top-left position (pixels), zw = size (pixels)
-    vec4 uvRect;    // xy = uv min, zw = uv size
+    vec4 transform;
+    vec4 uvRect;
     vec4 tint;
     int useTexture;
     int invert;
 } pc;
 
-layout(location = 0) in vec2 a_Position; // unit quad, 0..1
-layout(location = 1) in vec2 a_UvCoords; // unit quad, 0..1
+layout(location = 0) in vec2 a_Position;
+layout(location = 1) in vec2 a_UvCoords;
 
 layout(location = 0) out vec2 v_UvCoords;
 

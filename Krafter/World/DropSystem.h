@@ -4,37 +4,53 @@
 
 #include "glm/glm.hpp"
 
-#include "Krafter/Item.h"
+#include "Krafter/World/Item.h"
 
 namespace Krafter {
 
-class World;
-class WorldRenderer;
+class WorldAccess;
+
+class ItemCollector {
+public:
+    ItemCollector() = default;
+    virtual ~ItemCollector() = default;
+
+    ItemCollector(const ItemCollector&) = delete;
+    ItemCollector& operator=(const ItemCollector&) = delete;
+
+    virtual bool HasRoomFor(const Item& item) = 0;
+
+    virtual Item Collect(const Item& item) = 0;
+};
 
 class DropSystem {
 public:
-    explicit DropSystem(const World& world);
-
-    void Spawn(const glm::vec3& position, const Item& item);
-
-    void Update(float deltaTime, const glm::vec3& cameraPosition);
-
-    void Render(WorldRenderer& renderer, const glm::mat4& viewProjection) const;
-
-    std::vector<Item> TakePickedUp()
-    {
-        return std::move(m_PickedUp);
-    }
-
-private:
     struct ItemDrop {
         glm::vec3 position;
+        glm::vec3 previousPosition;
         glm::vec3 velocity;
         Item item;
         float age;
         float phase;
     };
 
+    explicit DropSystem(const WorldAccess& world);
+
+    void Spawn(const glm::vec3& position, const Item& item);
+
+    void Tick(float step, const glm::vec3& collectorPosition, ItemCollector& collector);
+
+    const std::vector<ItemDrop>& GetDrops() const
+    {
+        return m_Drops;
+    }
+
+    float GetTime(float alpha) const
+    {
+        return m_Time - (1.0f - alpha) * m_LastStep;
+    }
+
+private:
     static constexpr float k_DropGravity = 24.0f;
     static constexpr float k_DropPopUp = 3.0f;
     static constexpr float k_DropPopOut = 1.2f;
@@ -47,16 +63,12 @@ private:
     static constexpr float k_DropLifetime = 300.0f;
     static constexpr float k_PlayerEyeHeight = 1.62f;
     static constexpr float k_DropVoidY = -16.0f;
-    static constexpr float k_DropBobSpeed = 3.0f;
-    static constexpr float k_DropBobAmplitude = 0.1f;
-    static constexpr float k_DropSize = 0.4f;
 
-    const World& m_World;
+    const WorldAccess& m_World;
 
     std::vector<ItemDrop> m_Drops;
-    std::vector<Item> m_PickedUp;
     float m_Time = 0.0f;
-    glm::vec3 m_LastCameraPosition = glm::vec3(0.0f);
+    float m_LastStep = 0.0f;
 };
 
 }
